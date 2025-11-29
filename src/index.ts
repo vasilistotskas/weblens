@@ -26,6 +26,7 @@ import { requestIdMiddleware } from "./middleware/requestId";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { PRICING, FACILITATORS, SUPPORTED_NETWORKS } from "./config";
 import { getCachedPrice } from "./utils/pricing";
+import { registerOpenAPIRoutes } from "./openapi";
 import type { Env } from "./types";
 import type { Address } from "viem";
 
@@ -54,155 +55,24 @@ app.use("*", requestIdMiddleware);
 app.use("*", errorHandlerMiddleware);
 
 
-// API Documentation (free)
-// Requirement 5.1, 8.3, 8.4: Return API documentation including all endpoints, pricing, and supported features
+// ============================================
+// OpenAPI Documentation Routes
+// Requirement 5.1, 8.3, 8.4: Auto-generated API documentation
+// ============================================
+registerOpenAPIRoutes(app);
+
+// API Documentation (free) - JSON summary
 app.get("/", (c) => {
   return c.json({
     name: "WebLens",
     version: "2.0.0",
     description: "Premium Web Intelligence API with x402 micropayments",
-    documentation: "https://github.com/weblens/weblens",
-    endpoints: {
-      "/screenshot": {
-        method: "POST",
-        price: PRICING.screenshot,
-        cachedPrice: getCachedPrice(PRICING.screenshot),
-        description: "Capture webpage screenshot as PNG",
-        features: ["viewport customization", "element selection", "full page capture"],
-        example: { url: "https://example.com", viewport: { width: 1280, height: 720 } },
-      },
-      "/fetch/basic": {
-        method: "POST",
-        price: PRICING.fetch.basic,
-        cachedPrice: getCachedPrice(PRICING.fetch.basic),
-        description: "Fetch webpage without JavaScript rendering",
-        features: ["fast response", "markdown output", "metadata extraction"],
-        example: { url: "https://example.com" },
-      },
-      "/fetch/pro": {
-        method: "POST",
-        price: PRICING.fetch.pro,
-        cachedPrice: getCachedPrice(PRICING.fetch.pro),
-        description: "Fetch webpage with full JavaScript rendering",
-        features: ["dynamic content", "SPA support", "wait for selectors"],
-        example: { url: "https://example.com", waitFor: ".content" },
-      },
-      "/search": {
-        method: "POST",
-        price: PRICING.search,
-        cachedPrice: getCachedPrice(PRICING.search),
-        description: "Real-time web search results",
-        features: ["DuckDuckGo backend", "configurable limit"],
-        example: { query: "AI news", limit: 10 },
-      },
-      "/extract": {
-        method: "POST",
-        price: PRICING.extract,
-        cachedPrice: getCachedPrice(PRICING.extract),
-        description: "Extract structured data from webpages",
-        features: ["JSON schema", "AI-powered extraction", "custom instructions"],
-        example: { url: "https://example.com", schema: { title: "string", price: "number" } },
-      },
-      "/health": {
-        method: "GET",
-        price: "free",
-        description: "System health status",
-      },
-      "/batch/fetch": {
-        method: "POST",
-        price: `${PRICING.batchFetch.perUrl}/URL`,
-        description: "Fetch multiple URLs in a single request",
-        features: ["parallel fetching", "partial failure handling", "2-20 URLs per request"],
-        example: { urls: ["https://example.com", "https://example.org"], timeout: 10000 },
-      },
-      "/research": {
-        method: "POST",
-        price: PRICING.research,
-        description: "One-stop research: search + fetch + AI summarize",
-        features: ["web search", "content fetching", "AI-generated summary", "key findings"],
-        example: { query: "latest AI developments", resultCount: 5 },
-      },
-      "/extract/smart": {
-        method: "POST",
-        price: PRICING.smartExtract,
-        description: "AI-powered data extraction using natural language queries",
-        features: ["natural language queries", "confidence scores", "structured output"],
-        example: { url: "https://example.com", query: "find all email addresses" },
-      },
-      "/pdf": {
-        method: "POST",
-        price: PRICING.pdf,
-        description: "Extract text and metadata from PDF documents",
-        features: ["text extraction", "page markers", "metadata extraction"],
-        example: { url: "https://example.com/document.pdf" },
-      },
-      "/compare": {
-        method: "POST",
-        price: PRICING.compare,
-        description: "Compare multiple URLs with AI-generated analysis",
-        features: ["2-3 URL comparison", "similarities/differences", "AI summary"],
-        example: { urls: ["https://example.com", "https://example.org"], focus: "pricing" },
-      },
-      "/monitor/create": {
-        method: "POST",
-        price: PRICING.monitor.setup,
-        description: "Create a URL monitor for change detection",
-        features: ["webhook notifications", "configurable interval (1-24h)", "content/status monitoring"],
-        example: { url: "https://example.com", webhookUrl: "https://your-webhook.com/notify", checkInterval: 1 },
-      },
-      "/monitor/:id": {
-        methods: ["GET", "DELETE"],
-        price: "free",
-        description: "Get monitor status or delete a monitor",
-        example: { id: "mon_abc123" },
-      },
-      "/memory/set": {
-        method: "POST",
-        price: PRICING.memory.write,
-        description: "Store a value in persistent key-value storage",
-        features: ["wallet-isolated storage", "configurable TTL (1-720h)", "JSON values"],
-        example: { key: "my-data", value: { foo: "bar" }, ttl: 168 },
-      },
-      "/memory/get/:key": {
-        method: "GET",
-        price: PRICING.memory.read,
-        description: "Retrieve a stored value by key",
-        example: { key: "my-data" },
-      },
-      "/memory/:key": {
-        method: "DELETE",
-        price: "free",
-        description: "Delete a stored value",
-        example: { key: "my-data" },
-      },
-      "/memory/list": {
-        method: "GET",
-        price: PRICING.memory.read,
-        description: "List all stored keys for the current wallet",
-      },
-    },
-    pricing: {
-      cacheDiscount: "70%",
-      note: "Cached responses are 70% cheaper than fresh fetches",
-      advanced: {
-        batchFetch: `${PRICING.batchFetch.perUrl} per URL (${PRICING.batchFetch.minUrls}-${PRICING.batchFetch.maxUrls} URLs)`,
-        research: PRICING.research,
-        smartExtract: PRICING.smartExtract,
-        pdf: PRICING.pdf,
-        compare: PRICING.compare,
-        monitorSetup: PRICING.monitor.setup,
-        monitorCheck: PRICING.monitor.perCheck,
-        memoryWrite: PRICING.memory.write,
-        memoryRead: PRICING.memory.read,
-      },
+    documentation: {
+      interactive: "/docs",
+      openapi: "/openapi.json",
+      llms: "/llms.txt",
     },
     supportedNetworks: SUPPORTED_NETWORKS,
-    facilitators: {
-      base: FACILITATORS.cdp,
-      "base-sepolia": FACILITATORS.cdp,
-      solana: FACILITATORS.payai,
-      polygon: FACILITATORS.payai,
-    },
     x402: {
       version: 1,
       protocol: "https://x402.org",
@@ -540,5 +410,8 @@ app.post("/memory/set", memorySetHandler);
 app.get("/memory/get/:key", memoryGetHandler);
 app.delete("/memory/:key", memoryDeleteHandler);
 app.get("/memory/list", memoryListHandler);
+
+// Export Durable Object class for wrangler
+export { MonitorScheduler } from "./services/scheduler";
 
 export default app;
