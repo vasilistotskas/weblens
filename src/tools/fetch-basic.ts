@@ -10,10 +10,10 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
-import type { Env, FetchRequest, FetchResponse, CacheMetadata } from "../types";
+import { validateURL } from "../services/validator";
+import type { Env, FetchRequest, FetchResponse } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
-import { validateURL } from "../services/validator";
 
 const fetchBasicSchema = z.object({
   url: z.url(),
@@ -57,7 +57,7 @@ export async function fetchBasicPage(
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+    throw new Error(`Failed to fetch: ${String(response.status)} ${response.statusText}`);
   }
 
   const html = await response.text();
@@ -66,7 +66,7 @@ export async function fetchBasicPage(
 
   return {
     url,
-    title: metadata.title || "",
+    title: metadata.title ?? "",
     content,
     metadata: {
       description: metadata.description,
@@ -107,13 +107,13 @@ export async function fetchBasic(c: Context<{ Bindings: Env }>) {
       return c.json({
         error: "INVALID_URL",
         code: "INVALID_URL",
-        message: urlValidation.error || "Invalid URL",
+        message: urlValidation.error ?? "Invalid URL",
         requestId,
       }, 400);
     }
 
     // Fetch the page
-    const result = await fetchBasicPage(urlValidation.normalized || url, timeout);
+    const result = await fetchBasicPage(urlValidation.normalized ?? url, timeout);
 
     const response: FetchResponse = {
       ...result,

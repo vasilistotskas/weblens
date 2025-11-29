@@ -10,16 +10,16 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
-import type { Env, SmartExtractRequest, SmartExtractResponse } from "../types";
-import { generateRequestId } from "../utils/requestId";
-import { validateURL } from "../services/validator";
-import { fetchBasicPage } from "./fetch-basic";
 import {
   smartExtract,
   isAIAvailable,
   handleAIError,
   AIUnavailableError,
 } from "../services/ai";
+import { validateURL } from "../services/validator";
+import type { Env, SmartExtractRequest, SmartExtractResponse } from "../types";
+import { generateRequestId } from "../utils/requestId";
+import { fetchBasicPage } from "./fetch-basic";
 
 const smartExtractSchema = z.object({
   url: z.string(),
@@ -60,7 +60,7 @@ export async function smartExtractHandler(c: Context<{ Bindings: Env }>) {
         {
           error: "INVALID_URL",
           code: "INVALID_URL",
-          message: urlValidation.error || "Invalid URL",
+          message: urlValidation.error ?? "Invalid URL",
           requestId,
         },
         400
@@ -83,13 +83,13 @@ export async function smartExtractHandler(c: Context<{ Bindings: Env }>) {
 
     // Fetch the page content
     const fetchResult = await fetchBasicPage(
-      urlValidation.normalized || url,
+      urlValidation.normalized ?? url,
       15000
     );
 
     // Perform AI extraction
     const extractResult = await smartExtract(
-      { apiKey: c.env.ANTHROPIC_API_KEY! },
+      { apiKey: c.env.ANTHROPIC_API_KEY },
       {
         content: fetchResult.content,
         query,

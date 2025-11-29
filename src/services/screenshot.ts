@@ -96,7 +96,7 @@ export async function captureScreenshot(
       
       screenshotBuffer = await element.screenshot({
         type: "png",
-      }) as Buffer;
+      });
 
       // Get element dimensions
       const boundingBox = await element.boundingBox();
@@ -111,7 +111,7 @@ export async function captureScreenshot(
       screenshotBuffer = await page.screenshot({
         type: "png",
         fullPage: true,
-      }) as Buffer;
+      });
 
       // Get full page dimensions
       const bodyHandle = await page.$("body");
@@ -128,7 +128,7 @@ export async function captureScreenshot(
       // Capture viewport
       screenshotBuffer = await page.screenshot({
         type: "png",
-      }) as Buffer;
+      });
     }
 
     // Convert to base64

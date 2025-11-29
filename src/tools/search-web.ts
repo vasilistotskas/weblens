@@ -68,7 +68,7 @@ function parseDuckDuckGoResults(html: string, limit: number): SearchResult[] {
       results.push({
         title: decodeHtmlEntities(title.trim()),
         url: decodeURIComponent(url),
-        snippet: decodeHtmlEntities(snippet?.trim() || ""),
+        snippet: decodeHtmlEntities(snippet.trim()),
         position: position++,
       });
     }
@@ -77,16 +77,18 @@ function parseDuckDuckGoResults(html: string, limit: number): SearchResult[] {
   // Fallback: try alternative parsing if regex didn't work
   if (results.length === 0) {
     const linkRegex = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*>([^<]+)<\/a>/gi;
-    const urlRegex = /href="\/\/duckduckgo\.com\/l\/\?uddg=([^&"]+)/gi;
+    // urlRegex is available for future use if needed
 
     let linkMatch;
     while ((linkMatch = linkRegex.exec(html)) !== null && results.length < limit) {
-      results.push({
-        title: decodeHtmlEntities(linkMatch[1].trim()),
-        url: "",
-        snippet: "",
-        position: position++,
-      });
+      if (linkMatch[1]) {
+        results.push({
+          title: decodeHtmlEntities(linkMatch[1].trim()),
+          url: "",
+          snippet: "",
+          position: position++,
+        });
+      }
     }
   }
 

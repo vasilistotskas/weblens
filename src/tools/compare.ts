@@ -11,10 +11,10 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { compare as aiCompare, isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import type { Env, CompareRequest, CompareResponse, CompareSource } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { fetchBasicPage } from "./fetch-basic";
-import { compare as aiCompare, isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 
 const compareSchema = z.object({
   urls: z.array(z.url()).min(2).max(3),
@@ -38,7 +38,7 @@ export async function compareHandler(c: Context<{ Bindings: Env }>) {
         (issue) => issue.path[0] === "urls"
       );
       
-      if (urlsIssue && urlsIssue.code === "too_small") {
+      if (urlsIssue?.code === "too_small") {
         return c.json(
           {
             error: "COMPARE_TOO_SMALL",
@@ -50,7 +50,7 @@ export async function compareHandler(c: Context<{ Bindings: Env }>) {
         );
       }
 
-      if (urlsIssue && urlsIssue.code === "too_big") {
+      if (urlsIssue?.code === "too_big") {
         return c.json(
           {
             error: "COMPARE_TOO_LARGE",
@@ -141,7 +141,7 @@ export async function compareHandler(c: Context<{ Bindings: Env }>) {
 
     // Generate AI comparison
     const comparisonResult = await aiCompare(
-      { apiKey: c.env.ANTHROPIC_API_KEY! },
+      { apiKey: c.env.ANTHROPIC_API_KEY },
       { sources, focus }
     );
 

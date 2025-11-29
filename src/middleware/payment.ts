@@ -8,8 +8,9 @@
  * - PayAI facilitator for Solana/Polygon
  */
 
-import { paymentMiddleware } from "x402-hono";
+import { facilitator } from "@coinbase/x402";
 import type { Address } from "viem";
+import { paymentMiddleware } from "x402-hono";
 import { FACILITATORS } from "../config";
 
 /**
@@ -28,12 +29,13 @@ export interface NetworkPaymentConfig {
 /**
  * Get all supported network configurations
  * Returns configurations for Base (CDP) and Solana/Polygon (PayAI)
+ * Note: For Base, use the CDP facilitator object from @coinbase/x402
  */
 export function getSupportedNetworks(): NetworkPaymentConfig[] {
   return [
-    // Base networks use CDP facilitator
-    { network: "base-sepolia", facilitatorUrl: FACILITATORS.cdp },
-    { network: "base", facilitatorUrl: FACILITATORS.cdp },
+    // Base networks use CDP facilitator (via @coinbase/x402 facilitator object)
+    { network: "base-sepolia", facilitatorUrl: FACILITATORS.testnet },
+    { network: "base", facilitatorUrl: FACILITATORS.payai },
     // Solana and Polygon use PayAI facilitator
     { network: "solana", facilitatorUrl: FACILITATORS.payai },
     { network: "polygon", facilitatorUrl: FACILITATORS.payai },
@@ -42,17 +44,19 @@ export function getSupportedNetworks(): NetworkPaymentConfig[] {
 
 /**
  * Get facilitator URL for a specific network
+ * Note: For production Base, prefer using the CDP facilitator object from @coinbase/x402
  */
 export function getFacilitatorForNetwork(network: SupportedNetwork): string {
   switch (network) {
     case "base":
+      return FACILITATORS.payai; // Or use CDP facilitator object
     case "base-sepolia":
-      return FACILITATORS.cdp;
+      return FACILITATORS.testnet;
     case "solana":
     case "polygon":
       return FACILITATORS.payai;
     default:
-      return FACILITATORS.cdp;
+      return FACILITATORS.payai;
   }
 }
 
@@ -74,7 +78,7 @@ export function createPaymentConfig(
   discoverable: boolean = true
 ) {
   // Use Base mainnet for production payments
-  // PayAI facilitator handles verification and settlement
+  // CDP facilitator handles verification and settlement
   return {
     routes: {
       [endpoint]: {
@@ -86,7 +90,7 @@ export function createPaymentConfig(
         },
       },
     },
-    facilitatorUrl: FACILITATORS.cdp,
+    facilitator, // CDP facilitator object from @coinbase/x402
   };
 }
 
@@ -106,7 +110,7 @@ export function createMultiChainPaymentMiddleware(
   description: string
 ) {
   // Use Base mainnet for production payments
-  // PayAI facilitator supports Base, Solana, Polygon and more
+  // CDP facilitator handles verification and settlement
   return paymentMiddleware(
     walletAddress,
     {
@@ -119,7 +123,7 @@ export function createMultiChainPaymentMiddleware(
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    facilitator // CDP facilitator object from @coinbase/x402
   );
 }
 
@@ -164,7 +168,7 @@ export function getAllEndpointConfigs(): EndpointPaymentConfig[] {
     },
     {
       endpoint: "/extract",
-      price: "$0.02",
+      price: "$0.03",
       description: "Extract structured data from webpages",
     },
   ];

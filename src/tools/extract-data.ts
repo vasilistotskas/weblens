@@ -10,6 +10,10 @@ const extractSchema = z.object({
   instructions: z.string().optional(),
 });
 
+interface ClaudeApiResponse {
+  content: { text?: string }[];
+}
+
 export async function extractData(c: Context<{ Bindings: Env }>) {
   try {
     const body = await c.req.json<ExtractRequest>();
@@ -21,7 +25,6 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
 
     const { url, schema, instructions } = parsed.data;
 
-    // Fetch the page
     const response = await fetch(url, {
       headers: {
         "User-Agent":
@@ -32,17 +35,15 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
     });
 
     if (!response.ok) {
-      return c.json({ error: `Failed to fetch: ${response.status}` }, 502);
+      return c.json({ error: `Failed to fetch: ${String(response.status)}` }, 502);
     }
 
     const html = await response.text();
     const content = htmlToMarkdown(html);
 
-    // Use Claude for intelligent extraction
     const anthropicKey = c.env.ANTHROPIC_API_KEY;
 
     if (!anthropicKey) {
-      // Fallback: basic regex extraction
       const data = basicExtraction(html, schema);
       return c.json({
         url,
@@ -52,7 +53,6 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
       });
     }
 
-    // AI-powered extraction
     const data = await aiExtraction(content, schema, instructions, anthropicKey);
 
     const result: ExtractResponse = {
@@ -102,16 +102,15 @@ Respond ONLY with valid JSON matching the schema. No explanations.`;
   });
 
   if (!response.ok) {
-    throw new Error(`AI extraction failed: ${response.status}`);
+    throw new Error(`AI extraction failed: ${String(response.status)}`);
   }
 
-  const result = (await response.json()) as {
-    content: Array<{ type: string; text: string }>;
-  };
-  const text = result.content[0]?.text || "{}";
+  const result = (await response.json());
+  const firstContent = result.content[0];
+  const text: string = firstContent?.text ?? "{}";
 
   try {
-    return JSON.parse(text);
+    return JSON.parse(text) as Record<string, unknown>;
   } catch {
     return { raw: text };
   }
@@ -123,22 +122,21 @@ function basicExtraction(
 ): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
-  // Extract common patterns based on schema keys
   for (const key of Object.keys(schema)) {
     const lowerKey = key.toLowerCase();
 
     if (lowerKey.includes("price")) {
-      const priceMatch = html.match(/\$[\d,]+\.?\d*/);
-      data[key] = priceMatch?.[0] || null;
+      const priceMatch = /\$[\d,]+\.?\d*/.exec(html);
+      data[key] = priceMatch?.[0] ?? null;
     } else if (lowerKey.includes("email")) {
-      const emailMatch = html.match(/[\w.-]+@[\w.-]+\.\w+/);
-      data[key] = emailMatch?.[0] || null;
+      const emailMatch = /[\w.-]+@[\w.-]+\.\w+/.exec(html);
+      data[key] = emailMatch?.[0] ?? null;
     } else if (lowerKey.includes("phone")) {
-      const phoneMatch = html.match(/[\d-()+ ]{10,}/);
-      data[key] = phoneMatch?.[0]?.trim() || null;
+      const phoneMatch = /[\d-()+ ]{10,}/.exec(html);
+      data[key] = phoneMatch?.[0]?.trim() ?? null;
     } else if (lowerKey.includes("title")) {
-      const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-      data[key] = titleMatch?.[1] || null;
+      const titleMatch = /<title>([^<]+)<\/title>/i.exec(html);
+      data[key] = titleMatch?.[1] ?? null;
     } else {
       data[key] = null;
     }

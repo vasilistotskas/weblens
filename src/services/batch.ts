@@ -7,8 +7,8 @@
  * - Handle partial failures gracefully
  */
 
-import type { BatchFetchResult, PageMetadata } from "../types";
 import { fetchBasicPage } from "../tools/fetch-basic";
+import type { BatchFetchResult, PageMetadata } from "../types";
 
 /**
  * Fetch a single URL and return a BatchFetchResult

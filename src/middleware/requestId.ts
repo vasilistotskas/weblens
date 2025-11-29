@@ -50,7 +50,7 @@ export async function requestIdMiddleware(c: Context, next: Next) {
  * Returns the request ID if set, or generates a new one
  */
 export function getRequestId(c: Context): string {
-  return c.get(REQUEST_ID_KEY) || generateRequestId();
+  return (c.get(REQUEST_ID_KEY) as string | undefined) ?? generateRequestId();
 }
 
 /**
@@ -58,8 +58,8 @@ export function getRequestId(c: Context): string {
  * Returns the elapsed time since request start in milliseconds
  */
 export function getProcessingTime(c: Context): number {
-  const startTime = c.get(REQUEST_START_TIME_KEY);
-  if (!startTime) {
+  const startTime = c.get(REQUEST_START_TIME_KEY) as number | undefined;
+  if (startTime === undefined) {
     return 0;
   }
   return Date.now() - startTime;

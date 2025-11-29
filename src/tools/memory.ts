@@ -11,6 +11,14 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import {
+  setMemory,
+  getMemory,
+  deleteMemory,
+  listMemoryKeys,
+  validateKey,
+  validateValue,
+} from "../services/memory";
 import type {
   Env,
   MemorySetRequest,
@@ -19,16 +27,6 @@ import type {
   MemoryListResponse,
 } from "../types";
 import { generateRequestId } from "../utils/requestId";
-import {
-  setMemory,
-  getMemory,
-  deleteMemory,
-  listMemoryKeys,
-  validateKey,
-  validateValue,
-  clampTtl,
-} from "../services/memory";
-import { PRICING } from "../config";
 
 const memorySetSchema = z.object({
   key: z.string().min(1).max(256),
@@ -40,12 +38,20 @@ const memorySetSchema = z.object({
  * Extract wallet address from payment context
  * In x402, the paying wallet is available after payment verification
  */
+interface PaymentPayload {
+  payload?: {
+    authorization?: {
+      from?: string;
+    };
+  };
+}
+
 function getWalletAddress(c: Context<{ Bindings: Env }>): string {
   // Try to get from x402 payment context
   const paymentHeader = c.req.header("X-PAYMENT");
   if (paymentHeader) {
     try {
-      const decoded = JSON.parse(atob(paymentHeader));
+      const decoded = JSON.parse(atob(paymentHeader)) as PaymentPayload;
       if (decoded.payload?.authorization?.from) {
         return decoded.payload.authorization.from;
       }

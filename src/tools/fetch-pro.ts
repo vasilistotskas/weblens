@@ -9,14 +9,14 @@
  * - Includes tier metadata in response
  */
 
+import puppeteer from "@cloudflare/puppeteer";
 import type { Context } from "hono";
 import { z } from "zod/v4";
-import puppeteer from "@cloudflare/puppeteer";
+import { VIEWPORT_BOUNDS } from "../config";
+import { validateURL } from "../services/validator";
 import type { Env, FetchRequest, FetchResponse } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
-import { validateURL } from "../services/validator";
-import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "../config";
 
 const fetchProSchema = z.object({
   url: z.url(),
@@ -89,7 +89,7 @@ export async function fetchProPage(
 
     return {
       url,
-      title: pageTitle || metadata.title || "",
+      title: (pageTitle !== "" ? pageTitle : metadata.title) ?? "",
       content,
       metadata: {
         description: metadata.description,
@@ -133,7 +133,7 @@ export async function fetchPro(c: Context<{ Bindings: Env }>) {
       return c.json({
         error: "INVALID_URL",
         code: "INVALID_URL",
-        message: urlValidation.error || "Invalid URL",
+        message: urlValidation.error ?? "Invalid URL",
         requestId,
       }, 400);
     }
@@ -151,7 +151,7 @@ export async function fetchPro(c: Context<{ Bindings: Env }>) {
     // Fetch the page with JS rendering
     const result = await fetchProPage(
       c.env.BROWSER,
-      urlValidation.normalized || url,
+      urlValidation.normalized ?? url,
       timeout,
       waitFor
     );
@@ -180,7 +180,7 @@ export async function fetchPro(c: Context<{ Bindings: Env }>) {
       return c.json({
         error: "RENDER_FAILED",
         code: "RENDER_FAILED",
-        message: "Browser rendering failed: " + message,
+        message: `Browser rendering failed: ${message}`,
         requestId,
       }, 502);
     }

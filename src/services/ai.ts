@@ -43,7 +43,7 @@ export interface ExtractResult {
 }
 
 export interface CompareOptions {
-  sources: Array<{ url: string; title: string; content: string }>;
+  sources: { url: string; title: string; content: string }[];
   focus?: string;
 }
 
@@ -55,6 +55,10 @@ export interface CompareResult {
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const DEFAULT_MAX_TOKENS = 4000;
+
+interface ClaudeApiResponse {
+  content: { text?: string }[];
+}
 
 /**
  * Call Claude API with a prompt
@@ -72,8 +76,8 @@ async function callClaude(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: config.model || DEFAULT_MODEL,
-      max_tokens: config.maxTokens || DEFAULT_MAX_TOKENS,
+      model: config.model ?? DEFAULT_MODEL,
+      max_tokens: config.maxTokens ?? DEFAULT_MAX_TOKENS,
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
     }),
@@ -87,14 +91,12 @@ async function callClaude(
     if (status === 401) {
       throw new AIUnavailableError("Invalid API key");
     }
-    throw new AIUnavailableError(`Claude API error: ${status}`);
+    throw new AIUnavailableError(`Claude API error: ${String(status)}`);
   }
 
-  const result = (await response.json()) as {
-    content: Array<{ type: string; text: string }>;
-  };
-
-  return result.content[0]?.text || "";
+  const result = (await response.json());
+  const firstContent = result.content[0];
+  return firstContent?.text ?? "";
 }
 
 /**
@@ -106,6 +108,7 @@ export class AIUnavailableError extends Error {
     this.name = "AIUnavailableError";
   }
 }
+
 
 /**
  * Summarize content with optional query focus
@@ -125,7 +128,7 @@ Always respond with valid JSON in this exact format:
 }`;
 
   const prompt = `Summarize the following content${query ? ` focusing on: "${query}"` : ""}.
-Keep the summary under ${maxLength} words. Extract 3-5 key findings.
+Keep the summary under ${String(maxLength)} words. Extract 3-5 key findings.
 
 Content:
 ${content.slice(0, 12000)}
@@ -135,15 +138,14 @@ Respond ONLY with valid JSON.`;
   const response = await callClaude(config, prompt, systemPrompt);
 
   try {
-    const parsed = JSON.parse(response) as SummarizeResult;
+    const parsed = JSON.parse(response) as Partial<SummarizeResult>;
     return {
-      summary: parsed.summary || "",
-      keyFindings: parsed.keyFindings || [],
+      summary: parsed.summary ?? "",
+      keyFindings: parsed.keyFindings ?? [],
     };
   } catch {
-    // Fallback if JSON parsing fails
     return {
-      summary: response.slice(0, maxLength * 6), // Approximate word to char ratio
+      summary: response.slice(0, maxLength * 6),
       keyFindings: [],
     };
   }
@@ -181,10 +183,10 @@ Respond ONLY with valid JSON.`;
   const response = await callClaude(config, prompt, systemPrompt);
 
   try {
-    const parsed = JSON.parse(response) as ExtractResult;
+    const parsed = JSON.parse(response) as Partial<ExtractResult>;
     return {
-      data: parsed.data || [],
-      explanation: parsed.explanation || "",
+      data: parsed.data ?? [],
+      explanation: parsed.explanation ?? "",
     };
   } catch {
     return {
@@ -215,13 +217,13 @@ Always respond with valid JSON in this exact format:
   const sourcesText = sources
     .map(
       (s, i) => `
---- Source ${i + 1}: ${s.title} (${s.url}) ---
+--- Source ${String(i + 1)}: ${s.title} (${s.url}) ---
 ${s.content.slice(0, 4000)}
 `
     )
     .join("\n");
 
-  const prompt = `Compare the following ${sources.length} sources${focus ? ` focusing on: "${focus}"` : ""}.
+  const prompt = `Compare the following ${String(sources.length)} sources${focus ? ` focusing on: "${focus}"` : ""}.
 
 ${sourcesText}
 
@@ -232,11 +234,11 @@ Respond ONLY with valid JSON.`;
   const response = await callClaude(config, prompt, systemPrompt);
 
   try {
-    const parsed = JSON.parse(response) as CompareResult;
+    const parsed = JSON.parse(response) as Partial<CompareResult>;
     return {
-      similarities: parsed.similarities || [],
-      differences: parsed.differences || [],
-      summary: parsed.summary || "",
+      similarities: parsed.similarities ?? [],
+      differences: parsed.differences ?? [],
+      summary: parsed.summary ?? "",
     };
   } catch {
     return {
@@ -250,8 +252,8 @@ Respond ONLY with valid JSON.`;
 /**
  * Check if AI service is available
  */
-export function isAIAvailable(apiKey: string | undefined): boolean {
-  return !!apiKey && apiKey.length > 0;
+export function isAIAvailable(apiKey: string | undefined): apiKey is string {
+  return apiKey !== undefined && apiKey.length > 0;
 }
 
 /**
@@ -274,7 +276,6 @@ export function handleAIError(error: unknown): {
   }
 
   if (error instanceof Error) {
-    // Check for network/timeout errors
     if (
       error.message.includes("timeout") ||
       error.message.includes("network")
@@ -287,7 +288,6 @@ export function handleAIError(error: unknown): {
       };
     }
 
-    // Generic extraction/processing failure
     if (
       error.message.includes("extract") ||
       error.message.includes("parse")
@@ -299,6 +299,13 @@ export function handleAIError(error: unknown): {
         retryable: true,
       };
     }
+
+    return {
+      code: "INTERNAL_ERROR",
+      message: error.message,
+      status: 500,
+      retryable: false,
+    };
   }
 
   return {

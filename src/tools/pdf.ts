@@ -9,14 +9,14 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
-import type { Env, PdfExtractRequest, PdfExtractResponse } from "../types";
-import { generateRequestId } from "../utils/requestId";
-import { validateURL } from "../services/validator";
 import {
   extractPdf,
   InvalidPdfError,
   PdfTooLargeError,
 } from "../services/pdf";
+import { validateURL } from "../services/validator";
+import type { Env, PdfExtractRequest, PdfExtractResponse } from "../types";
+import { generateRequestId } from "../utils/requestId";
 
 const pdfSchema = z.object({
   url: z.string(),
@@ -56,7 +56,7 @@ export async function pdfHandler(c: Context<{ Bindings: Env }>) {
         {
           error: "INVALID_URL",
           code: "INVALID_URL",
-          message: urlValidation.error || "Invalid URL",
+          message: urlValidation.error ?? "Invalid URL",
           requestId,
         },
         400
@@ -64,7 +64,7 @@ export async function pdfHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Extract PDF content
-    const result = await extractPdf(urlValidation.normalized || url, pages);
+    const result = await extractPdf(urlValidation.normalized ?? url, pages);
 
     const response: PdfExtractResponse = {
       url,

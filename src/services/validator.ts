@@ -68,7 +68,7 @@ function isBlockedHost(hostname: string): boolean {
  */
 export function validateURL(input: string): URLValidationResult {
   // Handle empty or whitespace-only input
-  if (!input || !input.trim()) {
+  if (!input.trim()) {
     return { valid: false, error: "URL is required" };
   }
 

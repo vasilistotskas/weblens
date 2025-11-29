@@ -44,7 +44,7 @@ function sortKeys(obj: Record<string, unknown>): Record<string, unknown> {
  * @returns The clamped TTL within valid bounds
  */
 export function clampTtl(ttl: number | undefined): number {
-  if (ttl === undefined || ttl === null) {
+  if (ttl === undefined) {
     return CACHE_CONFIG.defaultTtl;
   }
   return Math.max(CACHE_CONFIG.minTtl, Math.min(CACHE_CONFIG.maxTtl, ttl));
@@ -127,14 +127,14 @@ export class CacheManager {
    * @param data - The data to cache
    * @param ttl - Time-to-live in seconds (will be clamped to valid bounds)
    */
-  async set<T = unknown>(key: string, data: T, ttl?: number): Promise<void> {
+  async set(key: string, data: unknown, ttl?: number): Promise<void> {
     if (!this.kv) {
       return;
     }
 
     const clampedTtl = clampTtl(ttl);
     
-    const cached: CachedResponse<T> = {
+    const cached: CachedResponse = {
       data,
       cachedAt: new Date().toISOString(),
       ttl: clampedTtl,

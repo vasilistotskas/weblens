@@ -5,35 +5,35 @@
  * Requirements: All
  */
 
+import { facilitator } from "@coinbase/x402";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import type { Address } from "viem";
 import { paymentMiddleware } from "x402-hono";
-import { facilitator } from "@coinbase/x402";
+import { PRICING, SUPPORTED_NETWORKS } from "./config";
+import { errorHandlerMiddleware } from "./middleware/errorHandler";
+import { requestIdMiddleware } from "./middleware/requestId";
+import { securityMiddleware } from "./middleware/security";
+import { registerOpenAPIRoutes } from "./openapi";
+import { batchFetchHandler } from "./tools/batch-fetch";
+import { compareHandler } from "./tools/compare";
+import { extractData } from "./tools/extract-data";
 import { fetchBasic } from "./tools/fetch-basic";
 import { fetchPro } from "./tools/fetch-pro";
-import { searchWeb } from "./tools/search-web";
-import { extractData } from "./tools/extract-data";
-import { screenshot } from "./tools/screenshot";
 import { health } from "./tools/health";
-import { batchFetchHandler } from "./tools/batch-fetch";
-import { researchHandler } from "./tools/research";
-import { smartExtractHandler } from "./tools/smart-extract";
-import { pdfHandler } from "./tools/pdf";
-import { compareHandler } from "./tools/compare";
-import { monitorCreateHandler, monitorGetHandler, monitorDeleteHandler } from "./tools/monitor";
+import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "./tools/mcp";
 import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHandler } from "./tools/memory";
-import { requestIdMiddleware } from "./middleware/requestId";
-import { errorHandlerMiddleware } from "./middleware/errorHandler";
-import { securityMiddleware } from "./middleware/security";
-import { PRICING, SUPPORTED_NETWORKS } from "./config";
-import { getCachedPrice } from "./utils/pricing";
-import { registerOpenAPIRoutes } from "./openapi";
+import { monitorCreateHandler, monitorGetHandler, monitorDeleteHandler } from "./tools/monitor";
+import { pdfHandler } from "./tools/pdf";
+import { researchHandler } from "./tools/research";
+import { screenshot } from "./tools/screenshot";
+import { searchWeb } from "./tools/search-web";
+import { smartExtractHandler } from "./tools/smart-extract";
 import type { Env } from "./types";
-import type { Address } from "viem";
 
 // Default wallet for development - replace with your own
-const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ||
+const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ??
   "0x0000000000000000000000000000000000000000") as Address;
 
 // CDP Facilitator for Bazaar discovery
@@ -112,7 +112,7 @@ app.use(
         price: PRICING.fetch.basic,
         network: "base",
         config: {
-          description: "Fetch webpage without JavaScript rendering (basic tier)",
+          description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. POST with {url: string, timeout?: number, cache?: boolean}",
           discoverable: true,
         },
       },
@@ -131,7 +131,7 @@ app.use(
         price: PRICING.fetch.pro,
         network: "base",
         config: {
-          description: "Fetch webpage with full JavaScript rendering (pro tier)",
+          description: "Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content. POST with {url: string, waitFor?: string, timeout?: number}",
           discoverable: true,
         },
       },
@@ -150,7 +150,7 @@ app.use(
         price: PRICING.screenshot,
         network: "base",
         config: {
-          description: "Capture webpage screenshot",
+          description: "Capture a screenshot of any webpage. Returns base64 PNG. POST with {url: string, viewport?: {width, height}, fullPage?: boolean}",
           discoverable: true,
         },
       },
@@ -169,7 +169,7 @@ app.use(
         price: PRICING.search,
         network: "base",
         config: {
-          description: "Real-time web search results",
+          description: "Real-time web search. Returns titles, URLs, and snippets. POST with {query: string, limit?: number}",
           discoverable: true,
         },
       },
@@ -188,7 +188,7 @@ app.use(
         price: PRICING.extract,
         network: "base",
         config: {
-          description: "Extract structured data from webpages",
+          description: "Extract structured data from webpages using JSON schema. POST with {url: string, schema: object, instructions?: string}",
           discoverable: true,
         },
       },
@@ -213,7 +213,7 @@ app.use(
         price: "$0.006", // Minimum price for 2 URLs
         network: "base",
         config: {
-          description: "Fetch multiple URLs in parallel (2-20 URLs, $0.003/URL)",
+          description: "Fetch multiple URLs in parallel. Efficient for bulk operations. POST with {urls: string[], tier?: 'basic'|'pro'}. Price: $0.003/URL",
           discoverable: true,
         },
       },
@@ -232,7 +232,7 @@ app.use(
         price: PRICING.research,
         network: "base",
         config: {
-          description: "Search, fetch, and AI-summarize research topics",
+          description: "One-stop research: searches web, fetches top results, generates AI summary with key findings. POST with {query: string, resultCount?: number}",
           discoverable: true,
         },
       },
@@ -251,7 +251,7 @@ app.use(
         price: PRICING.smartExtract,
         network: "base",
         config: {
-          description: "AI-powered data extraction using natural language queries",
+          description: "AI-powered data extraction using natural language. Just describe what you want. POST with {url: string, query: string, format?: 'json'|'text'}",
           discoverable: true,
         },
       },
@@ -270,7 +270,7 @@ app.use(
         price: PRICING.pdf,
         network: "base",
         config: {
-          description: "Extract text and metadata from PDF documents",
+          description: "Extract text and metadata from PDF documents. POST with {url: string, pages?: number[]}",
           discoverable: true,
         },
       },
@@ -289,7 +289,7 @@ app.use(
         price: PRICING.compare,
         network: "base",
         config: {
-          description: "Compare 2-3 URLs with AI-generated analysis",
+          description: "Compare 2-3 webpages with AI-generated analysis of similarities and differences. POST with {urls: string[], focus?: string}",
           discoverable: true,
         },
       },
@@ -419,6 +419,14 @@ app.post("/memory/set", memorySetHandler);
 app.get("/memory/get/:key", memoryGetHandler);
 app.delete("/memory/:key", memoryDeleteHandler);
 app.get("/memory/list", memoryListHandler);
+
+// ============================================
+// MCP (Model Context Protocol) Endpoint
+// Allows AI agents to connect via HTTP transport
+// ============================================
+app.post("/mcp", mcpPostHandler);
+app.get("/mcp", mcpGetHandler);
+app.get("/mcp/info", mcpInfoHandler);
 
 // Export Durable Object class for wrangler
 export { MonitorScheduler } from "./services/scheduler";

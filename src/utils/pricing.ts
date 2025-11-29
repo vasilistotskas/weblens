@@ -5,7 +5,8 @@
  * Requirements: 3.2
  */
 
-import { PRICING, type EndpointName } from "../config";
+import { PRICING  } from "../config";
+import type {EndpointName} from "../config";
 
 /**
  * Calculate the cached price (70% discount from base price)
@@ -16,7 +17,7 @@ import { PRICING, type EndpointName } from "../config";
 export function getCachedPrice(basePrice: string): string {
   const amount = parseFloat(basePrice.replace("$", ""));
   const cachedAmount = amount * (1 - PRICING.cacheDiscount);
-  return `${cachedAmount.toFixed(4)}`;
+  return cachedAmount.toFixed(4);
 }
 
 /**

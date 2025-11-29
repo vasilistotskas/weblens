@@ -58,11 +58,11 @@ async function downloadPdf(url: string): Promise<ArrayBuffer> {
   });
 
   if (!response.ok) {
-    throw new InvalidPdfError(`Failed to download PDF: ${response.status}`);
+    throw new InvalidPdfError(`Failed to download PDF: ${String(response.status)}`);
   }
 
   // Check content type
-  const contentType = response.headers.get("content-type") || "";
+  const contentType = response.headers.get("content-type") ?? "";
   if (
     !contentType.includes("pdf") &&
     !contentType.includes("octet-stream") &&
@@ -73,9 +73,9 @@ async function downloadPdf(url: string): Promise<ArrayBuffer> {
 
   // Check size
   const contentLength = response.headers.get("content-length");
-  if (contentLength && parseInt(contentLength) > MAX_PDF_SIZE) {
+  if (contentLength && parseInt(contentLength, 10) > MAX_PDF_SIZE) {
     throw new PdfTooLargeError(
-      `PDF exceeds maximum size of ${MAX_PDF_SIZE / 1024 / 1024}MB`
+      `PDF exceeds maximum size of ${String(MAX_PDF_SIZE / 1024 / 1024)}MB`
     );
   }
 
@@ -83,7 +83,7 @@ async function downloadPdf(url: string): Promise<ArrayBuffer> {
 
   if (buffer.byteLength > MAX_PDF_SIZE) {
     throw new PdfTooLargeError(
-      `PDF exceeds maximum size of ${MAX_PDF_SIZE / 1024 / 1024}MB`
+      `PDF exceeds maximum size of ${String(MAX_PDF_SIZE / 1024 / 1024)}MB`
     );
   }
 
@@ -132,19 +132,19 @@ function extractPdfMetadata(
   const metadata: Omit<PdfMetadata, "pageCount"> = {};
 
   // Extract title
-  const titleMatch = text.match(/\/Title\s*\(([^)]+)\)/);
+  const titleMatch = /\/Title\s*\(([^)]+)\)/.exec(text);
   if (titleMatch) {
     metadata.title = decodePdfString(titleMatch[1]);
   }
 
   // Extract author
-  const authorMatch = text.match(/\/Author\s*\(([^)]+)\)/);
+  const authorMatch = /\/Author\s*\(([^)]+)\)/.exec(text);
   if (authorMatch) {
     metadata.author = decodePdfString(authorMatch[1]);
   }
 
   // Extract creation date
-  const dateMatch = text.match(/\/CreationDate\s*\(D:(\d{14})/);
+  const dateMatch = /\/CreationDate\s*\(D:(\d{14})/.exec(text);
   if (dateMatch) {
     const dateStr = dateMatch[1];
     const year = dateStr.slice(0, 4);
@@ -201,7 +201,7 @@ function extractPdfPages(text: string): PdfPage[] {
  */
 function extractReadableText(stream: string): string {
   // Look for text between parentheses (PDF text objects)
-  const textMatches = stream.match(/\(([^)]+)\)/g) || [];
+  const textMatches = stream.match(/\(([^)]+)\)/g) ?? [];
   const texts = textMatches
     .map((m) => decodePdfString(m.slice(1, -1)))
     .filter((t) => t.length > 0 && /[a-zA-Z]/.test(t));
@@ -220,7 +220,7 @@ function extractAlternativeText(text: string): string {
 
   while ((match = btRegex.exec(text)) !== null) {
     const block = match[1];
-    const textMatches = block.match(/\(([^)]+)\)/g) || [];
+    const textMatches = block.match(/\(([^)]+)\)/g) ?? [];
     const blockText = textMatches
       .map((m) => decodePdfString(m.slice(1, -1)))
       .join(" ");

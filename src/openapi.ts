@@ -3,10 +3,9 @@
  * Auto-generated API documentation using Scalar
  */
 
-import { Hono } from "hono";
 import { Scalar } from "@scalar/hono-api-reference";
+import type { Hono } from "hono";
 import { PRICING } from "./config";
-import { getCachedPrice } from "./utils/pricing";
 import type { Env } from "./types";
 
 // OpenAPI 3.0 Document
@@ -174,6 +173,21 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Keys list" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
+      "/mcp": {
+        post: {
+          tags: ["System"], summary: "MCP JSON-RPC", operationId: "mcpPost",
+          description: "Model Context Protocol endpoint for AI agents. Supports tools/list and tools/call methods.",
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { jsonrpc: { type: "string" }, method: { type: "string" }, params: { type: "object" }, id: { type: "string" } } } } } },
+          responses: { "200": { description: "JSON-RPC response" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/mcp/info": {
+        get: {
+          tags: ["System"], summary: "MCP Server Info", operationId: "mcpInfo",
+          description: "Get MCP server information including available tools and pricing.",
+          responses: { "200": { description: "Server info with tools list" } },
+        },
+      },
     },
     components: {
       schemas: {
@@ -221,17 +235,39 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       }, 
      responses: {
         PaymentRequired: {
-          description: "Payment required - use x402 protocol",
+          description: "Payment required - use x402 protocol. Parse the accepts array, sign payment with your wallet, retry with X-PAYMENT header.",
           content: {
             "application/json": {
               schema: {
                 type: "object",
+                required: ["accepts", "x402Version"],
                 properties: {
-                  error: { type: "string" },
-                  accepts: { type: "array", items: { type: "object" } },
-                  x402Version: { type: "integer" },
+                  error: { type: "string", description: "Error message" },
+                  accepts: { 
+                    type: "array", 
+                    description: "Array of payment options",
+                    items: { 
+                      type: "object",
+                      properties: {
+                        scheme: { type: "string", description: "Payment scheme (e.g., 'exact')" },
+                        network: { type: "string", description: "Blockchain network (e.g., 'base')" },
+                        maxAmountRequired: { type: "string", description: "Maximum payment amount in atomic units (USDC has 6 decimals)" },
+                        resource: { type: "string", description: "Resource URL" },
+                        payTo: { type: "string", description: "Wallet address to receive payment" },
+                        asset: { type: "string", description: "Token contract address (USDC on Base)" },
+                        maxTimeoutSeconds: { type: "integer", description: "Payment timeout in seconds" },
+                      },
+                    },
+                  },
+                  x402Version: { type: "integer", description: "x402 protocol version (1)" },
                 },
               },
+            },
+          },
+          headers: {
+            "X-PAYMENT-RESPONSE": {
+              description: "Base64-encoded JSON with settlement details (txHash, networkId) - returned on successful payment",
+              schema: { type: "string" },
             },
           },
         },
@@ -269,16 +305,232 @@ export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env }>) {
     })
   );
 
-  // LLMs.txt for AI agents
+  // LLMs.txt for AI agents - comprehensive API documentation
   app.get("/llms.txt", (c) => {
-    const doc = getOpenAPIDocument();
-    let md = `# ${doc.info.title} v${doc.info.version}\n\n${doc.info.description}\n\n## Endpoints\n\n`;
-    for (const [path, methods] of Object.entries(doc.paths)) {
-      for (const [method, spec] of Object.entries(methods as Record<string, any>)) {
-        md += `### ${method.toUpperCase()} ${path}\n${spec.summary}\n${spec.description || ""}\n\n`;
+    const llmsTxt = `# WebLens
+
+> Premium Web Intelligence API with x402 micropayments. Give your AI agents web superpowers.
+
+WebLens provides AI-powered web scraping, research, and data extraction services. All paid endpoints use the x402 protocol for HTTP-native micropayments - no accounts, no API keys, just pay per use with USDC.
+
+## API Base URL
+
+- Production: https://api.weblens.dev
+- Documentation: https://api.weblens.dev/docs
+- OpenAPI Spec: https://api.weblens.dev/openapi.json
+
+## Payment Protocol
+
+All paid endpoints use [x402](https://x402.org) micropayments:
+1. Make request to any endpoint
+2. Receive \`402 Payment Required\` with payment details in JSON body
+3. Sign USDC payment with your wallet (Base network)
+4. Retry request with \`X-PAYMENT\` header containing signed payload
+5. Receive response with \`X-PAYMENT-RESPONSE\` header (settlement proof)
+
+Supported networks: Base (mainnet), Base Sepolia (testnet)
+Token: USDC
+
+## Endpoints
+
+### Core Endpoints
+
+#### POST /fetch/basic
+Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering.
+- Price: $0.005
+- Body: \`{"url": "string", "timeout?": number, "cache?": boolean}\`
+- Returns: \`{"url", "title", "content", "metadata", "fetchedAt", "requestId"}\`
+
+#### POST /fetch/pro
+Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content.
+- Price: $0.015
+- Body: \`{"url": "string", "waitFor?": "string", "timeout?": number}\`
+- Returns: \`{"url", "title", "content", "metadata", "tier", "fetchedAt", "requestId"}\`
+
+#### POST /screenshot
+Capture a screenshot of any webpage. Returns base64 PNG.
+- Price: $0.02
+- Body: \`{"url": "string", "viewport?": {"width": number, "height": number}, "fullPage?": boolean, "selector?": "string"}\`
+- Returns: \`{"url", "image", "dimensions", "capturedAt", "requestId"}\`
+
+#### POST /batch/fetch
+Fetch multiple URLs in parallel. Efficient for bulk operations.
+- Price: $0.003 per URL (2-20 URLs)
+- Body: \`{"urls": ["string"], "tier?": "basic"|"pro", "timeout?": number}\`
+- Returns: \`{"results": [...], "summary", "totalPrice", "requestId"}\`
+
+### Search & Research
+
+#### POST /search
+Real-time web search. Returns titles, URLs, and snippets.
+- Price: $0.005
+- Body: \`{"query": "string", "limit?": number}\`
+- Returns: \`{"query", "results": [{"title", "url", "snippet"}], "searchedAt", "requestId"}\`
+
+#### POST /research
+One-stop research: searches web, fetches top results, generates AI summary with key findings.
+- Price: $0.08
+- Body: \`{"query": "string", "resultCount?": number, "includeRawContent?": boolean}\`
+- Returns: \`{"query", "sources", "summary", "keyFindings", "researchedAt", "requestId"}\`
+
+### Data Extraction
+
+#### POST /extract
+Extract structured data from webpages using JSON schema.
+- Price: $0.03
+- Body: \`{"url": "string", "schema": object, "instructions?": "string"}\`
+- Returns: \`{"url", "data", "extractedAt", "requestId"}\`
+
+#### POST /extract/smart
+AI-powered data extraction using natural language. Just describe what you want.
+- Price: $0.035
+- Body: \`{"url": "string", "query": "string", "format?": "json"|"text"}\`
+- Returns: \`{"url", "query", "data", "explanation", "extractedAt", "requestId"}\`
+
+#### POST /pdf
+Extract text and metadata from PDF documents.
+- Price: $0.01
+- Body: \`{"url": "string", "pages?": [number]}\`
+- Returns: \`{"url", "metadata", "pages", "fullText", "extractedAt", "requestId"}\`
+
+#### POST /compare
+Compare 2-3 webpages with AI-generated analysis of similarities and differences.
+- Price: $0.05
+- Body: \`{"urls": ["string"], "focus?": "string"}\`
+- Returns: \`{"sources", "comparison": {"summary", "similarities", "differences"}, "comparedAt", "requestId"}\`
+
+### Monitoring
+
+#### POST /monitor/create
+Create a URL monitor for change detection.
+- Price: $0.01
+- Body: \`{"url": "string", "webhookUrl": "string", "checkInterval?": number, "notifyOn?": "any"|"content"|"status"}\`
+- Returns: \`{"monitorId", "url", "webhookUrl", "checkInterval", "nextCheckAt", "createdAt", "requestId"}\`
+
+#### GET /monitor/{id}
+Get monitor status and history. (Free)
+- Returns: \`{"monitorId", "url", "webhookUrl", "checkInterval", "status", "lastCheck", "nextCheckAt", "requestId"}\`
+
+#### DELETE /monitor/{id}
+Delete a monitor. (Free)
+- Returns: \`{"monitorId", "deleted", "requestId"}\`
+
+### Memory (Key-Value Storage)
+
+#### POST /memory/set
+Store a value in persistent key-value storage.
+- Price: $0.001
+- Body: \`{"key": "string", "value": any, "ttl?": number}\`
+- Returns: \`{"key", "stored", "expiresAt", "requestId"}\`
+
+#### GET /memory/get/{key}
+Retrieve a stored value by key.
+- Price: $0.0005
+- Returns: \`{"key", "value", "storedAt", "expiresAt", "requestId"}\`
+
+#### GET /memory/list
+List all stored keys for the current wallet.
+- Price: $0.0005
+- Returns: \`{"keys": ["string"], "count", "requestId"}\`
+
+#### DELETE /memory/{key}
+Delete a stored value. (Free)
+- Returns: \`{"key", "deleted", "requestId"}\`
+
+### System
+
+#### GET /
+API information and documentation links. (Free)
+
+#### GET /health
+Health check endpoint. (Free)
+- Returns: \`{"status", "version", "timestamp"}\`
+
+#### GET /docs
+Interactive API documentation (Scalar UI). (Free)
+
+#### GET /openapi.json
+OpenAPI 3.0 specification. (Free)
+
+#### POST /mcp
+Model Context Protocol endpoint for AI agents. Supports JSON-RPC with tools/list and tools/call methods.
+- Free (tool calls are paid per-endpoint)
+
+#### GET /mcp/info
+MCP server information including available tools and pricing. (Free)
+
+## MCP Integration
+
+For AI agents using Model Context Protocol:
+
+### Remote HTTP (no install)
+\`\`\`json
+{
+  "mcpServers": {
+    "weblens": {
+      "url": "https://api.weblens.dev/mcp"
+    }
+  }
+}
+\`\`\`
+
+### Local with auto-payment
+\`\`\`json
+{
+  "mcpServers": {
+    "weblens": {
+      "command": "npx",
+      "args": ["-y", "weblens-mcp"],
+      "env": {
+        "PRIVATE_KEY": "0xYourPrivateKeyHere"
       }
     }
-    md += `## Payment\nAll paid endpoints use x402 protocol. Send request, receive 402, sign with wallet, retry with X-PAYMENT header.\n`;
-    return c.text(md);
+  }
+}
+\`\`\`
+
+## Available MCP Tools
+
+- \`fetch_webpage\` - Fetch webpage as markdown (basic)
+- \`fetch_webpage_pro\` - Fetch with JS rendering
+- \`screenshot\` - Capture webpage screenshot
+- \`search_web\` - Real-time web search
+- \`extract_data\` - Extract structured data with selectors
+- \`smart_extract\` - AI-powered extraction with natural language
+- \`research\` - Search + fetch + summarize
+- \`extract_pdf\` - Extract text from PDFs
+- \`compare_urls\` - Compare 2-3 webpages
+- \`batch_fetch\` - Fetch multiple URLs in parallel
+
+## Response Headers
+
+All responses include:
+- \`X-Request-Id\` - Unique request identifier
+- \`X-Processing-Time\` - Processing time in milliseconds
+- \`X-PAYMENT-RESPONSE\` - Settlement proof (on successful payment)
+
+## Error Handling
+
+Errors return JSON with:
+\`\`\`json
+{
+  "error": "Error type",
+  "code": "ERROR_CODE",
+  "message": "Human-readable message",
+  "requestId": "uuid"
+}
+\`\`\`
+
+## Cache Discount
+
+Cached responses are 70% cheaper than fresh fetches. Use \`cache: true\` in fetch requests.
+
+## Links
+
+- Website: https://api.weblens.dev
+- Documentation: https://api.weblens.dev/docs
+- x402 Protocol: https://x402.org
+`;
+    return c.text(llmsTxt);
   });
 }

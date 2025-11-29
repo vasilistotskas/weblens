@@ -6,8 +6,8 @@
  */
 
 import type { Context, Next } from "hono";
-import type { Env, CacheMetadata } from "../types";
 import { CacheManager, generateCacheKey, clampTtl } from "../services/cache";
+import type { Env, CacheMetadata } from "../types";
 
 // Extend Hono context to include cache-related data
 declare module "hono" {
@@ -38,7 +38,7 @@ export function cacheMiddleware(endpoint: string) {
     const ttl = requestedTtl ? clampTtl(parseInt(requestedTtl, 10)) : clampTtl(undefined);
     
     // Create cache manager
-    const kv = c.env?.CACHE || null;
+    const kv = c.env.CACHE ?? null;
     const cacheManager = new CacheManager(kv);
     
     // Store cache manager and TTL in context for later use
@@ -97,7 +97,7 @@ export function cacheMiddleware(endpoint: string) {
  * @param c - Hono context
  * @param data - The response data to cache
  */
-export async function storeInCache<T>(c: Context, data: T): Promise<void> {
+export async function storeInCache(c: Context, data: unknown): Promise<void> {
   const cacheManager = c.get("cacheManager") as CacheManager | undefined;
   const cacheKey = c.get("cacheKey") as string | undefined;
   const ttl = c.get("cacheTtl") as number | undefined;
@@ -115,10 +115,10 @@ export async function storeInCache<T>(c: Context, data: T): Promise<void> {
  * @param c - Hono context
  * @returns The cached data or null
  */
-export function getCachedData<T>(c: Context): T | null {
+export function getCachedData(c: Context): unknown {
   const cacheHit = c.get("cacheHit") as boolean | undefined;
   if (cacheHit) {
-    return c.get("cachedData") as T;
+    return c.get("cachedData");
   }
   return null;
 }
@@ -130,7 +130,8 @@ export function getCachedData<T>(c: Context): T | null {
  * @returns true if cache hit, false otherwise
  */
 export function isCacheHit(c: Context): boolean {
-  return c.get("cacheHit") === true;
+  const hit = c.get("cacheHit") as boolean | undefined;
+  return hit === true;
 }
 
 /**
@@ -140,5 +141,5 @@ export function isCacheHit(c: Context): boolean {
  * @returns Cache metadata object
  */
 export function getCacheMetadata(c: Context): CacheMetadata {
-  return c.get("cacheMetadata") || { hit: false };
+  return (c.get("cacheMetadata") as CacheMetadata | undefined) ?? { hit: false };
 }

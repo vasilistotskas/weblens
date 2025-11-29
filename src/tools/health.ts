@@ -7,8 +7,8 @@
  */
 
 import type { Context } from "hono";
-import type { Env, HealthResponse, ServiceStatus } from "../types";
 import { FACILITATORS } from "../config";
+import type { Env, HealthResponse, ServiceStatus } from "../types";
 
 /**
  * Check cache service health
@@ -42,7 +42,7 @@ async function checkCacheHealth(kv: KVNamespace | undefined): Promise<ServiceSta
 /**
  * Check browser rendering service health
  */
-async function checkBrowserHealth(browser: Fetcher | undefined): Promise<ServiceStatus> {
+function checkBrowserHealth(browser: Fetcher | undefined): ServiceStatus {
   if (!browser) {
     return {
       status: "unhealthy",
@@ -81,7 +81,7 @@ async function checkFacilitatorHealth(url: string): Promise<ServiceStatus> {
     return {
       status: "degraded",
       latency,
-      error: `HTTP ${response.status}`,
+      error: `HTTP ${String(response.status)}`,
     };
   } catch (error) {
     return {
@@ -127,10 +127,12 @@ function getOverallStatus(services: HealthResponse["services"]): HealthResponse[
  */
 export async function health(c: Context<{ Bindings: Env }>): Promise<Response> {
   // Check all services in parallel
-  const [cacheStatus, browserStatus, cdpStatus, payaiStatus] = await Promise.all([
+  // Note: CDP facilitator uses the object from @coinbase/x402, not a URL
+  // We check PayAI for both since it handles Base mainnet payments
+  const browserStatus = checkBrowserHealth(c.env.BROWSER);
+  const [cacheStatus, cdpStatus, payaiStatus] = await Promise.all([
     checkCacheHealth(c.env.CACHE),
-    checkBrowserHealth(c.env.BROWSER),
-    checkFacilitatorHealth(FACILITATORS.cdp),
+    checkFacilitatorHealth(FACILITATORS.payai), // CDP uses SDK object, check PayAI instead
     checkFacilitatorHealth(FACILITATORS.payai),
   ]);
 

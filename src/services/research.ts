@@ -8,13 +8,14 @@
  * - Generate AI summary
  */
 
-import type { ResearchSource } from "../types";
 import { fetchBasicPage } from "../tools/fetch-basic";
+import type { ResearchSource } from "../types";
 import {
   summarize,
-  type AIServiceConfig,
-  AIUnavailableError,
+  
+  AIUnavailableError
 } from "./ai";
+import type {AIServiceConfig} from "./ai";
 
 export interface SearchResult {
   title: string;
@@ -55,7 +56,7 @@ async function searchWeb(
   });
 
   if (!response.ok) {
-    throw new Error(`Search failed: ${response.status}`);
+    throw new Error(`Search failed: ${String(response.status)}`);
   }
 
   const html = await response.text();
@@ -79,7 +80,7 @@ function parseDuckDuckGoResults(html: string, limit: number): SearchResult[] {
       results.push({
         title: decodeHtmlEntities(title.trim()),
         url: decodeURIComponent(url),
-        snippet: decodeHtmlEntities(snippet?.trim() || ""),
+        snippet: decodeHtmlEntities(snippet.trim()),
         position: position++,
       });
     }
@@ -159,7 +160,7 @@ export async function research(
   const combinedContent = sources
     .map(
       (s) =>
-        `## ${s.title}\nURL: ${s.url}\n${s.content || s.snippet || ""}`
+        `## ${s.title}\nURL: ${s.url}\n${s.content ?? s.snippet}`
     )
     .join("\n\n");
 
@@ -180,8 +181,8 @@ export async function research(
       throw error;
     }
     // Fallback summary if AI fails
-    summary = `Research found ${sources.length} sources for "${query}". ${sources.map((s) => s.title).join(", ")}.`;
-    keyFindings = sources.slice(0, 3).map((s) => s.snippet || s.title);
+    summary = `Research found ${String(sources.length)} sources for "${query}". ${sources.map((s) => s.title).join(", ")}.`;
+    keyFindings = sources.slice(0, 3).map((s) => s.snippet);
   }
 
   return {

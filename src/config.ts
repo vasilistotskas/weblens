@@ -55,10 +55,9 @@ export const PRICING = {
 
 // Facilitator URLs for payment verification
 // Note: x402.org/facilitator is TESTNET ONLY
-// For production, use PayAI or CDP SDK's built-in facilitator
+// For production, use the CDP facilitator object from @coinbase/x402 or PayAI URL
 export const FACILITATORS = {
   // PayAI supports Base mainnet, Solana, Polygon, and more
-  cdp: "https://facilitator.payai.network",
   payai: "https://facilitator.payai.network",
   // Testnet facilitator (for development only)
   testnet: "https://x402.org/facilitator",
@@ -66,15 +65,16 @@ export const FACILITATORS = {
 
 // Supported networks and their facilitator mappings
 // Requirement 4.1: Multi-chain payment support for Base, Solana, Polygon
+// Note: For Base networks, use the CDP facilitator object from @coinbase/x402 in code
 export const NETWORKS = {
   "base-sepolia": {
-    facilitator: "cdp" as const,
-    facilitatorUrl: FACILITATORS.cdp,
+    facilitator: "testnet" as const,
+    facilitatorUrl: FACILITATORS.testnet,
     isTestnet: true,
   },
   base: {
-    facilitator: "cdp" as const,
-    facilitatorUrl: FACILITATORS.cdp,
+    facilitator: "payai" as const,
+    facilitatorUrl: FACILITATORS.payai,
     isTestnet: false,
   },
   solana: {
@@ -144,8 +144,10 @@ export function getEndpointPrice(
     case "extract":
       basePrice = PRICING.extract;
       break;
-    default:
-      throw new Error(`Unknown endpoint: ${endpoint}`);
+    default: {
+      const _exhaustiveCheck: never = endpoint;
+      throw new Error(`Unknown endpoint: ${String(_exhaustiveCheck)}`);
+    }
   }
 
   return cached ? getCachedPrice(basePrice) : basePrice;

@@ -10,20 +10,19 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
-import type {
-  Env,
-  MonitorCreateRequest,
-  MonitorCreateResponse,
-} from "../types";
-import { generateRequestId } from "../utils/requestId";
 import {
   createMonitor,
   getMonitor,
   deleteMonitor,
   toMonitorStatus,
   validateWebhookUrl,
-  clampInterval,
 } from "../services/monitor";
+import type {
+  Env,
+  MonitorCreateRequest,
+  MonitorCreateResponse,
+} from "../types";
+import { generateRequestId } from "../utils/requestId";
 
 const monitorCreateSchema = z.object({
   url: z.url(),
@@ -35,11 +34,19 @@ const monitorCreateSchema = z.object({
 /**
  * Extract wallet address from payment context
  */
+interface PaymentPayload {
+  payload?: {
+    authorization?: {
+      from?: string;
+    };
+  };
+}
+
 function getWalletAddress(c: Context<{ Bindings: Env }>): string {
   const paymentHeader = c.req.header("X-PAYMENT");
   if (paymentHeader) {
     try {
-      const decoded = JSON.parse(atob(paymentHeader));
+      const decoded = JSON.parse(atob(paymentHeader)) as PaymentPayload;
       if (decoded.payload?.authorization?.from) {
         return decoded.payload.authorization.from;
       }

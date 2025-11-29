@@ -33,7 +33,7 @@ export async function fetchPage(c: Context<{ Bindings: Env }>) {
     });
 
     if (!response.ok) {
-      return c.json({ error: `Failed to fetch: ${response.status} ${response.statusText}` }, 502);
+      return c.json({ error: `Failed to fetch: ${String(response.status)} ${response.statusText}` }, 502);
     }
 
     const html = await response.text();
@@ -42,7 +42,7 @@ export async function fetchPage(c: Context<{ Bindings: Env }>) {
 
     const result: FetchResponse = {
       url,
-      title: metadata.title || "",
+      title: metadata.title ?? "",
       content,
       metadata: {
         description: metadata.description,

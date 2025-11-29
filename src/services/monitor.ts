@@ -160,6 +160,7 @@ export async function updateMonitorAfterCheck(
 
   const now = new Date().toISOString();
   const perCheckCents = parseFloat(PRICING.monitor.perCheck.replace("$", "")) * 100;
+  void changed; // Used for webhook notification logic
 
   const updated: StoredMonitor = {
     ...monitor,
@@ -254,7 +255,7 @@ export function toMonitorStatus(monitor: StoredMonitor): MonitorStatus {
       ? {
           checkedAt: monitor.lastCheckAt,
           changed: false, // Would need to track this separately
-          contentHash: monitor.lastContentHash || "",
+          contentHash: monitor.lastContentHash ?? "",
         }
       : undefined,
     checkCount: monitor.checkCount,
@@ -392,9 +393,7 @@ export async function checkMonitor(
 /**
  * Get all monitors that are due for checking
  */
-export async function getMonitorsDueForCheck(
-  config: MonitorServiceConfig
-): Promise<StoredMonitor[]> {
+export function getMonitorsDueForCheck(): StoredMonitor[] {
   // Note: In a real implementation, this would use KV list with prefix
   // and filter by nextCheckAt. For now, this is a placeholder that
   // would be implemented with Durable Objects for proper scheduling.

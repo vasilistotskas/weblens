@@ -10,11 +10,11 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { PRICING, getBatchFetchPrice } from "../config";
+import { batchFetch } from "../services/batch";
+import { validateURL } from "../services/validator";
 import type { Env, BatchFetchRequest, BatchFetchResponse } from "../types";
 import { generateRequestId } from "../utils/requestId";
-import { validateURL } from "../services/validator";
-import { batchFetch } from "../services/batch";
-import { PRICING, getBatchFetchPrice } from "../config";
 
 const batchFetchSchema = z.object({
   urls: z
@@ -40,15 +40,16 @@ export async function batchFetchHandler(c: Context<{ Bindings: Env }>) {
       // Check for specific bound violations
       const urlsIssue = parsed.error.issues.find((i) => i.path[0] === "urls");
       if (urlsIssue) {
+        const urlsLength = body.urls.length;
         if (
           urlsIssue.code === "too_small" ||
-          (body.urls && body.urls.length < PRICING.batchFetch.minUrls)
+          urlsLength < PRICING.batchFetch.minUrls
         ) {
           return c.json(
             {
               error: "BATCH_TOO_SMALL",
               code: "BATCH_TOO_SMALL",
-              message: `Minimum ${PRICING.batchFetch.minUrls} URLs required`,
+              message: `Minimum ${String(PRICING.batchFetch.minUrls)} URLs required`,
               requestId,
             },
             400
@@ -56,13 +57,13 @@ export async function batchFetchHandler(c: Context<{ Bindings: Env }>) {
         }
         if (
           urlsIssue.code === "too_big" ||
-          (body.urls && body.urls.length > PRICING.batchFetch.maxUrls)
+          urlsLength > PRICING.batchFetch.maxUrls
         ) {
           return c.json(
             {
               error: "BATCH_TOO_LARGE",
               code: "BATCH_TOO_LARGE",
-              message: `Maximum ${PRICING.batchFetch.maxUrls} URLs allowed`,
+              message: `Maximum ${String(PRICING.batchFetch.maxUrls)} URLs allowed`,
               requestId,
             },
             400
@@ -93,13 +94,13 @@ export async function batchFetchHandler(c: Context<{ Bindings: Env }>) {
           {
             error: "INVALID_URL",
             code: "INVALID_URL",
-            message: `Invalid URL: ${url} - ${validation.error}`,
+            message: `Invalid URL: ${url} - ${validation.error ?? "unknown error"}`,
             requestId,
           },
           400
         );
       }
-      validatedUrls.push(validation.normalized || url);
+      validatedUrls.push(validation.normalized ?? url);
     }
 
     // Fetch all URLs in parallel

@@ -6,11 +6,11 @@
  */
 
 import type { Context } from "hono";
-import type { Env, ScreenshotRequest, ScreenshotResponse, ErrorResponse } from "../types";
-import { validateURL } from "../services/validator";
-import { captureScreenshot } from "../services/screenshot";
-import { generateRequestId } from "../utils/requestId";
 import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "../config";
+import { captureScreenshot } from "../services/screenshot";
+import { validateURL } from "../services/validator";
+import type { Env, ScreenshotRequest, ScreenshotResponse, ErrorResponse } from "../types";
+import { generateRequestId } from "../utils/requestId";
 
 /**
  * Validate screenshot request parameters
@@ -55,7 +55,7 @@ function validateRequest(body: unknown): { valid: true; data: ScreenshotRequest 
       error: {
         error: "INVALID_URL",
         code: "INVALID_URL",
-        message: urlValidation.error || "Invalid URL",
+        message: urlValidation.error ?? "Invalid URL",
         requestId,
       },
     };
@@ -85,7 +85,7 @@ function validateRequest(body: unknown): { valid: true; data: ScreenshotRequest 
         error: {
           error: "INVALID_VIEWPORT",
           code: "INVALID_VIEWPORT",
-          message: `Viewport width must be between ${VIEWPORT_BOUNDS.width.min} and ${VIEWPORT_BOUNDS.width.max}`,
+          message: `Viewport width must be between ${String(VIEWPORT_BOUNDS.width.min)} and ${String(VIEWPORT_BOUNDS.width.max)}`,
           requestId,
         },
       };
@@ -98,7 +98,7 @@ function validateRequest(body: unknown): { valid: true; data: ScreenshotRequest 
         error: {
           error: "INVALID_VIEWPORT",
           code: "INVALID_VIEWPORT",
-          message: `Viewport height must be between ${VIEWPORT_BOUNDS.height.min} and ${VIEWPORT_BOUNDS.height.max}`,
+          message: `Viewport height must be between ${String(VIEWPORT_BOUNDS.height.min)} and ${String(VIEWPORT_BOUNDS.height.max)}`,
           requestId,
         },
       };
@@ -128,7 +128,7 @@ function validateRequest(body: unknown): { valid: true; data: ScreenshotRequest 
         error: {
           error: "INVALID_REQUEST",
           code: "INTERNAL_ERROR",
-          message: `Timeout must be between ${TIMEOUT_CONFIG.min} and ${TIMEOUT_CONFIG.max} milliseconds`,
+          message: `Timeout must be between ${String(TIMEOUT_CONFIG.min)} and ${String(TIMEOUT_CONFIG.max)} milliseconds`,
           requestId,
         },
       };
@@ -138,11 +138,11 @@ function validateRequest(body: unknown): { valid: true; data: ScreenshotRequest 
   return {
     valid: true,
     data: {
-      url: urlValidation.normalized!,
+      url: urlValidation.normalized ?? "",
       viewport: req.viewport as ScreenshotRequest["viewport"],
-      selector: req.selector as string | undefined,
+      selector: req.selector,
       fullPage: req.fullPage === true,
-      timeout: req.timeout as number | undefined,
+      timeout: req.timeout,
     },
   };
 }

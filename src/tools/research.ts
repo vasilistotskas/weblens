@@ -9,10 +9,10 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
+import { research } from "../services/research";
 import type { Env, ResearchRequest, ResearchResponse } from "../types";
 import { generateRequestId } from "../utils/requestId";
-import { research } from "../services/research";
-import { isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 
 const researchSchema = z.object({
   query: z.string().min(1).max(500),
@@ -66,7 +66,7 @@ export async function researchHandler(c: Context<{ Bindings: Env }>) {
       resultCount,
       includeRawContent,
       aiConfig: {
-        apiKey: c.env.ANTHROPIC_API_KEY!,
+        apiKey: c.env.ANTHROPIC_API_KEY,
       },
     });
 

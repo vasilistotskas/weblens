@@ -1,12 +1,54 @@
 # WebLens
 
-Premium Web Intelligence API with x402 micropayments.
+Premium Web Intelligence API with x402 micropayments. Give your AI agents web superpowers.
+
+🌐 **Live API:** https://api.weblens.dev  
+📖 **Docs:** https://api.weblens.dev/docs
 
 ## Features
 
-- **`/fetch`** - Fetch any webpage and convert to clean markdown ($0.01)
-- **`/search`** - Real-time web search results ($0.005)
-- **`/extract`** - AI-powered structured data extraction ($0.02)
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `/fetch/basic` | Fetch webpage as markdown | $0.005 |
+| `/fetch/pro` | Fetch with JavaScript rendering | $0.015 |
+| `/screenshot` | Capture webpage screenshot | $0.02 |
+| `/search` | Real-time web search | $0.005 |
+| `/extract` | Structured data extraction | $0.03 |
+| `/extract/smart` | AI-powered extraction | $0.035 |
+| `/research` | Search + fetch + summarize | $0.08 |
+| `/pdf` | Extract text from PDFs | $0.01 |
+| `/compare` | Compare 2-3 webpages | $0.05 |
+| `/batch/fetch` | Fetch multiple URLs | $0.003/URL |
+
+## Use with AI Agents (MCP)
+
+**Option 1: Remote HTTP (no install needed)**
+```json
+{
+  "mcpServers": {
+    "weblens": {
+      "url": "https://api.weblens.dev/mcp"
+    }
+  }
+}
+```
+
+**Option 2: Local with auto-payment**
+```json
+{
+  "mcpServers": {
+    "weblens": {
+      "command": "npx",
+      "args": ["-y", "weblens-mcp"],
+      "env": {
+        "PRIVATE_KEY": "0xYourPrivateKeyHere"
+      }
+    }
+  }
+}
+```
+
+See [mcp-server/README.md](./mcp-server/README.md) for full setup instructions.
 
 ## Quick Start
 
@@ -75,8 +117,27 @@ curl -X POST http://localhost:8787/extract \
 | Variable | Description |
 |----------|-------------|
 | `WALLET_ADDRESS` | Your wallet to receive payments |
-| `NETWORK` | `base-sepolia` (testnet) or `base` (mainnet) |
+| `CDP_API_KEY_ID` | CDP API key for Bazaar discovery |
+| `CDP_API_KEY_SECRET` | CDP API secret |
 | `ANTHROPIC_API_KEY` | Optional: For AI extraction |
+
+## How Payments Work
+
+WebLens uses the [x402 protocol](https://x402.org) for instant micropayments:
+
+1. Request any endpoint
+2. Get `402 Payment Required` with price
+3. Sign USDC payment with your wallet
+4. Retry with `X-PAYMENT` header
+5. Get your data (payment settles in ~1-2 seconds)
+
+No accounts. No API keys. No subscriptions. Just pay per use.
+
+## Links
+
+- [API Documentation](https://api.weblens.dev/docs)
+- [x402 Protocol](https://x402.org)
+- [Bazaar Discovery](https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources)
 
 ## License
 

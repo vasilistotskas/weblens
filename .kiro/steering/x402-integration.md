@@ -69,7 +69,8 @@ app.use(
 To support multiple networks, configure routes with different network values. The 402 response `accepts` array will contain payment options for each configured network.
 
 ### Network Mappings for WebLens
-- `base`, `base-sepolia` → CDP facilitator (`https://x402.org/facilitator` for testnet)
+- `base` → CDP facilitator object from `@coinbase/x402` (production)
+- `base-sepolia` → `https://x402.org/facilitator` (testnet only)
 - `solana`, `polygon`, `avalanche` → PayAI facilitator (`https://facilitator.payai.network`)
 
 ## Token Support

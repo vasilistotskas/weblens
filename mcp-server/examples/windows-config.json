@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "weblens": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "weblens-mcp"],
+      "env": {
+        "PRIVATE_KEY": "0xYourPrivateKeyHere"
+      }
+    }
+  }
+}
