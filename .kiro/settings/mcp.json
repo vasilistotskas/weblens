@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "x402": {
+      "url": "https://x402.gitbook.io/x402/~gitbook/mcp",
+      "disabled": false,
+      "autoApprove": [
+        "searchDocumentation"
+      ]
+    }
+  }
+}

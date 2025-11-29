@@ -1,0 +1,26 @@
+{
+  "name": "weblens",
+  "version": "1.0.0",
+  "description": "Premium Web Intelligence API with x402 payments",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@cloudflare/puppeteer": "^1.0.4",
+    "@coinbase/x402": "^0.7.3",
+    "hono": "^4.10.7",
+    "x402-hono": "^0.7.3",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251128.0",
+    "fast-check": "^4.3.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14",
+    "wrangler": "^4.51.0"
+  }
+}

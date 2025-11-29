@@ -1,0 +1,69 @@
+# WebLens - Premium Web Intelligence API
+# Cloudflare Workers configuration
+
+name = "weblens"
+main = "src/index.ts"
+compatibility_date = "2025-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ============================================
+# Environment Variables
+# ============================================
+
+[vars]
+# x402 Facilitator URL (testnet)
+FACILITATOR_URL = "https://x402.org/facilitator"
+# Default network for payments
+NETWORK = "base-sepolia"
+
+# ============================================
+# KV Namespace for Caching
+# Requirement 3.1: Cache responses using Cloudflare KV
+# ============================================
+
+# Create KV namespace: wrangler kv:namespace create "CACHE"
+# Then add the id below
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id-here"
+preview_id = "your-preview-kv-namespace-id-here"
+
+# ============================================
+# Browser Rendering
+# Requirement 1.1: Screenshot capture using Cloudflare Browser Rendering
+# Note: Requires paid Workers plan
+# ============================================
+
+[browser]
+binding = "BROWSER"
+
+# ============================================
+# Production Environment
+# ============================================
+
+[env.production]
+vars = { NETWORK = "base", FACILITATOR_URL = "https://x402.org/facilitator" }
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "your-production-kv-namespace-id-here"
+
+# ============================================
+# Secrets (set via wrangler secret put)
+# ============================================
+# WALLET_ADDRESS - Wallet to receive payments
+# ANTHROPIC_API_KEY - For AI-powered extraction (optional)
+
+# ============================================
+# Build Configuration
+# ============================================
+
+[build]
+command = "npm run build"
+
+# ============================================
+# Observability
+# ============================================
+
+[observability]
+enabled = true
