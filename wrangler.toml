@@ -100,3 +100,42 @@ command = "npm run build"
 
 [observability]
 enabled = true
+
+# ============================================
+# Production Environment
+# ============================================
+
+[env.production]
+name = "weblens-production"
+workers_dev = false
+
+# Production uses same KV namespaces
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "4b22a633ea824b80a3ec8003add92d0c"
+
+[[env.production.kv_namespaces]]
+binding = "MEMORY"
+id = "822c601a204c45b8bfd4f47dea4805a8"
+
+[[env.production.kv_namespaces]]
+binding = "MONITOR"
+id = "56bc1fc46c3747978227b19d89d38b41"
+
+[[env.production.durable_objects.bindings]]
+name = "MONITOR_SCHEDULER"
+class_name = "MonitorScheduler"
+
+[[env.production.routes]]
+pattern = "api.weblens.dev"
+custom_domain = true
+
+[env.production.vars]
+FACILITATOR_URL = "https://x402.org/facilitator"
+NETWORK = "base"
+
+[env.production.browser]
+binding = "BROWSER"
+
+[env.production.observability]
+enabled = true

@@ -1,22 +1,21 @@
 /**
  * Test script for x402 payments on WebLens
- * 
+ *
  * Prerequisites:
  * 1. Get testnet USDC from https://faucet.circle.com/ (Base Sepolia)
- * 2. Export your wallet private key from Coinbase Wallet
- * 3. Run: npx ts-node scripts/test-payment.ts
+ * 2. Export your wallet private key
+ * 3. Run: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment.ts
  */
 
-import { createWalletClient, http, parseEther } from "viem";
+import axios from "axios";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
-import { wrapFetch } from "@coinbase/x402";
+import { withPaymentInterceptor } from "x402-axios";
+import type { Hex } from "viem";
 
-// ⚠️ Replace with your private key (NEVER commit this!)
-const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
+const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
 
 if (!PRIVATE_KEY) {
-  console.error("Set PRIVATE_KEY environment variable");
+  console.error("❌ Set PRIVATE_KEY environment variable");
   console.log("Example: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment.ts");
   process.exit(1);
 }
@@ -24,44 +23,38 @@ if (!PRIVATE_KEY) {
 const API_URL = "https://api.weblens.dev";
 
 async function main() {
-  // Create wallet client
+  // Create wallet account
   const account = privateKeyToAccount(PRIVATE_KEY);
-  const walletClient = createWalletClient({
-    account,
-    chain: baseSepolia,
-    transport: http(),
-  });
+  console.log(`🔑 Using wallet: ${account.address}`);
+  console.log(`🌐 Testing API: ${API_URL}`);
 
-  console.log(`Using wallet: ${account.address}`);
-  console.log(`Testing API: ${API_URL}`);
-
-  // Wrap fetch with x402 payment handling
-  const x402Fetch = wrapFetch(fetch, walletClient);
+  // Create axios client with x402 payment interceptor
+  const client = withPaymentInterceptor(axios.create({ baseURL: API_URL }), account);
 
   try {
     // Test /fetch/basic endpoint
-    console.log("\n--- Testing /fetch/basic ---");
-    const response = await x402Fetch(`${API_URL}/fetch/basic`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://example.com" }),
+    console.log("\n--- Testing POST /fetch/basic ---");
+    const response = await client.post("/fetch/basic", {
+      url: "https://example.com",
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("✅ Success! Response:", JSON.stringify(data, null, 2).slice(0, 500));
-      
-      // Check payment response header
-      const paymentResponse = response.headers.get("X-PAYMENT-RESPONSE");
-      if (paymentResponse) {
-        const decoded = JSON.parse(atob(paymentResponse));
-        console.log("\n💰 Payment settled:", decoded);
-      }
-    } else {
-      console.log("❌ Failed:", response.status, await response.text());
+    console.log("✅ Success!");
+    console.log("Status:", response.status);
+    console.log("Title:", response.data.title);
+    console.log("Content preview:", response.data.content?.slice(0, 200) + "...");
+
+    // Check payment response header
+    const paymentResponse = response.headers["x-payment-response"];
+    if (paymentResponse) {
+      const decoded = JSON.parse(Buffer.from(paymentResponse, "base64").toString());
+      console.log("\n💰 Payment settled:", decoded);
     }
-  } catch (error) {
-    console.error("Error:", error);
+  } catch (error: any) {
+    if (error.response) {
+      console.log("❌ Error:", error.response.status, error.response.data);
+    } else {
+      console.error("❌ Error:", error.message);
+    }
   }
 }
 
