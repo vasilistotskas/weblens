@@ -8,15 +8,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "../types";
 
-interface ScheduleRequestBody {
-  monitorId: string;
-  intervalHours: number;
-}
-
-interface CancelRequestBody {
-  monitorId: string;
-}
-
 export class MonitorScheduler extends DurableObject<Env> {
 
   /**
@@ -26,7 +17,8 @@ export class MonitorScheduler extends DurableObject<Env> {
     const url = new URL(request.url);
 
     if (url.pathname === "/schedule" && request.method === "POST") {
-      const body = (await request.json());
+      interface ScheduleBody { monitorId: string; intervalHours: number }
+      const body: ScheduleBody = await request.json();
       await this.scheduleCheck(body.monitorId, body.intervalHours);
       return new Response(JSON.stringify({ scheduled: true }), {
         headers: { "Content-Type": "application/json" },
@@ -34,7 +26,8 @@ export class MonitorScheduler extends DurableObject<Env> {
     }
 
     if (url.pathname === "/cancel" && request.method === "POST") {
-      const body = (await request.json());
+      interface CancelBody { monitorId: string }
+      const body: CancelBody = await request.json();
       await this.cancelCheck(body.monitorId);
       return new Response(JSON.stringify({ cancelled: true }), {
         headers: { "Content-Type": "application/json" },

@@ -10,10 +10,6 @@ const extractSchema = z.object({
   instructions: z.string().optional(),
 });
 
-interface ClaudeApiResponse {
-  content: { text?: string }[];
-}
-
 export async function extractData(c: Context<{ Bindings: Env }>) {
   try {
     const body = await c.req.json<ExtractRequest>();
@@ -105,9 +101,10 @@ Respond ONLY with valid JSON matching the schema. No explanations.`;
     throw new Error(`AI extraction failed: ${String(response.status)}`);
   }
 
-  const result = (await response.json());
+  interface ClaudeResponse { content: { text?: string }[] }
+  const result: ClaudeResponse = await response.json();
   const firstContent = result.content[0];
-  const text: string = firstContent?.text ?? "{}";
+  const text = firstContent.text ?? "{}";
 
   try {
     return JSON.parse(text) as Record<string, unknown>;

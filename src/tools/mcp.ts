@@ -167,7 +167,8 @@ type JsonRpcResponse = {
 } | null;
 
 async function handleJsonRpc(request: JsonRpcRequest, c: Context<{ Bindings: Env }>): Promise<JsonRpcResponse> {
-  const { method, params, id } = request;
+  const { method, id } = request;
+  const params = request.params;
 
   switch (method) {
     case "initialize":
@@ -192,8 +193,20 @@ async function handleJsonRpc(request: JsonRpcRequest, c: Context<{ Bindings: Env
         },
       };
 
-    case "tools/call":
-      return await handleToolCall(params as ToolCallParams, id, c);
+    case "tools/call": {
+      const toolParams = params as ToolCallParams | undefined;
+      if (!toolParams?.name) {
+        return {
+          jsonrpc: "2.0",
+          id,
+          error: {
+            code: -32602,
+            message: "Missing tool name in params",
+          },
+        };
+      }
+      return await handleToolCall(toolParams, id, c);
+    }
 
     case "ping":
       return {
@@ -225,9 +238,9 @@ interface ToolCallParams {
 
 async function handleToolCall(params: ToolCallParams, id: string | number | undefined, c: Context<{ Bindings: Env }>): Promise<JsonRpcResponse> {
   const { name, arguments: args } = params;
-  const xPayment = c.req.header("X-PAYMENT");
+  const xPaymentHeader = c.req.header("X-PAYMENT");
 
-  const toolEndpoints: Record<string, { endpoint: string; method: string; price: string }> = {
+  const toolEndpoints: Partial<Record<string, { endpoint: string; method: string; price: string }>> = {
     fetch_webpage: { endpoint: "/fetch/basic", method: "POST", price: PRICING.fetch.basic },
     fetch_webpage_pro: { endpoint: "/fetch/pro", method: "POST", price: PRICING.fetch.pro },
     screenshot: { endpoint: "/screenshot", method: "POST", price: PRICING.screenshot },
@@ -255,11 +268,8 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
   const baseUrl = new URL(c.req.url).origin;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...(xPaymentHeader && { "X-PAYMENT": xPaymentHeader }),
   };
-
-  if (xPayment) {
-    headers["X-PAYMENT"] = xPayment;
-  }
 
   try {
     const response = await fetch(`${baseUrl}${toolConfig.endpoint}`, {
@@ -332,7 +342,7 @@ export async function mcpPostHandler(c: Context<{ Bindings: Env }>) {
   }
 
   try {
-    const jsonRequest = (await c.req.json());
+    const jsonRequest: JsonRpcRequest = await c.req.json();
     const response = await handleJsonRpc(jsonRequest, c);
 
     if (response === null) {

@@ -56,10 +56,6 @@ export interface CompareResult {
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const DEFAULT_MAX_TOKENS = 4000;
 
-interface ClaudeApiResponse {
-  content: { text?: string }[];
-}
-
 /**
  * Call Claude API with a prompt
  */
@@ -94,9 +90,10 @@ async function callClaude(
     throw new AIUnavailableError(`Claude API error: ${String(status)}`);
   }
 
-  const result = (await response.json());
+  interface ClaudeResponse { content: { text?: string }[] }
+  const result: ClaudeResponse = await response.json();
   const firstContent = result.content[0];
-  return firstContent?.text ?? "";
+  return firstContent.text ?? "";
 }
 
 /**
