@@ -10,6 +10,9 @@ export interface Env {
   NETWORK?: string;
   BROWSER?: Fetcher; // Cloudflare Browser Rendering
   CACHE?: KVNamespace; // Cloudflare KV for caching
+  MEMORY?: KVNamespace; // Cloudflare KV for agent memory
+  MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
+  MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
   SERP_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
   CDP_FACILITATOR_URL?: string;
@@ -145,7 +148,18 @@ export type ErrorCode =
   | "PAYMENT_FAILED"
   | "RATE_LIMITED"
   | "SERVICE_UNAVAILABLE"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "BATCH_TOO_SMALL"
+  | "BATCH_TOO_LARGE"
+  | "INVALID_PDF"
+  | "PDF_TOO_LARGE"
+  | "MONITOR_NOT_FOUND"
+  | "WEBHOOK_INVALID"
+  | "EXTRACTION_FAILED"
+  | "RESEARCH_FAILED"
+  | "AI_UNAVAILABLE"
+  | "MEMORY_KEY_NOT_FOUND"
+  | "MEMORY_VALUE_TOO_LARGE";
 
 export interface ErrorResponse {
   error: string;
@@ -219,3 +233,235 @@ export interface URLValidationResult {
   normalized?: string;
   error?: string;
 }
+
+// ============================================
+// Batch Fetch Types (Requirement 1)
+// ============================================
+
+export interface BatchFetchRequest {
+  urls: string[];           // 2-20 URLs
+  timeout?: number;         // Per-URL timeout, default 10000ms
+  tier?: "basic" | "pro";   // Fetch tier, default "basic"
+}
+
+export interface BatchFetchResult {
+  url: string;
+  status: "success" | "error";
+  content?: string;         // Markdown content if success
+  title?: string;
+  metadata?: PageMetadata;
+  error?: string;           // Error message if failed
+  fetchedAt: string;
+}
+
+export interface BatchFetchResponse {
+  results: BatchFetchResult[];
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
+  totalPrice: string;       // e.g., "$0.030" for 10 URLs
+  requestId: string;
+}
+
+// ============================================
+// Research Types (Requirement 2)
+// ============================================
+
+export interface ResearchRequest {
+  query: string;            // Research topic/question
+  resultCount?: number;     // 1-10, default 5
+  includeRawContent?: boolean; // Include full fetched content
+}
+
+export interface ResearchSource {
+  url: string;
+  title: string;
+  snippet: string;
+  content?: string;         // Full content if includeRawContent
+  fetchedAt: string;
+}
+
+export interface ResearchResponse {
+  query: string;
+  sources: ResearchSource[];
+  summary: string;          // AI-generated summary
+  keyFindings: string[];    // Bullet points of key findings
+  researchedAt: string;
+  requestId: string;
+}
+
+// ============================================
+// Smart Extraction Types (Requirement 3)
+// ============================================
+
+export interface SmartExtractRequest {
+  url: string;
+  query: string;            // e.g., "find all email addresses"
+  format?: "json" | "text"; // Output format, default "json"
+}
+
+export interface ExtractedItem {
+  value: unknown;           // Extracted value
+  context?: string;         // Surrounding context
+  confidence: number;       // 0-1 confidence score
+}
+
+export interface SmartExtractResponse {
+  url: string;
+  query: string;
+  data: ExtractedItem[];
+  explanation: string;      // AI explanation of extraction
+  extractedAt: string;
+  requestId: string;
+}
+
+// ============================================
+// Monitor Types (Requirement 4)
+// ============================================
+
+export interface MonitorCreateRequest {
+  url: string;
+  webhookUrl: string;
+  checkInterval?: number;   // Hours, 1-24, default 1
+  notifyOn?: "any" | "content" | "status"; // What triggers notification
+}
+
+export interface MonitorCreateResponse {
+  monitorId: string;
+  url: string;
+  webhookUrl: string;
+  checkInterval: number;
+  nextCheckAt: string;
+  createdAt: string;
+  requestId: string;
+}
+
+export interface MonitorStatus {
+  monitorId: string;
+  url: string;
+  status: "active" | "paused" | "error";
+  lastCheck?: {
+    checkedAt: string;
+    changed: boolean;
+    contentHash: string;
+  };
+  checkCount: number;
+  totalCost: string;        // Total spent on checks
+  createdAt: string;
+}
+
+export interface WebhookPayload {
+  monitorId: string;
+  url: string;
+  changeType: "content" | "status" | "error";
+  previousHash?: string;
+  currentHash?: string;
+  diff?: string;            // Summary of changes
+  checkedAt: string;
+}
+
+export interface StoredMonitor {
+  id: string;
+  url: string;
+  webhookUrl: string;
+  checkInterval: number;
+  notifyOn: "any" | "content" | "status";
+  status: "active" | "paused" | "error";
+  lastContentHash?: string;
+  lastStatusCode?: number;
+  checkCount: number;
+  totalCost: number;        // In cents
+  createdAt: string;
+  lastCheckAt?: string;
+  nextCheckAt: string;
+  ownerId?: string;         // Wallet address
+}
+
+// ============================================
+// PDF Extraction Types (Requirement 5)
+// ============================================
+
+export interface PdfExtractRequest {
+  url: string;
+  pages?: number[];         // Specific pages, or all if omitted
+}
+
+export interface PdfPage {
+  pageNumber: number;
+  content: string;
+}
+
+export interface PdfExtractResponse {
+  url: string;
+  metadata: {
+    title?: string;
+    author?: string;
+    pageCount: number;
+    createdAt?: string;
+  };
+  pages: PdfPage[];
+  fullText: string;         // All pages concatenated
+  extractedAt: string;
+  requestId: string;
+}
+
+// ============================================
+// Compare Types (Requirement 6)
+// ============================================
+
+export interface CompareRequest {
+  urls: string[];           // 2-3 URLs
+  focus?: string;           // What to focus comparison on
+}
+
+export interface CompareSource {
+  url: string;
+  title: string;
+  content: string;
+}
+
+export interface CompareResponse {
+  sources: CompareSource[];
+  comparison: {
+    similarities: string[];
+    differences: string[];
+    summary: string;        // AI-generated comparison summary
+  };
+  comparedAt: string;
+  requestId: string;
+}
+
+// ============================================
+// Agent Memory Types (Requirement 7)
+// ============================================
+
+export interface MemorySetRequest {
+  key: string;              // Max 256 chars
+  value: unknown;           // JSON-serializable, max 100KB
+  ttl?: number;             // Hours, 1-720 (30 days), default 168 (7 days)
+}
+
+export interface MemorySetResponse {
+  key: string;
+  stored: boolean;
+  expiresAt: string;
+  requestId: string;
+}
+
+export interface MemoryGetResponse {
+  key: string;
+  value: unknown;
+  storedAt: string;
+  expiresAt: string;
+  requestId: string;
+}
+
+export interface MemoryListResponse {
+  keys: string[];
+  count: number;
+  requestId: string;
+}
+
+

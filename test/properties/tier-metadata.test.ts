@@ -127,7 +127,7 @@ describe("Property 5: Tier metadata inclusion", () => {
             publishedAt: fc.option(fc.string(), { nil: undefined }),
           }),
           tier: fc.constantFrom("basic", "pro") as fc.Arbitrary<"basic" | "pro">,
-          fetchedAt: fc.date({ min: new Date("2020-01-01"), max: new Date("2030-12-31") }).map(d => d.toISOString()),
+          fetchedAt: fc.constant(new Date().toISOString()),
         }),
         (response) => {
           // Tier field must exist

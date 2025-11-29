@@ -29,6 +29,41 @@ id = "your-kv-namespace-id-here"
 preview_id = "your-preview-kv-namespace-id-here"
 
 # ============================================
+# KV Namespace for Agent Memory
+# Requirement 7.1: Persistent key-value storage for AI agents
+# ============================================
+
+# Create KV namespace: wrangler kv:namespace create "MEMORY"
+[[kv_namespaces]]
+binding = "MEMORY"
+id = "your-memory-kv-namespace-id-here"
+preview_id = "your-preview-memory-kv-namespace-id-here"
+
+# ============================================
+# KV Namespace for URL Monitors
+# Requirement 4.1: URL monitoring with webhook notifications
+# ============================================
+
+# Create KV namespace: wrangler kv:namespace create "MONITOR"
+[[kv_namespaces]]
+binding = "MONITOR"
+id = "your-monitor-kv-namespace-id-here"
+preview_id = "your-preview-monitor-kv-namespace-id-here"
+
+# ============================================
+# Durable Objects for Monitor Scheduling
+# Requirement 4.3: Scheduled URL checking
+# ============================================
+
+[[durable_objects.bindings]]
+name = "MONITOR_SCHEDULER"
+class_name = "MonitorScheduler"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["MonitorScheduler"]
+
+# ============================================
 # Browser Rendering
 # Requirement 1.1: Screenshot capture using Cloudflare Browser Rendering
 # Note: Requires paid Workers plan
@@ -47,6 +82,18 @@ vars = { NETWORK = "base", FACILITATOR_URL = "https://x402.org/facilitator" }
 [[env.production.kv_namespaces]]
 binding = "CACHE"
 id = "your-production-kv-namespace-id-here"
+
+[[env.production.kv_namespaces]]
+binding = "MEMORY"
+id = "your-production-memory-kv-namespace-id-here"
+
+[[env.production.kv_namespaces]]
+binding = "MONITOR"
+id = "your-production-monitor-kv-namespace-id-here"
+
+[[env.production.durable_objects.bindings]]
+name = "MONITOR_SCHEDULER"
+class_name = "MonitorScheduler"
 
 # ============================================
 # Secrets (set via wrangler secret put)

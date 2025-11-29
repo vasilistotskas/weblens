@@ -6,6 +6,18 @@
       "autoApprove": [
         "searchDocumentation"
       ]
+    },
+    "coingecko_mcp": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.api.coingecko.com/mcp"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "search_docs",
+        "get_global"
+      ]
     }
   }
 }

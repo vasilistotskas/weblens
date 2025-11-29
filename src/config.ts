@@ -3,16 +3,54 @@
  * Pricing, facilitators, and cache settings
  */
 
-// Pricing configuration for all endpoints
+// Unified pricing configuration for all endpoints
+// Requirements: 1.4, 2.6, 3.5, 4.2, 4.4, 5.4, 6.4, 7.2
 export const PRICING = {
+  // Core endpoints
   screenshot: "$0.02",
   fetch: {
     basic: "$0.005",
     pro: "$0.015",
   },
   search: "$0.005",
-  extract: "$0.02",
+  extract: "$0.03",
   cacheDiscount: 0.7, // 70% off for cached responses
+  
+  // Batch fetch pricing
+  batchFetch: {
+    perUrl: "$0.003",
+    minUrls: 2,
+    maxUrls: 20,
+  },
+  
+  // Research endpoint
+  research: "$0.08",
+  
+  // Smart extraction (AI-powered, higher cost)
+  smartExtract: "$0.035",
+  
+  // URL monitoring
+  monitor: {
+    setup: "$0.01",
+    perCheck: "$0.001",
+    minInterval: 1,   // hours
+    maxInterval: 24,  // hours
+  },
+  
+  // PDF extraction
+  pdf: "$0.01",
+  
+  // URL comparison
+  compare: "$0.05",
+  
+  // Agent memory storage
+  memory: {
+    write: "$0.001",
+    read: "$0.0005",
+    minTtl: 1,        // hours
+    maxTtl: 720,      // 30 days
+    defaultTtl: 168,  // 7 days
+  },
 } as const;
 
 // Facilitator URLs for payment verification
@@ -108,7 +146,28 @@ export function getEndpointPrice(
   return cached ? getCachedPrice(basePrice) : basePrice;
 }
 
+// Calculate batch fetch price (linear pricing: N URLs × $0.003)
+// Requirement 1.4: Batch fetch SHALL charge $0.003 per URL
+export function getBatchFetchPrice(urlCount: number): string {
+  const perUrlAmount = parseFloat(PRICING.batchFetch.perUrl.replace("$", ""));
+  const totalAmount = urlCount * perUrlAmount;
+  return `$${totalAmount.toFixed(3)}`;
+}
+
 // Type exports for configuration
 export type NetworkName = keyof typeof NETWORKS;
 export type FacilitatorName = keyof typeof FACILITATORS;
-export type EndpointName = "screenshot" | "fetch-basic" | "fetch-pro" | "search" | "extract";
+export type EndpointName = 
+  | "screenshot" 
+  | "fetch-basic" 
+  | "fetch-pro" 
+  | "search" 
+  | "extract"
+  | "batch-fetch" 
+  | "research" 
+  | "smart-extract" 
+  | "monitor" 
+  | "pdf" 
+  | "compare" 
+  | "memory-read" 
+  | "memory-write";
