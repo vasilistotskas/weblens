@@ -5,7 +5,6 @@
  * Requirements: All
  */
 
-import { facilitator } from "@coinbase/x402";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -36,9 +35,10 @@ import type { Env } from "./types";
 const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ??
   "0x0000000000000000000000000000000000000000") as Address;
 
-// CDP Facilitator for Bazaar discovery
-// Requires CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables
-const CDP_FACILITATOR = facilitator;
+// PayAI Facilitator - works with Cloudflare Workers (no process.env needed)
+// Supports Base mainnet, Solana, Polygon, and more
+// See: https://docs.payai.network/x402
+const PAYAI_FACILITATOR = { url: "https://facilitator.payai.network" as const };
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -137,7 +137,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -176,7 +176,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -213,7 +213,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -248,7 +248,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -284,7 +284,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -326,7 +326,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -364,7 +364,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -402,7 +402,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -439,7 +439,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -474,7 +474,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -514,7 +514,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -550,7 +550,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -569,7 +569,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
@@ -596,7 +596,7 @@ app.use(
         },
       },
     },
-    CDP_FACILITATOR
+    PAYAI_FACILITATOR
   )
 );
 
