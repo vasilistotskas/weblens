@@ -23,8 +23,7 @@ custom_domain = true
 # ============================================
 
 [vars]
-FACILITATOR_URL = "https://x402.org/facilitator"
-NETWORK = "base-sepolia"
+NETWORK = "base"
 
 # ============================================
 # KV Namespace for Caching
@@ -83,9 +82,14 @@ binding = "BROWSER"
 # Secrets (set via wrangler secret put)
 # ============================================
 # WALLET_ADDRESS - Wallet to receive payments
+# CDP_API_KEY_ID - CDP API key ID for Bazaar discovery
+# CDP_API_KEY_SECRET - CDP API key secret for Bazaar discovery
 # ANTHROPIC_API_KEY - For AI-powered extraction (optional)
 #
-# To switch to mainnet, update NETWORK var above to "base"
+# Set secrets with:
+#   wrangler secret put WALLET_ADDRESS
+#   wrangler secret put CDP_API_KEY_ID
+#   wrangler secret put CDP_API_KEY_SECRET
 
 # ============================================
 # Build Configuration
@@ -131,7 +135,6 @@ pattern = "api.weblens.dev"
 custom_domain = true
 
 [env.production.vars]
-FACILITATOR_URL = "https://x402.org/facilitator"
 NETWORK = "base"
 
 [env.production.browser]

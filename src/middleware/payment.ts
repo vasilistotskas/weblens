@@ -73,14 +73,13 @@ export function createPaymentConfig(
   description: string,
   discoverable: boolean = true
 ) {
-  // For now, we use base-sepolia as the primary network
-  // The x402-hono middleware will include this in the 402 response
-  // Multi-chain support is handled by the facilitator
+  // Use Base mainnet for production payments
+  // PayAI facilitator handles verification and settlement
   return {
     routes: {
       [endpoint]: {
         price,
-        network: "base-sepolia" as const,
+        network: "base" as const,
         config: {
           description,
           discoverable,
@@ -106,15 +105,14 @@ export function createMultiChainPaymentMiddleware(
   price: string,
   description: string
 ) {
-  // The x402-hono middleware currently supports one network per route
-  // For multi-chain, we use the primary network (base-sepolia) with CDP facilitator
-  // PayAI facilitator can be used for Solana/Polygon when configured
+  // Use Base mainnet for production payments
+  // PayAI facilitator supports Base, Solana, Polygon and more
   return paymentMiddleware(
     walletAddress,
     {
       [endpoint]: {
         price,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description,
           discoverable: true,

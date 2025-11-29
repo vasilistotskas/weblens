@@ -54,9 +54,14 @@ export const PRICING = {
 } as const;
 
 // Facilitator URLs for payment verification
+// Note: x402.org/facilitator is TESTNET ONLY
+// For production, use PayAI or CDP SDK's built-in facilitator
 export const FACILITATORS = {
-  cdp: "https://x402.org/facilitator",
+  // PayAI supports Base mainnet, Solana, Polygon, and more
+  cdp: "https://facilitator.payai.network",
   payai: "https://facilitator.payai.network",
+  // Testnet facilitator (for development only)
+  testnet: "https://x402.org/facilitator",
 } as const;
 
 // Supported networks and their facilitator mappings

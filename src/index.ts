@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { paymentMiddleware } from "x402-hono";
+import { facilitator } from "@coinbase/x402";
 import { fetchBasic } from "./tools/fetch-basic";
 import { fetchPro } from "./tools/fetch-pro";
 import { searchWeb } from "./tools/search-web";
@@ -25,7 +26,7 @@ import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHand
 import { requestIdMiddleware } from "./middleware/requestId";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { securityMiddleware } from "./middleware/security";
-import { PRICING, FACILITATORS, SUPPORTED_NETWORKS } from "./config";
+import { PRICING, SUPPORTED_NETWORKS } from "./config";
 import { getCachedPrice } from "./utils/pricing";
 import { registerOpenAPIRoutes } from "./openapi";
 import type { Env } from "./types";
@@ -34,6 +35,10 @@ import type { Address } from "viem";
 // Default wallet for development - replace with your own
 const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ||
   "0x0000000000000000000000000000000000000000") as Address;
+
+// CDP Facilitator for Bazaar discovery
+// Requires CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables
+const CDP_FACILITATOR = facilitator;
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -105,14 +110,14 @@ app.use(
     {
       "/fetch/basic": {
         price: PRICING.fetch.basic,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Fetch webpage without JavaScript rendering (basic tier)",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -124,14 +129,14 @@ app.use(
     {
       "/fetch/pro": {
         price: PRICING.fetch.pro,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Fetch webpage with full JavaScript rendering (pro tier)",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -143,14 +148,14 @@ app.use(
     {
       "/screenshot": {
         price: PRICING.screenshot,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Capture webpage screenshot",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -162,14 +167,14 @@ app.use(
     {
       "/search": {
         price: PRICING.search,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Real-time web search results",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -181,14 +186,14 @@ app.use(
     {
       "/extract": {
         price: PRICING.extract,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Extract structured data from webpages",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -206,14 +211,14 @@ app.use(
     {
       "/batch/fetch": {
         price: "$0.006", // Minimum price for 2 URLs
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Fetch multiple URLs in parallel (2-20 URLs, $0.003/URL)",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -225,14 +230,14 @@ app.use(
     {
       "/research": {
         price: PRICING.research,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Search, fetch, and AI-summarize research topics",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -244,14 +249,14 @@ app.use(
     {
       "/extract/smart": {
         price: PRICING.smartExtract,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "AI-powered data extraction using natural language queries",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -263,14 +268,14 @@ app.use(
     {
       "/pdf": {
         price: PRICING.pdf,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Extract text and metadata from PDF documents",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -282,14 +287,14 @@ app.use(
     {
       "/compare": {
         price: PRICING.compare,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Compare 2-3 URLs with AI-generated analysis",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -301,14 +306,14 @@ app.use(
     {
       "/monitor/create": {
         price: PRICING.monitor.setup,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Create a URL monitor for change detection",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -320,14 +325,14 @@ app.use(
     {
       "/memory/set": {
         price: PRICING.memory.write,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Store a value in persistent key-value storage",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -339,14 +344,14 @@ app.use(
     {
       "/memory/get/*": {
         price: PRICING.memory.read,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "Retrieve a stored value by key",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
@@ -358,14 +363,14 @@ app.use(
     {
       "/memory/list": {
         price: PRICING.memory.read,
-        network: "base-sepolia",
+        network: "base",
         config: {
           description: "List all stored keys for the current wallet",
           discoverable: true,
         },
       },
     },
-    { url: FACILITATORS.cdp }
+    CDP_FACILITATOR
   )
 );
 
