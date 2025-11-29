@@ -1,24 +1,25 @@
 /**
- * Test script for x402 payments on ALL WebLens endpoints
+ * Test script for x402 payments on ALL WebLens endpoints (Solana)
  *
  * Prerequisites:
- * 1. Have USDC on Base mainnet in your wallet
- * 2. Export your wallet private key
- * 3. Run: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment.ts
+ * 1. Have USDC on Solana mainnet in your wallet
+ * 2. Export your Solana private key (base58 format, 64 bytes)
+ * 3. Run: $env:SOLANA_PRIVATE_KEY='...' ; npx ts-node scripts/test-payment.ts
  *
- * Total cost: ~$0.15 USDC to test all endpoints
+ * Total cost: ~$0.20 USDC to test all endpoints
  */
 
 import axios from "axios";
-import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
 import { withPaymentInterceptor } from "x402-axios";
-import type { Hex } from "viem";
 
-const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
+const SOLANA_PRIVATE_KEY = process.env.SOLANA_PRIVATE_KEY;
 
-if (!PRIVATE_KEY) {
-  console.error("❌ Set PRIVATE_KEY environment variable");
-  console.log("Example: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment.ts");
+if (!SOLANA_PRIVATE_KEY) {
+  console.error("❌ Set SOLANA_PRIVATE_KEY environment variable");
+  console.log("Export your Solana private key from Phantom (base58 format)");
+  console.log("Example: $env:SOLANA_PRIVATE_KEY='...' ; npx ts-node scripts/test-payment.ts");
   process.exit(1);
 }
 
@@ -169,8 +170,12 @@ async function testEndpoint(
 }
 
 async function main() {
-  const account = privateKeyToAccount(PRIVATE_KEY);
-  console.log("🔑 Wallet:", account.address);
+  // Create Solana signer from base58 private key
+  const signer = await createKeyPairSignerFromBytes(
+    base58.decode(SOLANA_PRIVATE_KEY!)
+  );
+  
+  console.log("🔑 Solana Wallet:", signer.address);
   console.log("🌐 API:", API_URL);
   console.log(`📋 Testing ${ENDPOINTS.length} endpoints`);
 
@@ -178,11 +183,11 @@ async function main() {
     const price = parseFloat(e.price.replace("$", ""));
     return sum + price;
   }, 0);
-  console.log(`💵 Estimated total cost: $${totalCost.toFixed(4)} USDC`);
+  console.log(`💵 Estimated total cost: ${totalCost.toFixed(4)} USDC`);
 
   const client = withPaymentInterceptor(
     axios.create({ baseURL: API_URL, timeout: 120000 }),
-    account
+    signer
   );
 
   const results: { name: string; success: boolean }[] = [];

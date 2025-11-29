@@ -110,7 +110,7 @@ app.use(
     {
       "/fetch/basic": {
         price: PRICING.fetch.basic,
-        network: "base",
+        network: "solana",
         config: {
           description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
           discoverable: true,
@@ -149,7 +149,7 @@ app.use(
     {
       "/fetch/pro": {
         price: PRICING.fetch.pro,
-        network: "base",
+        network: "solana",
         config: {
           description: "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
           discoverable: true,
@@ -188,7 +188,7 @@ app.use(
     {
       "/screenshot": {
         price: PRICING.screenshot,
-        network: "base",
+        network: "solana",
         config: {
           description: "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
           discoverable: true,
@@ -225,7 +225,7 @@ app.use(
     {
       "/search": {
         price: PRICING.search,
-        network: "base",
+        network: "solana",
         config: {
           description: "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
           discoverable: true,
@@ -260,7 +260,7 @@ app.use(
     {
       "/extract": {
         price: PRICING.extract,
-        network: "base",
+        network: "solana",
         config: {
           description: "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
           discoverable: true,
@@ -302,7 +302,7 @@ app.use(
     {
       "/batch/fetch": {
         price: "$0.006", // Minimum price for 2 URLs
-        network: "base",
+        network: "solana",
         config: {
           description: "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
           discoverable: true,
@@ -338,7 +338,7 @@ app.use(
     {
       "/research": {
         price: PRICING.research,
-        network: "base",
+        network: "solana",
         config: {
           description: "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
           discoverable: true,
@@ -376,7 +376,7 @@ app.use(
     {
       "/extract/smart": {
         price: PRICING.smartExtract,
-        network: "base",
+        network: "solana",
         config: {
           description: "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
           discoverable: true,
@@ -414,7 +414,7 @@ app.use(
     {
       "/pdf": {
         price: PRICING.pdf,
-        network: "base",
+        network: "solana",
         config: {
           description: "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
           discoverable: true,
@@ -451,7 +451,7 @@ app.use(
     {
       "/compare": {
         price: PRICING.compare,
-        network: "base",
+        network: "solana",
         config: {
           description: "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
           discoverable: true,
@@ -486,7 +486,7 @@ app.use(
     {
       "/monitor/create": {
         price: PRICING.monitor.setup,
-        network: "base",
+        network: "solana",
         config: {
           description: "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
           discoverable: true,
@@ -526,7 +526,7 @@ app.use(
     {
       "/memory/set": {
         price: PRICING.memory.write,
-        network: "base",
+        network: "solana",
         config: {
           description: "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
           discoverable: true,
@@ -562,7 +562,7 @@ app.use(
     {
       "/memory/get/*": {
         price: PRICING.memory.read,
-        network: "base",
+        network: "solana",
         config: {
           description: "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
           discoverable: true,
@@ -581,7 +581,7 @@ app.use(
     {
       "/memory/list": {
         price: PRICING.memory.read,
-        network: "base",
+        network: "solana",
         config: {
           description: "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
           discoverable: true,
