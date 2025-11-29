@@ -6,14 +6,24 @@ main = "src/index.ts"
 compatibility_date = "2025-11-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Disable workers.dev subdomain (using custom domain)
+workers_dev = false
+preview_urls = false
+
+# ============================================
+# Custom Domain
+# ============================================
+
+[[routes]]
+pattern = "api.weblens.dev"
+custom_domain = true
+
 # ============================================
 # Environment Variables
 # ============================================
 
 [vars]
-# x402 Facilitator URL (testnet)
 FACILITATOR_URL = "https://x402.org/facilitator"
-# Default network for payments
 NETWORK = "base-sepolia"
 
 # ============================================
@@ -25,8 +35,7 @@ NETWORK = "base-sepolia"
 # Then add the id below
 [[kv_namespaces]]
 binding = "CACHE"
-id = "your-kv-namespace-id-here"
-preview_id = "your-preview-kv-namespace-id-here"
+id = "4b22a633ea824b80a3ec8003add92d0c"
 
 # ============================================
 # KV Namespace for Agent Memory
@@ -36,8 +45,7 @@ preview_id = "your-preview-kv-namespace-id-here"
 # Create KV namespace: wrangler kv:namespace create "MEMORY"
 [[kv_namespaces]]
 binding = "MEMORY"
-id = "your-memory-kv-namespace-id-here"
-preview_id = "your-preview-memory-kv-namespace-id-here"
+id = "822c601a204c45b8bfd4f47dea4805a8"
 
 # ============================================
 # KV Namespace for URL Monitors
@@ -47,8 +55,7 @@ preview_id = "your-preview-memory-kv-namespace-id-here"
 # Create KV namespace: wrangler kv:namespace create "MONITOR"
 [[kv_namespaces]]
 binding = "MONITOR"
-id = "your-monitor-kv-namespace-id-here"
-preview_id = "your-preview-monitor-kv-namespace-id-here"
+id = "56bc1fc46c3747978227b19d89d38b41"
 
 # ============================================
 # Durable Objects for Monitor Scheduling
@@ -61,7 +68,7 @@ class_name = "MonitorScheduler"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["MonitorScheduler"]
+new_sqlite_classes = ["MonitorScheduler"]
 
 # ============================================
 # Browser Rendering
@@ -73,33 +80,12 @@ new_classes = ["MonitorScheduler"]
 binding = "BROWSER"
 
 # ============================================
-# Production Environment
-# ============================================
-
-[env.production]
-vars = { NETWORK = "base", FACILITATOR_URL = "https://x402.org/facilitator" }
-
-[[env.production.kv_namespaces]]
-binding = "CACHE"
-id = "your-production-kv-namespace-id-here"
-
-[[env.production.kv_namespaces]]
-binding = "MEMORY"
-id = "your-production-memory-kv-namespace-id-here"
-
-[[env.production.kv_namespaces]]
-binding = "MONITOR"
-id = "your-production-monitor-kv-namespace-id-here"
-
-[[env.production.durable_objects.bindings]]
-name = "MONITOR_SCHEDULER"
-class_name = "MonitorScheduler"
-
-# ============================================
 # Secrets (set via wrangler secret put)
 # ============================================
 # WALLET_ADDRESS - Wallet to receive payments
 # ANTHROPIC_API_KEY - For AI-powered extraction (optional)
+#
+# To switch to mainnet, update NETWORK var above to "base"
 
 # ============================================
 # Build Configuration

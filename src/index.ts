@@ -24,6 +24,7 @@ import { monitorCreateHandler, monitorGetHandler, monitorDeleteHandler } from ".
 import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHandler } from "./tools/memory";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
+import { securityMiddleware } from "./middleware/security";
 import { PRICING, FACILITATORS, SUPPORTED_NETWORKS } from "./config";
 import { getCachedPrice } from "./utils/pricing";
 import { registerOpenAPIRoutes } from "./openapi";
@@ -53,6 +54,9 @@ app.use("*", requestIdMiddleware);
 // Global error handler
 // Requirement 5.4: Consistent error response format
 app.use("*", errorHandlerMiddleware);
+
+// Security headers
+app.use("*", securityMiddleware);
 
 
 // ============================================
