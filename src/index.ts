@@ -112,8 +112,28 @@ app.use(
         price: PRICING.fetch.basic,
         network: "base",
         config: {
-          description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. POST with {url: string, timeout?: number, cache?: boolean}",
+          description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL of the webpage to fetch", required: true },
+              timeout: { type: "number", description: "Request timeout in milliseconds (default: 10000)" },
+              cache: { type: "boolean", description: "Enable caching (default: true)" },
+              cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "Fetched URL" },
+              title: { type: "string", description: "Page title" },
+              content: { type: "string", description: "Clean markdown content" },
+              tier: { type: "string" },
+              fetchedAt: { type: "string", description: "ISO timestamp" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -131,8 +151,28 @@ app.use(
         price: PRICING.fetch.pro,
         network: "base",
         config: {
-          description: "Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content. POST with {url: string, waitFor?: string, timeout?: number}",
+          description: "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL of the webpage to fetch", required: true },
+              waitFor: { type: "string", description: "CSS selector to wait for before capturing content" },
+              timeout: { type: "number", description: "Request timeout in milliseconds (default: 15000)" },
+              cache: { type: "boolean", description: "Enable caching (default: true)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "Fetched URL" },
+              title: { type: "string", description: "Page title" },
+              content: { type: "string", description: "Clean markdown content after JS rendering" },
+              tier: { type: "string" },
+              fetchedAt: { type: "string", description: "ISO timestamp" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -150,8 +190,26 @@ app.use(
         price: PRICING.screenshot,
         network: "base",
         config: {
-          description: "Capture a screenshot of any webpage. Returns base64 PNG. POST with {url: string, viewport?: {width, height}, fullPage?: boolean}",
+          description: "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL of the webpage to screenshot", required: true },
+              selector: { type: "string", description: "CSS selector to capture specific element" },
+              fullPage: { type: "boolean", description: "Capture entire scrollable page (default: false)" },
+              timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "Screenshotted URL" },
+              image: { type: "string", description: "Base64-encoded PNG image" },
+              capturedAt: { type: "string", description: "ISO timestamp" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -169,8 +227,24 @@ app.use(
         price: PRICING.search,
         network: "base",
         config: {
-          description: "Real-time web search. Returns titles, URLs, and snippets. POST with {query: string, limit?: number}",
+          description: "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              query: { type: "string", description: "Search query", required: true },
+              limit: { type: "number", description: "Number of results to return (default: 10, max: 20)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Original search query" },
+              results: { type: "array", description: "Array of search results with title, url, snippet" },
+              searchedAt: { type: "string", description: "ISO timestamp" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -188,8 +262,25 @@ app.use(
         price: PRICING.extract,
         network: "base",
         config: {
-          description: "Extract structured data from webpages using JSON schema. POST with {url: string, schema: object, instructions?: string}",
+          description: "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL of the webpage to extract from", required: true },
+              schema: { type: "object", description: "JSON schema defining the data structure to extract", required: true },
+              instructions: { type: "string", description: "Natural language instructions to guide extraction" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "Source URL" },
+              data: { type: "object", description: "Extracted data matching the provided schema" },
+              extractedAt: { type: "string", description: "ISO timestamp" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -213,8 +304,25 @@ app.use(
         price: "$0.006", // Minimum price for 2 URLs
         network: "base",
         config: {
-          description: "Fetch multiple URLs in parallel. Efficient for bulk operations. POST with {urls: string[], tier?: 'basic'|'pro'}. Price: $0.003/URL",
+          description: "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              urls: { type: "array", description: "Array of URLs to fetch (2-20)", required: true },
+              timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
+              tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              results: { type: "array", description: "Array of fetch results with url, status, content, title" },
+              summary: { type: "object", description: "Summary with total, successful, failed counts" },
+              totalPrice: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -232,8 +340,27 @@ app.use(
         price: PRICING.research,
         network: "base",
         config: {
-          description: "One-stop research: searches web, fetches top results, generates AI summary with key findings. POST with {query: string, resultCount?: number}",
+          description: "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              query: { type: "string", description: "Research topic or question", required: true },
+              resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)" },
+              includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string" },
+              sources: { type: "array", description: "Array of sources with url, title, snippet" },
+              summary: { type: "string", description: "AI-generated research summary" },
+              keyFindings: { type: "array", description: "Bullet points of key findings" },
+              researchedAt: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -251,8 +378,27 @@ app.use(
         price: PRICING.smartExtract,
         network: "base",
         config: {
-          description: "AI-powered data extraction using natural language. Just describe what you want. POST with {url: string, query: string, format?: 'json'|'text'}",
+          description: "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL of the webpage to extract from", required: true },
+              query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", required: true },
+              format: { type: "string", description: "Output format: json or text (default: json)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string" },
+              query: { type: "string" },
+              data: { type: "array", description: "Array of extracted items with value, context, confidence" },
+              explanation: { type: "string", description: "AI explanation of extraction" },
+              extractedAt: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -270,8 +416,26 @@ app.use(
         price: PRICING.pdf,
         network: "base",
         config: {
-          description: "Extract text and metadata from PDF documents. POST with {url: string, pages?: number[]}",
+          description: "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL of the PDF document", required: true },
+              pages: { type: "array", description: "Specific page numbers to extract (omit for all pages)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              url: { type: "string" },
+              metadata: { type: "object", description: "PDF metadata with title, author, pageCount" },
+              pages: { type: "array", description: "Array of pages with pageNumber and content" },
+              fullText: { type: "string", description: "All pages concatenated" },
+              extractedAt: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -289,8 +453,24 @@ app.use(
         price: PRICING.compare,
         network: "base",
         config: {
-          description: "Compare 2-3 webpages with AI-generated analysis of similarities and differences. POST with {urls: string[], focus?: string}",
+          description: "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              urls: { type: "array", description: "Array of 2-3 URLs to compare", required: true },
+              focus: { type: "string", description: "What aspect to focus the comparison on (e.g., 'pricing', 'features')" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              sources: { type: "array", description: "Array of sources with url, title, content" },
+              comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
+              comparedAt: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -308,8 +488,29 @@ app.use(
         price: PRICING.monitor.setup,
         network: "base",
         config: {
-          description: "Create a URL monitor for change detection",
+          description: "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              url: { type: "string", description: "URL to monitor for changes", required: true },
+              webhookUrl: { type: "string", description: "Webhook URL to receive change notifications", required: true },
+              checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)" },
+              notifyOn: { type: "string", description: "What triggers notification: any, content, or status (default: any)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              monitorId: { type: "string" },
+              url: { type: "string" },
+              webhookUrl: { type: "string" },
+              checkInterval: { type: "number" },
+              nextCheckAt: { type: "string" },
+              createdAt: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -327,8 +528,25 @@ app.use(
         price: PRICING.memory.write,
         network: "base",
         config: {
-          description: "Store a value in persistent key-value storage",
+          description: "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
           discoverable: true,
+          inputSchema: {
+            bodyType: "json" as const,
+            bodyFields: {
+              key: { type: "string", description: "Storage key (max 256 chars)", required: true },
+              value: { type: "object", description: "JSON-serializable value (max 100KB)", required: true },
+              ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)" },
+            },
+          },
+          outputSchema: {
+            type: "object",
+            properties: {
+              key: { type: "string" },
+              stored: { type: "boolean" },
+              expiresAt: { type: "string" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -346,7 +564,7 @@ app.use(
         price: PRICING.memory.read,
         network: "base",
         config: {
-          description: "Retrieve a stored value by key",
+          description: "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
           discoverable: true,
         },
       },
@@ -365,8 +583,16 @@ app.use(
         price: PRICING.memory.read,
         network: "base",
         config: {
-          description: "List all stored keys for the current wallet",
+          description: "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
           discoverable: true,
+          outputSchema: {
+            type: "object",
+            properties: {
+              keys: { type: "array", description: "Array of stored keys" },
+              count: { type: "number" },
+              requestId: { type: "string" },
+            },
+          },
         },
       },
     },
