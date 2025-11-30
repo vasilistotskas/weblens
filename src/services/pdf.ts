@@ -55,7 +55,15 @@ async function downloadPdf(url: string): Promise<ArrayBuffer> {
       Accept: "application/pdf,*/*",
     },
     signal: AbortSignal.timeout(30000),
+    redirect: 'follow',
   });
+
+  // Handle non-standard redirects (300 Multiple Choices)
+  if (response.status === 300) {
+    throw new InvalidPdfError(
+      `PDF URL returned multiple choices (300). Please use a direct link to the PDF file.`
+    );
+  }
 
   if (!response.ok) {
     throw new InvalidPdfError(`Failed to download PDF: ${String(response.status)}`);
