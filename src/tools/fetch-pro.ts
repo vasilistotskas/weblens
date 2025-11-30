@@ -40,37 +40,99 @@ export interface FetchProResult {
 }
 
 /**
- * Fetch a webpage with full JavaScript rendering
- * 
+ * Sleep utility for retry delays
+ */
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch a webpage with retry logic for timeouts and network errors
+ *
  * @param browserBinding - Cloudflare Browser Rendering binding
  * @param url - The URL to fetch
  * @param timeout - Request timeout in milliseconds
  * @param waitFor - Optional CSS selector to wait for
+ * @param retryCount - Current retry attempt (internal)
  * @returns The fetched page content and metadata
  */
-export async function fetchProPage(
+async function fetchProPageWithRetry(
+  browserBinding: Fetcher,
+  url: string,
+  timeout: number = 10000,
+  waitFor?: string,
+  retryCount: number = 0
+): Promise<FetchProResult> {
+  const maxRetries = 2;
+  const baseDelay = 1000; // Start with 1 second
+
+  try {
+    return await fetchProPageInternal(browserBinding, url, timeout, waitFor);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a retryable error (timeout, network, rate limit)
+    const isRetryable =
+      errorMessage.includes("timeout") ||
+      errorMessage.includes("Timeout") ||
+      errorMessage.includes("aborted") ||
+      errorMessage.includes("429") ||
+      errorMessage.includes("Rate limit") ||
+      errorMessage.includes("net::");
+
+    if (isRetryable && retryCount < maxRetries) {
+      // Exponential backoff: 1s, 2s
+      const delay = baseDelay * Math.pow(2, retryCount);
+      await sleep(delay);
+      return fetchProPageWithRetry(browserBinding, url, timeout, waitFor, retryCount + 1);
+    }
+
+    // Not retryable or max retries exceeded
+    throw error;
+  }
+}
+
+/**
+ * Internal fetch implementation with fallback wait strategies
+ */
+async function fetchProPageInternal(
   browserBinding: Fetcher,
   url: string,
   timeout: number = 10000,
   waitFor?: string
 ): Promise<FetchProResult> {
   const browser = await puppeteer.launch(browserBinding);
-  
+
   try {
     const page = await browser.newPage();
-    
+
     // Set viewport to default dimensions
     await page.setViewport({
       width: VIEWPORT_BOUNDS.width.default,
       height: VIEWPORT_BOUNDS.height.default,
     });
 
-    // Navigate to the URL and wait for network to be idle
-    // This ensures dynamic content is fully loaded
-    await page.goto(url, {
-      waitUntil: "networkidle0",
-      timeout,
-    });
+    // Try networkidle0 first (strictest), fallback to domcontentloaded if timeout
+    try {
+      // Navigate to the URL and wait for network to be idle
+      // This ensures dynamic content is fully loaded
+      await page.goto(url, {
+        waitUntil: "networkidle0",
+        timeout,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // If networkidle0 times out, try a less strict strategy
+      if (errorMessage.includes("timeout") || errorMessage.includes("Timeout")) {
+        await page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: timeout / 2,
+        });
+      } else {
+        throw error;
+      }
+    }
 
     // If a specific selector is provided, wait for it
     if (waitFor) {
@@ -79,7 +141,7 @@ export async function fetchProPage(
 
     // Get the fully rendered HTML
     const html = await page.content();
-    
+
     // Extract title from the page (more reliable than parsing HTML)
     const pageTitle = await page.title();
     
@@ -102,6 +164,24 @@ export async function fetchProPage(
   } finally {
     await browser.close();
   }
+}
+
+/**
+ * Fetch a webpage with full JavaScript rendering (public API with retry logic)
+ *
+ * @param browserBinding - Cloudflare Browser Rendering binding
+ * @param url - The URL to fetch
+ * @param timeout - Request timeout in milliseconds
+ * @param waitFor - Optional CSS selector to wait for
+ * @returns The fetched page content and metadata
+ */
+export async function fetchProPage(
+  browserBinding: Fetcher,
+  url: string,
+  timeout: number = 10000,
+  waitFor?: string
+): Promise<FetchProResult> {
+  return fetchProPageWithRetry(browserBinding, url, timeout, waitFor);
 }
 
 /**

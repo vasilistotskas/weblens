@@ -54,13 +54,52 @@ export function normalizeTimeout(timeout?: number): number {
 }
 
 /**
- * Capture a screenshot of a webpage
- * 
+ * Sleep utility for retry delays
+ */
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Capture a screenshot with retry logic for rate limits
+ *
  * @param browserBinding - Cloudflare Browser Rendering binding
  * @param request - Screenshot request parameters
+ * @param retryCount - Current retry attempt (internal)
  * @returns Screenshot result with base64 image and metadata
  */
-export async function captureScreenshot(
+async function captureScreenshotWithRetry(
+  browserBinding: Fetcher,
+  request: ScreenshotRequest,
+  retryCount: number = 0
+): Promise<ScreenshotResult> {
+  const maxRetries = 3;
+  const baseDelay = 2000; // Start with 2 seconds
+
+  try {
+    return await captureScreenshotInternal(browserBinding, request);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a rate limit error (429)
+    const isRateLimit = errorMessage.includes("429") || errorMessage.includes("Rate limit");
+
+    if (isRateLimit && retryCount < maxRetries) {
+      // Exponential backoff: 2s, 4s, 8s
+      const delay = baseDelay * Math.pow(2, retryCount);
+      await sleep(delay);
+      return captureScreenshotWithRetry(browserBinding, request, retryCount + 1);
+    }
+
+    // Not a rate limit or max retries exceeded
+    throw error;
+  }
+}
+
+/**
+ * Internal screenshot capture implementation
+ */
+async function captureScreenshotInternal(
   browserBinding: Fetcher,
   request: ScreenshotRequest
 ): Promise<ScreenshotResult> {
@@ -68,7 +107,7 @@ export async function captureScreenshot(
   const timeout = normalizeTimeout(request.timeout);
 
   const browser = await puppeteer.launch(browserBinding);
-  
+
   try {
     const page = await browser.newPage();
     
@@ -142,4 +181,18 @@ export async function captureScreenshot(
   } finally {
     await browser.close();
   }
+}
+
+/**
+ * Capture a screenshot of a webpage (public API with retry logic)
+ *
+ * @param browserBinding - Cloudflare Browser Rendering binding
+ * @param request - Screenshot request parameters
+ * @returns Screenshot result with base64 image and metadata
+ */
+export async function captureScreenshot(
+  browserBinding: Fetcher,
+  request: ScreenshotRequest
+): Promise<ScreenshotResult> {
+  return captureScreenshotWithRetry(browserBinding, request);
 }

@@ -47,7 +47,13 @@ const MAX_PDF_SIZE = 10 * 1024 * 1024; // 10MB
 /**
  * Download PDF from URL
  */
-async function downloadPdf(url: string): Promise<ArrayBuffer> {
+async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Promise<ArrayBuffer> {
+  // Prevent infinite redirect loops
+  if (attemptedUrls.has(url)) {
+    throw new InvalidPdfError("Circular redirect detected while downloading PDF");
+  }
+  attemptedUrls.add(url);
+
   const response = await fetch(url, {
     headers: {
       "User-Agent":
@@ -60,8 +66,32 @@ async function downloadPdf(url: string): Promise<ArrayBuffer> {
 
   // Handle non-standard redirects (300 Multiple Choices)
   if (response.status === 300) {
+    // Try to extract Location header or find first available URL
+    const location = response.headers.get("location");
+
+    if (location) {
+      // Follow the first Location header
+      const resolvedUrl = new URL(location, url).href;
+      return downloadPdf(resolvedUrl, attemptedUrls);
+    }
+
+    // Try to parse response body for links
+    try {
+      const text = await response.text();
+      const linkMatch = /<a\s+href=["']([^"']+)["']/i.exec(text) ??
+                        /href=["']([^"']+\.pdf)["']/i.exec(text) ??
+                        /(https?:\/\/[^\s<>"]+\.pdf)/i.exec(text);
+
+      if (linkMatch) {
+        const resolvedUrl = new URL(linkMatch[1], url).href;
+        return await downloadPdf(resolvedUrl, attemptedUrls);
+      }
+    } catch {
+      // Failed to parse body, fall through to error
+    }
+
     throw new InvalidPdfError(
-      `PDF URL returned multiple choices (300). Please use a direct link to the PDF file.`
+      `PDF URL returned multiple choices (300) and no clear redirect was found. Please use a direct link to the PDF file.`
     );
   }
 

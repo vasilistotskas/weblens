@@ -3,7 +3,13 @@
     "allow": [
       "Bash(wrangler secret:*)",
       "Bash(cat:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(Select-String -Pattern \"PDF Extract\" -Context 5,5)",
+      "WebFetch(domain:www.claude.com)",
+      "Bash(npm run lint)",
+      "Bash(npm run test)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
