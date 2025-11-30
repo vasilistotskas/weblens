@@ -6,15 +6,23 @@
 // Environment bindings for Cloudflare Workers
 export interface Env {
   WALLET_ADDRESS: string;
+  // CDP API keys - REQUIRED for payment verification and Bazaar discovery
+  // The @coinbase/x402 facilitator reads these automatically
+  CDP_API_KEY_ID?: string;
+  CDP_API_KEY_SECRET?: string;
+  // Network configuration
   FACILITATOR_URL?: string;
   NETWORK?: string;
+  // Cloudflare services
   BROWSER?: Fetcher; // Cloudflare Browser Rendering
   CACHE?: KVNamespace; // Cloudflare KV for caching
   MEMORY?: KVNamespace; // Cloudflare KV for agent memory
   MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
   MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
+  // Optional API keys
   SERP_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  // Legacy facilitator URLs (for multi-chain support)
   CDP_FACILITATOR_URL?: string;
   PAYAI_FACILITATOR_URL?: string;
 }

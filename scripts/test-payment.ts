@@ -51,7 +51,7 @@ const ENDPOINTS: TestEndpoint[] = [
         name: "Screenshot",
         method: "POST",
         path: "/screenshot",
-        body: { url: "https://example.com" },
+        body: { url: "https://example.com", timeout: 20000 },
         price: "$0.02",
     },
     {

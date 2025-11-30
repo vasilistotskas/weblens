@@ -5,6 +5,7 @@
  * Requirements: All
  */
 
+import { facilitator } from "@coinbase/x402";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -35,8 +36,14 @@ import type { Env } from "./types";
 const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as Address;
 
-// PayAI Facilitator - works with Cloudflare Workers (no process.env needed)
-// Supports Base mainnet, Solana, Polygon, and more
+// CDP Facilitator - REQUIRED for Coinbase Bazaar discovery listing
+// Uses CDP_API_KEY_ID and CDP_API_KEY_SECRET from environment variables
+// Supports Base mainnet and Base Sepolia
+// See: https://docs.cdp.coinbase.com/x402
+const CDP_FACILITATOR = facilitator;
+
+// PayAI Facilitator - Fallback/alternative for multi-chain support
+// Supports Solana, Polygon, and other networks
 // See: https://docs.payai.network/x402
 const PAYAI_FACILITATOR = { url: "https://facilitator.payai.network" as const };
 
@@ -98,8 +105,11 @@ app.get("/health", health);
 // ============================================
 // x402 Payment Middleware for all endpoints
 // Requirement 4.1: Multi-chain payment support
-// Requirement 4.2: CDP facilitator for Base
-// Requirement 4.3: PayAI facilitator for Solana/Polygon
+// Requirement 4.2: CDP facilitator for Base (REQUIRED for Bazaar discovery)
+// Requirement 4.3: PayAI facilitator for Solana/Polygon (future multi-chain support)
+//
+// IMPORTANT: All Base network endpoints MUST use CDP_FACILITATOR to be
+// automatically listed in the Coinbase Bazaar discovery catalog
 // ============================================
 
 // /fetch/basic - Basic tier fetch without JS rendering
@@ -137,7 +147,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -176,7 +186,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -213,7 +223,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -248,7 +258,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -284,7 +294,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -326,7 +336,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -364,7 +374,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -402,7 +412,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -439,7 +449,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -474,7 +484,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -514,7 +524,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -550,7 +560,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -569,7 +579,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 
@@ -596,7 +606,7 @@ app.use(
                 },
             },
         },
-        PAYAI_FACILITATOR
+        CDP_FACILITATOR
     )
 );
 

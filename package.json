@@ -9,7 +9,8 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "verify-bazaar": "npx tsx scripts/verify-bazaar.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
