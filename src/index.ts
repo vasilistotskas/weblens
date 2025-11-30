@@ -49,6 +49,7 @@ declare const globalThis: typeof global & {
   PAY_TO_ADDRESS?: string;
   CDP_API_KEY_ID?: string;
   CDP_API_KEY_SECRET?: string;
+  NETWORK?: string;
 };
 
 // Payment receiving address - this is where all x402 payments go
@@ -57,33 +58,44 @@ const PAY_TO_ADDRESS: string = globalThis.PAY_TO_ADDRESS
   ?? process.env.PAY_TO_ADDRESS
   ?? "0x1369f9899B0Eb899336A196003c86262997e7567";
 
+// Network configuration - "base" for mainnet, "base-sepolia" for testnet
+const NETWORK: string = globalThis.NETWORK ?? process.env.NETWORK ?? "base";
+const IS_TESTNET = NETWORK === "base-sepolia";
+
 // CDP API keys - defined in wrangler.toml [vars]
 const cdpApiKeyId: string | undefined = globalThis.CDP_API_KEY_ID ?? process.env.CDP_API_KEY_ID;
 const cdpApiKeySecret: string | undefined = globalThis.CDP_API_KEY_SECRET ?? process.env.CDP_API_KEY_SECRET;
 
-console.log("💰 Payment address:", PAY_TO_ADDRESS);
+console.log("� PaymPent address:", PAY_TO_ADDRESS);
+console.log("⛓️  Network:", NETWORK, IS_TESTNET ? "(TESTNET)" : "(MAINNET)");
 console.log("🔍 CDP_API_KEY_ID available:", !!cdpApiKeyId);
 console.log("🔍 CDP_API_KEY_SECRET available:", !!cdpApiKeySecret);
 
 if (cdpApiKeyId && cdpApiKeySecret) {
   console.log("🔑 CDP API Key ID:", cdpApiKeyId.substring(0, 8) + "...");
-  console.log("🔑 CDP API Key ID length:", cdpApiKeyId.length);
 }
 
-// Create CDP facilitator config
-// The createFacilitatorConfig function from @coinbase/x402 handles JWT generation
-// Note: In Cloudflare Workers, we need to pass the keys explicitly since process.env works differently
+// Testnet facilitator - x402.org supports Base Sepolia with fake USDC
+const TESTNET_FACILITATOR = { url: "https://x402.org/facilitator" as const };
+
+// Create CDP facilitator config for mainnet
 const CDP_FACILITATOR = cdpApiKeyId && cdpApiKeySecret 
   ? createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret)
-  : cdpFacilitator; // Falls back to reading from process.env
+  : cdpFacilitator;
 
-// PayAI Facilitator - Fallback if CDP keys not available
+// PayAI Facilitator - Fallback for mainnet if CDP keys not available
 const PAYAI_FACILITATOR = { url: "https://facilitator.payai.network" as const };
 
-// CDP is required for Bazaar listing
-const FACILITATOR = cdpApiKeyId && cdpApiKeySecret ? CDP_FACILITATOR : PAYAI_FACILITATOR;
+// Choose facilitator based on network
+// - Testnet: Always use x402.org facilitator (free, fake money)
+// - Mainnet: Use CDP (for Bazaar) or PayAI as fallback
+const FACILITATOR = IS_TESTNET 
+  ? TESTNET_FACILITATOR 
+  : (cdpApiKeyId && cdpApiKeySecret ? CDP_FACILITATOR : PAYAI_FACILITATOR);
 
-console.log("🚀 Using facilitator:", cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI (no Bazaar)");
+console.log("🚀 Using facilitator:", IS_TESTNET 
+  ? "x402.org (TESTNET - fake money)" 
+  : (cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI"));
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -161,7 +173,7 @@ app.use(
         {
             "/fetch/basic": {
                 price: PRICING.fetch.basic,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
                     discoverable: true,
@@ -200,7 +212,7 @@ app.use(
         {
             "/fetch/pro": {
                 price: PRICING.fetch.pro,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
                     discoverable: true,
@@ -239,7 +251,7 @@ app.use(
         {
             "/screenshot": {
                 price: PRICING.screenshot,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
                     discoverable: true,
@@ -276,7 +288,7 @@ app.use(
         {
             "/search": {
                 price: PRICING.search,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
                     discoverable: true,
@@ -311,7 +323,7 @@ app.use(
         {
             "/extract": {
                 price: PRICING.extract,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
                     discoverable: true,
@@ -353,7 +365,7 @@ app.use(
         {
             "/batch/fetch": {
                 price: "$0.006", // Minimum price for 2 URLs
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
                     discoverable: true,
@@ -389,7 +401,7 @@ app.use(
         {
             "/research": {
                 price: PRICING.research,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
                     discoverable: true,
@@ -427,7 +439,7 @@ app.use(
         {
             "/extract/smart": {
                 price: PRICING.smartExtract,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
                     discoverable: true,
@@ -465,7 +477,7 @@ app.use(
         {
             "/pdf": {
                 price: PRICING.pdf,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
                     discoverable: true,
@@ -502,7 +514,7 @@ app.use(
         {
             "/compare": {
                 price: PRICING.compare,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
                     discoverable: true,
@@ -537,7 +549,7 @@ app.use(
         {
             "/monitor/create": {
                 price: PRICING.monitor.setup,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
                     discoverable: true,
@@ -577,7 +589,7 @@ app.use(
         {
             "/memory/set": {
                 price: PRICING.memory.write,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
                     discoverable: true,
@@ -613,7 +625,7 @@ app.use(
         {
             "/memory/get/*": {
                 price: PRICING.memory.read,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
                     discoverable: true,
@@ -632,7 +644,7 @@ app.use(
         {
             "/memory/list": {
                 price: PRICING.memory.read,
-                network: "base",
+                network: NETWORK as "base" | "base-sepolia",
                 config: {
                     description: "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
                     discoverable: true,

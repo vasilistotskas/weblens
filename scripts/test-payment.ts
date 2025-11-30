@@ -10,7 +10,7 @@
  */
 
 import axios from "axios";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
@@ -193,7 +193,7 @@ async function main() {
 
     const client = withPaymentInterceptor(
         axios.create({ baseURL: API_URL, timeout: 120000 }),
-        walletClient
+        walletClient as any // Type assertion for x402-axios compatibility
     );
 
     const results: { name: string; success: boolean }[] = [];

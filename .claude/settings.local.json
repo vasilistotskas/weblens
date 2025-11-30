@@ -23,8 +23,6 @@
       "Bash($env:CDP_API_KEY_SECRET='Q52Y2hXti4mjB7RfBIZRyR7e7G1Us0lfNH7v4+DCLBrMrXWHZ74tbz6RHD2/+uY5DeY0PVxQk0BooOZPWyvARg==')",
       "Bash(npx wrangler deploy)",
       "Bash(npx wrangler tail:*)",
-      "Bash($env:PRIVATE_KEY='0xf7cd08b1a1857d8d028abc5ba3b09ee473401ea518b4ed9d5e983d9053073159')",
-      "Bash(PRIVATE_KEY='0xf7cd08b1a1857d8d028abc5ba3b09ee473401ea518b4ed9d5e983d9053073159' npx ts-node:*)",
       "Bash(npm view:*)",
       "Bash(npx wrangler deploy:*)",
       "Bash(node:*)"
