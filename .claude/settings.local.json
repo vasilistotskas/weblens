@@ -16,7 +16,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:x402.org)",
       "Bash(wrangler whoami:*)",
-      "WebFetch(domain:developers.cloudflare.com)"
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(npm run lint:fix)"
     ],
     "deny": [],
     "ask": []

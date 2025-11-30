@@ -13,6 +13,7 @@ import type { Address } from "viem";
 import { paymentMiddleware } from "x402-hono";
 import { PRICING, SUPPORTED_NETWORKS } from "./config";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
+import { paymentDebugMiddleware } from "./middleware/payment-debug";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { securityMiddleware } from "./middleware/security";
 import { registerOpenAPIRoutes } from "./openapi";
@@ -35,6 +36,10 @@ import type { Env } from "./types";
 // Default wallet for development - replace with your own
 const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as Address;
+
+// Debug: Check if CDP API keys are available
+console.log("🔍 CDP_API_KEY_ID available:", !!process.env.CDP_API_KEY_ID);
+console.log("🔍 CDP_API_KEY_SECRET available:", !!process.env.CDP_API_KEY_SECRET);
 
 // SOLUTION: Set CDP API keys as NON-SECRET environment variables in wrangler.toml
 // This makes them accessible at module initialization time via process.env
@@ -62,6 +67,8 @@ const FACILITATOR = process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET
   ? CDP_FACILITATOR
   : PAYAI_FACILITATOR;
 
+console.log("🚀 Using facilitator:", FACILITATOR === CDP_FACILITATOR ? "CDP (Bazaar enabled)" : "PayAI (no Bazaar)");
+
 const app = new Hono<{ Bindings: Env }>();
 
 // ============================================
@@ -73,6 +80,9 @@ app.use("*", logger());
 
 // CORS
 app.use("*", cors());
+
+// Payment debugging (helps track payment verification issues)
+app.use("*", paymentDebugMiddleware);
 
 // Request ID and processing time tracking
 // Requirement 5.3: Include X-Request-Id and X-Processing-Time headers
