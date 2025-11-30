@@ -5,7 +5,7 @@
 
 // Environment bindings for Cloudflare Workers
 export interface Env {
-  WALLET_ADDRESS: string;
+  PAY_TO_ADDRESS: string;
   // CDP API keys - REQUIRED for payment verification and Bazaar discovery
   // The @coinbase/x402 facilitator reads these automatically
   CDP_API_KEY_ID?: string;

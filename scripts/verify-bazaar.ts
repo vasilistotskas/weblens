@@ -8,28 +8,35 @@
  *   npx ts-node scripts/verify-bazaar.ts
  */
 
-interface BazaarResource {
-  resource: string;
-  payTo: string;
+interface BazaarAccept {
   scheme: string;
   network: string;
   maxAmountRequired: string;
+  resource: string;
+  description?: string;
+  mimeType?: string;
+  payTo: string;
+  maxTimeoutSeconds?: number;
   asset: string;
-  accepts?: {
-    network: string;
-    maxAmountRequired: string;
-    asset: string;
-  }[];
-  inputSchema?: unknown;
   outputSchema?: unknown;
-  metadata?: {
-    description?: string;
-    discoverable?: boolean;
+  extra?: {
+    name?: string;
+    version?: string;
   };
 }
 
+interface BazaarItem {
+  resource: string;
+  type: string;
+  x402Version: number;
+  accepts: BazaarAccept[];
+  metadata?: Record<string, unknown>;
+  lastUpdated?: string;
+}
+
 interface BazaarResponse {
-  resources: BazaarResource[];
+  items?: BazaarItem[];
+  resources?: BazaarItem[];
 }
 
 const BAZAAR_ENDPOINT = "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources";
@@ -64,23 +71,38 @@ async function verifyBazaarListing() {
 
     const data = await response.json() as BazaarResponse;
 
+    // Debug: log the actual response structure
     console.log(`✅ Successfully fetched Bazaar catalog`);
-    console.log(`📊 Total resources in Bazaar: ${data.resources.length}\n`);
+    console.log(`📊 Response keys: ${Object.keys(data).join(", ")}`);
+    
+    // Handle both 'items' and 'resources' keys
+    const allResources = data.items || data.resources || [];
+    console.log(`📊 Total resources in Bazaar: ${allResources.length}\n`);
 
     // Filter for WebLens resources (containing "weblens" or our wallet)
-    const weblensResources = data.resources.filter((resource) =>
-      resource.resource.includes("weblens") ||
-      resource.resource.includes("api.weblens.dev")
-    );
+    const weblensResources = allResources.filter((item) => {
+      const resourceUrl = item.resource || item.accepts?.[0]?.resource || "";
+      return resourceUrl.includes("weblens") || resourceUrl.includes("api.weblens.dev");
+    });
 
     if (weblensResources.length === 0) {
       console.log("❌ No WebLens resources found in Bazaar!");
+      
+      // Show sample of what IS in the Bazaar
+      console.log("\n📋 Sample resources in Bazaar (first 5):");
+      allResources.slice(0, 5).forEach((item, index) => {
+        const accept = item.accepts?.[0];
+        console.log(`   ${index + 1}. ${item.resource || accept?.resource || "N/A"}`);
+      });
+      
       console.log("\n🔧 Troubleshooting:");
       console.log("   1. Ensure you're using the CDP facilitator from @coinbase/x402");
       console.log("   2. Verify CDP_API_KEY_ID and CDP_API_KEY_SECRET are set");
       console.log("   3. Check that discoverable: true is set on all endpoints");
       console.log("   4. Deploy your changes: npm run deploy");
       console.log("   5. Wait 5-10 minutes for Bazaar indexing");
+      console.log("   6. The CDP facilitator must successfully verify at least one payment");
+      console.log("      for the service to be indexed in Bazaar");
       process.exit(1);
     }
 
@@ -91,9 +113,10 @@ async function verifyBazaarListing() {
     const missingEndpoints: string[] = [];
 
     for (const endpoint of EXPECTED_ENDPOINTS) {
-      const found = weblensResources.some((resource) =>
-        resource.resource.includes(endpoint)
-      );
+      const found = weblensResources.some((item) => {
+        const resourceUrl = item.resource || item.accepts?.[0]?.resource || "";
+        return resourceUrl.includes(endpoint);
+      });
 
       if (found) {
         foundEndpoints.push(endpoint);
@@ -123,14 +146,18 @@ async function verifyBazaarListing() {
 
     // Display details for found resources
     console.log("📝 Resource Details:\n");
-    weblensResources.forEach((resource, index) => {
-      console.log(`${index + 1}. ${resource.resource}`);
-      console.log(`   Network: ${resource.network}`);
-      console.log(`   Price: ${resource.maxAmountRequired} (atomic units)`);
-      console.log(`   Recipient: ${resource.payTo}`);
-      console.log(`   Has Input Schema: ${resource.inputSchema ? "✅" : "❌"}`);
-      console.log(`   Has Output Schema: ${resource.outputSchema ? "✅" : "❌"}`);
-      console.log(`   Description: ${resource.metadata?.description || "N/A"}`);
+    weblensResources.forEach((item, index) => {
+      const accept = item.accepts?.[0];
+      const resourceUrl = item.resource || accept?.resource || "N/A";
+      console.log(`${index + 1}. ${resourceUrl}`);
+      console.log(`   Network: ${accept?.network || "N/A"}`);
+      console.log(`   Price: ${accept?.maxAmountRequired || "N/A"} (atomic units)`);
+      console.log(`   Recipient: ${accept?.payTo || "N/A"}`);
+      console.log(`   Asset: ${accept?.asset || "N/A"}`);
+      console.log(`   Has Output Schema: ${accept?.outputSchema ? "✅" : "❌"}`);
+      console.log(`   Description: ${accept?.description || "N/A"}`);
+      console.log(`   Extra (EIP-712): ${accept?.extra ? JSON.stringify(accept.extra) : "N/A"}`);
+      console.log(`   Last Updated: ${item.lastUpdated || "N/A"}`);
       console.log();
     });
 

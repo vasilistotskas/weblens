@@ -17,12 +17,12 @@
     "@cloudflare/puppeteer": "^1.0.4",
     "@coinbase/x402": "^0.7.3",
     "@hono/eslint-config": "^2.0.3",
-    "@hono/standard-validator": "^0.2.0",
+    "@hono/standard-validator": "^0.1.2",
     "@scalar/hono-api-reference": "^0.9.25",
     "hono": "^4.10.7",
     "hono-openapi": "^1.1.1",
     "x402-hono": "^0.7.3",
-    "zod": "^4.1.13"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251128.0",

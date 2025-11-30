@@ -10,7 +10,9 @@
  */
 
 import axios from "axios";
+import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { base } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
 import type { Hex } from "viem";
 
@@ -170,7 +172,16 @@ async function testEndpoint(
 
 async function main() {
     const account = privateKeyToAccount(PRIVATE_KEY);
+    
+    // Create wallet client with Base mainnet for correct chainId in EIP-712 signatures
+    const walletClient = createWalletClient({
+        account,
+        chain: base,
+        transport: http(),
+    });
+    
     console.log("🔑 Wallet:", account.address);
+    console.log("⛓️ Chain:", base.name, `(chainId: ${base.id})`);
     console.log("🌐 API:", API_URL);
     console.log(`📋 Testing ${ENDPOINTS.length} endpoints`);
 
@@ -182,7 +193,7 @@ async function main() {
 
     const client = withPaymentInterceptor(
         axios.create({ baseURL: API_URL, timeout: 120000 }),
-        account
+        walletClient
     );
 
     const results: { name: string; success: boolean }[] = [];

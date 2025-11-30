@@ -5,7 +5,7 @@
  * Requirements: All
  */
 
-import { createFacilitatorConfig } from "@coinbase/x402";
+import { createFacilitatorConfig, facilitator as cdpFacilitator } from "@coinbase/x402";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -33,41 +33,57 @@ import { searchWeb } from "./tools/search-web";
 import { smartExtractHandler } from "./tools/smart-extract";
 import type { Env } from "./types";
 
-// Default wallet for development - replace with your own
-const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ??
-    "0x0000000000000000000000000000000000000000") as Address;
+// ============================================
+// CDP Facilitator Configuration
+// ============================================
+// 
+// IMPORTANT: In Cloudflare Workers, environment variables from wrangler.toml [vars]
+// are available at MODULE INITIALIZATION time as global variables.
+// 
+// The x402-hono middleware requires the facilitator config at module init time,
+// so we read the CDP API keys from the global scope where Cloudflare injects them.
+// ============================================
 
-// Debug: Check if CDP API keys are available
-console.log("🔍 CDP_API_KEY_ID available:", !!process.env.CDP_API_KEY_ID);
-console.log("🔍 CDP_API_KEY_SECRET available:", !!process.env.CDP_API_KEY_SECRET);
+// Cloudflare Workers injects [vars] as globals at module init time
+declare const globalThis: typeof global & {
+  PAY_TO_ADDRESS?: string;
+  CDP_API_KEY_ID?: string;
+  CDP_API_KEY_SECRET?: string;
+};
 
-// SOLUTION: Set CDP API keys as NON-SECRET environment variables in wrangler.toml
-// This makes them accessible at module initialization time via process.env
-// They will be read from process.env when createFacilitatorConfig() is called
-//
-// In wrangler.toml, add under [vars]:
-//   CDP_API_KEY_ID = "your-key-id"
-//   CDP_API_KEY_SECRET = "your-secret"
-//
-// OR set them as actual environment variables before running wrangler:
-//   $env:CDP_API_KEY_ID='xxx'; $env:CDP_API_KEY_SECRET='yyy'; wrangler deploy
-//
-// The createFacilitatorConfig() function will read from process.env automatically
-// See: https://github.com/coinbase/x402/blob/main/packages/x402/src/facilitator.ts
-const CDP_FACILITATOR = createFacilitatorConfig(
-  process.env.CDP_API_KEY_ID,
-  process.env.CDP_API_KEY_SECRET
-);
+// Payment receiving address - this is where all x402 payments go
+// IMPORTANT: Must be different from payer addresses (CDP rejects self-payments)
+const PAY_TO_ADDRESS: string = globalThis.PAY_TO_ADDRESS
+  ?? process.env.PAY_TO_ADDRESS
+  ?? "0x1369f9899B0Eb899336A196003c86262997e7567";
 
-// PayAI Facilitator - Fallback if CDP keys not set
+// CDP API keys - defined in wrangler.toml [vars]
+const cdpApiKeyId: string | undefined = globalThis.CDP_API_KEY_ID ?? process.env.CDP_API_KEY_ID;
+const cdpApiKeySecret: string | undefined = globalThis.CDP_API_KEY_SECRET ?? process.env.CDP_API_KEY_SECRET;
+
+console.log("💰 Payment address:", PAY_TO_ADDRESS);
+console.log("🔍 CDP_API_KEY_ID available:", !!cdpApiKeyId);
+console.log("🔍 CDP_API_KEY_SECRET available:", !!cdpApiKeySecret);
+
+if (cdpApiKeyId && cdpApiKeySecret) {
+  console.log("🔑 CDP API Key ID:", cdpApiKeyId.substring(0, 8) + "...");
+  console.log("🔑 CDP API Key ID length:", cdpApiKeyId.length);
+}
+
+// Create CDP facilitator config
+// The createFacilitatorConfig function from @coinbase/x402 handles JWT generation
+// Note: In Cloudflare Workers, we need to pass the keys explicitly since process.env works differently
+const CDP_FACILITATOR = cdpApiKeyId && cdpApiKeySecret 
+  ? createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret)
+  : cdpFacilitator; // Falls back to reading from process.env
+
+// PayAI Facilitator - Fallback if CDP keys not available
 const PAYAI_FACILITATOR = { url: "https://facilitator.payai.network" as const };
 
-// Use CDP facilitator if keys are available, otherwise fall back to PayAI
-const FACILITATOR = process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET
-  ? CDP_FACILITATOR
-  : PAYAI_FACILITATOR;
+// CDP is required for Bazaar listing
+const FACILITATOR = cdpApiKeyId && cdpApiKeySecret ? CDP_FACILITATOR : PAYAI_FACILITATOR;
 
-console.log("🚀 Using facilitator:", FACILITATOR === CDP_FACILITATOR ? "CDP (Bazaar enabled)" : "PayAI (no Bazaar)");
+console.log("🚀 Using facilitator:", cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI (no Bazaar)");
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -141,7 +157,7 @@ app.get("/health", health);
 app.use(
     "/fetch/basic",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/fetch/basic": {
                 price: PRICING.fetch.basic,
@@ -180,7 +196,7 @@ app.use(
 app.use(
     "/fetch/pro",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/fetch/pro": {
                 price: PRICING.fetch.pro,
@@ -219,7 +235,7 @@ app.use(
 app.use(
     "/screenshot",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/screenshot": {
                 price: PRICING.screenshot,
@@ -256,7 +272,7 @@ app.use(
 app.use(
     "/search",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/search": {
                 price: PRICING.search,
@@ -291,7 +307,7 @@ app.use(
 app.use(
     "/extract",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/extract": {
                 price: PRICING.extract,
@@ -333,7 +349,7 @@ app.use(
 app.use(
     "/batch/fetch",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/batch/fetch": {
                 price: "$0.006", // Minimum price for 2 URLs
@@ -369,7 +385,7 @@ app.use(
 app.use(
     "/research",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/research": {
                 price: PRICING.research,
@@ -407,7 +423,7 @@ app.use(
 app.use(
     "/extract/smart",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/extract/smart": {
                 price: PRICING.smartExtract,
@@ -445,7 +461,7 @@ app.use(
 app.use(
     "/pdf",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/pdf": {
                 price: PRICING.pdf,
@@ -482,7 +498,7 @@ app.use(
 app.use(
     "/compare",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/compare": {
                 price: PRICING.compare,
@@ -517,7 +533,7 @@ app.use(
 app.use(
     "/monitor/create",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/monitor/create": {
                 price: PRICING.monitor.setup,
@@ -557,7 +573,7 @@ app.use(
 app.use(
     "/memory/set",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/memory/set": {
                 price: PRICING.memory.write,
@@ -593,7 +609,7 @@ app.use(
 app.use(
     "/memory/get/*",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/memory/get/*": {
                 price: PRICING.memory.read,
@@ -612,7 +628,7 @@ app.use(
 app.use(
     "/memory/list",
     paymentMiddleware(
-        WALLET_ADDRESS,
+        PAY_TO_ADDRESS as Address,
         {
             "/memory/list": {
                 price: PRICING.memory.read,
