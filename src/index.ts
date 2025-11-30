@@ -5,7 +5,7 @@
  * Requirements: All
  */
 
-import { facilitator } from "@coinbase/x402";
+import { createFacilitatorConfig } from "@coinbase/x402";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -36,16 +36,31 @@ import type { Env } from "./types";
 const WALLET_ADDRESS = (process.env.WALLET_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as Address;
 
-// CDP Facilitator - REQUIRED for Coinbase Bazaar discovery listing
-// Uses CDP_API_KEY_ID and CDP_API_KEY_SECRET from environment variables
-// Supports Base mainnet and Base Sepolia
-// See: https://docs.cdp.coinbase.com/x402
-const CDP_FACILITATOR = facilitator;
+// SOLUTION: Set CDP API keys as NON-SECRET environment variables in wrangler.toml
+// This makes them accessible at module initialization time via process.env
+// They will be read from process.env when createFacilitatorConfig() is called
+//
+// In wrangler.toml, add under [vars]:
+//   CDP_API_KEY_ID = "your-key-id"
+//   CDP_API_KEY_SECRET = "your-secret"
+//
+// OR set them as actual environment variables before running wrangler:
+//   $env:CDP_API_KEY_ID='xxx'; $env:CDP_API_KEY_SECRET='yyy'; wrangler deploy
+//
+// The createFacilitatorConfig() function will read from process.env automatically
+// See: https://github.com/coinbase/x402/blob/main/packages/x402/src/facilitator.ts
+const CDP_FACILITATOR = createFacilitatorConfig(
+  process.env.CDP_API_KEY_ID,
+  process.env.CDP_API_KEY_SECRET
+);
 
-// PayAI Facilitator - Fallback/alternative for multi-chain support
-// Supports Solana, Polygon, and other networks
-// See: https://docs.payai.network/x402
+// PayAI Facilitator - Fallback if CDP keys not set
 const PAYAI_FACILITATOR = { url: "https://facilitator.payai.network" as const };
+
+// Use CDP facilitator if keys are available, otherwise fall back to PayAI
+const FACILITATOR = process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET
+  ? CDP_FACILITATOR
+  : PAYAI_FACILITATOR;
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -147,7 +162,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -186,7 +201,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -223,7 +238,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -258,7 +273,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -294,7 +309,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -336,7 +351,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -374,7 +389,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -412,7 +427,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -449,7 +464,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -484,7 +499,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -524,7 +539,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -560,7 +575,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -579,7 +594,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
@@ -606,7 +621,7 @@ app.use(
                 },
             },
         },
-        CDP_FACILITATOR
+        FACILITATOR
     )
 );
 
