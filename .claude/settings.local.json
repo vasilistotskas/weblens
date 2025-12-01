@@ -19,8 +19,6 @@
       "WebFetch(domain:developers.cloudflare.com)",
       "Bash(npm run lint:fix)",
       "WebSearch",
-      "Bash($env:CDP_API_KEY_ID='8dd856c8-19ea-4f76-beed-d67c92fe5073')",
-      "Bash($env:CDP_API_KEY_SECRET='Q52Y2hXti4mjB7RfBIZRyR7e7G1Us0lfNH7v4+DCLBrMrXWHZ74tbz6RHD2/+uY5DeY0PVxQk0BooOZPWyvARg==')",
       "Bash(npx wrangler deploy)",
       "Bash(npx wrangler tail:*)",
       "Bash(npm view:*)",

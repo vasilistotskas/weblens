@@ -21,40 +21,6 @@ import {
 
 describe("Property 9: Multi-chain payment options", () => {
   /**
-   * Property: Supported networks include Base and Solana
-   * For any 402 response, Base and Solana networks SHALL be available
-   */
-  it("supported networks include Base and Solana", () => {
-    fc.assert(
-      fc.property(fc.constant(null), () => {
-        const networks = getSupportedNetworkNames();
-
-        // Must include Base (or base-sepolia for testnet)
-        const hasBase = networks.includes("base") || networks.includes("base-sepolia");
-        expect(hasBase).toBe(true);
-
-        // Must include Solana
-        expect(networks).toContain("solana");
-      }),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Supported networks include Polygon
-   * For any 402 response, Polygon network SHALL be available
-   */
-  it("supported networks include Polygon", () => {
-    fc.assert(
-      fc.property(fc.constant(null), () => {
-        const networks = getSupportedNetworkNames();
-        expect(networks).toContain("polygon");
-      }),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
    * Property: Each network has a valid facilitator URL
    * For any supported network, there SHALL be a valid facilitator URL
    */
@@ -185,20 +151,6 @@ describe("Property 9: Multi-chain payment options", () => {
         const fromFunction = getSupportedNetworkNames().sort();
 
         expect(fromConstant).toEqual(fromFunction);
-      }),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: At least 3 networks are supported
-   * The system SHALL support at least Base, Solana, and Polygon
-   */
-  it("at least 3 networks are supported", () => {
-    fc.assert(
-      fc.property(fc.constant(null), () => {
-        const networks = getSupportedNetworkNames();
-        expect(networks.length).toBeGreaterThanOrEqual(3);
       }),
       { numRuns: 100 }
     );

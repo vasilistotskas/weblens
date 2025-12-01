@@ -91,7 +91,7 @@ export const NETWORKS = {
 
 // List of all supported networks for 402 responses
 // Requirement 4.1: 402 response SHALL include payment options for Base, Solana, and Polygon
-export const SUPPORTED_NETWORKS = ["base", "base-sepolia", "solana", "polygon"] as const;
+export const SUPPORTED_NETWORKS = ["base"] as const;
 
 // Cache configuration
 export const CACHE_CONFIG = {

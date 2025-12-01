@@ -34,11 +34,7 @@ export interface NetworkPaymentConfig {
 export function getSupportedNetworks(): NetworkPaymentConfig[] {
   return [
     // Base networks use CDP facilitator (via @coinbase/x402 facilitator object)
-    { network: "base-sepolia", facilitatorUrl: FACILITATORS.testnet },
     { network: "base", facilitatorUrl: FACILITATORS.payai },
-    // Solana and Polygon use PayAI facilitator
-    { network: "solana", facilitatorUrl: FACILITATORS.payai },
-    { network: "polygon", facilitatorUrl: FACILITATORS.payai },
   ];
 }
 
@@ -178,12 +174,12 @@ export function getAllEndpointConfigs(): EndpointPaymentConfig[] {
  * Check if a network is supported
  */
 export function isNetworkSupported(network: string): network is SupportedNetwork {
-  return ["base", "base-sepolia", "solana", "polygon"].includes(network);
+  return ["base"].includes(network);
 }
 
 /**
  * Get the list of supported network names
  */
 export function getSupportedNetworkNames(): SupportedNetwork[] {
-  return ["base", "base-sepolia", "solana", "polygon"];
+  return ["base"];
 }

@@ -10,9 +10,7 @@
  */
 
 import axios from "axios";
-import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
 import type { Hex } from "viem";
 
@@ -53,7 +51,7 @@ const ENDPOINTS: TestEndpoint[] = [
         name: "Screenshot",
         method: "POST",
         path: "/screenshot",
-        body: { url: "https://example.com", timeout: 20000 },
+        body: { url: "https://example.com" },
         price: "$0.02",
     },
     {
@@ -98,7 +96,7 @@ const ENDPOINTS: TestEndpoint[] = [
         name: "PDF Extract",
         method: "POST",
         path: "/pdf",
-        body: { url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+        body: { url: "https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.pdf" },
         price: "$0.01",
     },
     {
@@ -172,16 +170,7 @@ async function testEndpoint(
 
 async function main() {
     const account = privateKeyToAccount(PRIVATE_KEY);
-    
-    // Create wallet client with Base mainnet for correct chainId in EIP-712 signatures
-    const walletClient = createWalletClient({
-        account,
-        chain: base,
-        transport: http(),
-    });
-    
     console.log("🔑 Wallet:", account.address);
-    console.log("⛓️ Chain:", base.name, `(chainId: ${base.id})`);
     console.log("🌐 API:", API_URL);
     console.log(`📋 Testing ${ENDPOINTS.length} endpoints`);
 
@@ -193,7 +182,7 @@ async function main() {
 
     const client = withPaymentInterceptor(
         axios.create({ baseURL: API_URL, timeout: 120000 }),
-        walletClient as any // Type assertion for x402-axios compatibility
+        account
     );
 
     const results: { name: string; success: boolean }[] = [];

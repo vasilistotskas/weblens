@@ -54,9 +54,12 @@ declare const globalThis: typeof global & {
 
 // Payment receiving address - this is where all x402 payments go
 // IMPORTANT: Must be different from payer addresses (CDP rejects self-payments)
-const PAY_TO_ADDRESS: string = globalThis.PAY_TO_ADDRESS
-  ?? process.env.PAY_TO_ADDRESS
-  ?? "0x1369f9899B0Eb899336A196003c86262997e7567";
+const PAY_TO_ADDRESS: string | undefined = globalThis.PAY_TO_ADDRESS
+  ?? process.env.PAY_TO_ADDRESS ?? undefined
+
+if (!PAY_TO_ADDRESS) {
+  throw new Error("PAY_TO_ADDRESS is required");
+}
 
 // Network configuration - "base" for mainnet, "base-sepolia" for testnet
 const NETWORK: string = globalThis.NETWORK ?? process.env.NETWORK ?? "base";
@@ -66,13 +69,15 @@ const IS_TESTNET = NETWORK === "base-sepolia";
 const cdpApiKeyId: string | undefined = globalThis.CDP_API_KEY_ID ?? process.env.CDP_API_KEY_ID;
 const cdpApiKeySecret: string | undefined = globalThis.CDP_API_KEY_SECRET ?? process.env.CDP_API_KEY_SECRET;
 
-console.log("� PaymPent address:", PAY_TO_ADDRESS);
+console.log("� Payment address:", PAY_TO_ADDRESS);
 console.log("⛓️  Network:", NETWORK, IS_TESTNET ? "(TESTNET)" : "(MAINNET)");
 console.log("🔍 CDP_API_KEY_ID available:", !!cdpApiKeyId);
 console.log("🔍 CDP_API_KEY_SECRET available:", !!cdpApiKeySecret);
 
 if (cdpApiKeyId && cdpApiKeySecret) {
-  console.log("🔑 CDP API Key ID:", cdpApiKeyId.substring(0, 8) + "...");
+    console.log("🔑 CDP API Key ID:", cdpApiKeyId.substring(0, 8) + "...");
+} else {
+    throw new Error("CDP_API_KEY_ID and CDP_API_KEY_SECRET are required");
 }
 
 // Testnet facilitator - x402.org supports Base Sepolia with fake USDC
