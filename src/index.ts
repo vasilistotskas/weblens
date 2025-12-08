@@ -161,6 +161,37 @@ app.get("/health", health);
 
 
 // ============================================
+// POST-only enforcement middleware
+// Returns 405 for non-POST requests on paid endpoints
+// Must run BEFORE payment middleware to prevent 402 on GET requests
+// ============================================
+const PAID_ENDPOINTS = [
+    "/fetch/basic", "/fetch/pro", "/screenshot", "/search", "/extract",
+    "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
+    "/monitor/create", "/memory/set"
+];
+
+app.use("*", async (c, next) => {
+    const path = c.req.path;
+    const method = c.req.method;
+    
+    // Check if this is a paid endpoint that requires POST
+    if (PAID_ENDPOINTS.includes(path) && method !== "POST") {
+        return c.json({
+            error: "Method Not Allowed",
+            message: "This endpoint only accepts POST requests. Please send a POST request with the required JSON body.",
+            method: method,
+            path: path,
+            allowedMethods: ["POST"],
+        }, 405, {
+            "Allow": "POST",
+        });
+    }
+    
+    await next();
+});
+
+// ============================================
 // x402 Payment Middleware for all endpoints
 // Requirement 4.1: Multi-chain payment support
 // Requirement 4.2: CDP facilitator for Base (REQUIRED for Bazaar discovery)

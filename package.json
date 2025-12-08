@@ -13,26 +13,26 @@
     "verify-bazaar": "npx tsx scripts/verify-bazaar.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@cloudflare/puppeteer": "^1.0.4",
     "@coinbase/x402": "^0.7.3",
     "@hono/eslint-config": "^2.0.3",
-    "@hono/standard-validator": "^0.1.2",
-    "@scalar/hono-api-reference": "^0.9.25",
+    "@hono/standard-validator": "^0.2.0",
+    "@scalar/hono-api-reference": "^0.9.26",
     "hono": "^4.10.7",
-    "hono-openapi": "^1.1.1",
+    "hono-openapi": "^1.1.2",
     "x402-hono": "^0.7.3",
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251128.0",
+    "@cloudflare/workers-types": "^4.20251205.0",
     "axios": "^1.13.2",
     "eslint": "9.39.1",
-    "fast-check": "^4.3.0",
+    "fast-check": "^4.4.0",
     "typescript": "^5.9.3",
-    "viem": "^2.40.3",
-    "vitest": "^4.0.14",
-    "wrangler": "^4.51.0",
+    "viem": "^2.41.2",
+    "vitest": "^4.0.15",
+    "wrangler": "^4.53.0",
     "x402-axios": "^0.7.2"
   }
 }
