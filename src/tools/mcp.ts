@@ -380,18 +380,52 @@ export function mcpGetHandler() {
  * MCP info endpoint
  */
 export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
+  const baseUrl = new URL(c.req.url).origin;
+  
   return c.json({
     name: "WebLens MCP Server",
     version: "2.0.0",
-    description: "Web Intelligence API for AI agents with x402 micropayments",
+    tagline: "Give your AI agents web superpowers",
+    description: "Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts - just pay per request with USDC on Base.",
     protocolVersion: MCP_VERSION,
     transport: "streamable-http",
-    tools: TOOLS.map(t => ({ name: t.name, description: t.description })),
+    capabilities: [
+      "web-scraping",
+      "javascript-rendering",
+      "screenshot-capture",
+      "web-search",
+      "data-extraction",
+      "ai-powered-analysis",
+      "pdf-extraction",
+      "batch-operations",
+    ],
+    tools: TOOLS.map(t => ({ 
+      name: t.name, 
+      description: t.description,
+      inputSchema: t.inputSchema,
+    })),
     pricing: {
       currency: "USDC",
       network: "base",
       protocol: "x402",
+      range: "$0.003 - $0.08 per request",
+      noFees: true,
+      instantSettlement: true,
     },
-    documentation: "https://api.weblens.dev/docs",
+    integration: {
+      remote: `${baseUrl}/mcp`,
+      local: "npx -y weblens-mcp",
+    },
+    documentation: {
+      interactive: `${baseUrl}/docs`,
+      openapi: `${baseUrl}/openapi.json`,
+      llms: `${baseUrl}/llms.txt`,
+      discovery: `${baseUrl}/discovery`,
+    },
+    x402: {
+      version: 1,
+      facilitator: "CDP",
+      bazaarListed: true,
+    },
   });
 }

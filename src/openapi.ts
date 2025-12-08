@@ -43,6 +43,24 @@ Cached responses are **70% cheaper** than fresh fetches.`,
     paths: {
       "/": { get: { tags: ["System"], summary: "API Info", operationId: "getApiInfo", responses: { "200": { description: "API info" } } } },
       "/health": { get: { tags: ["System"], summary: "Health Check", operationId: "healthCheck", responses: { "200": { description: "Health status" } } } },
+      "/discovery": { 
+        get: { 
+          tags: ["System"], 
+          summary: "Service Discovery", 
+          operationId: "getDiscovery",
+          description: "Machine-readable service catalog optimized for AI agent discovery. Returns all available endpoints, pricing, capabilities, and integration options.",
+          responses: { "200": { description: "Service catalog with endpoints, pricing, and capabilities" } } 
+        } 
+      },
+      "/.well-known/x402": { 
+        get: { 
+          tags: ["System"], 
+          summary: "x402 Discovery", 
+          operationId: "getWellKnownX402",
+          description: "Standard x402 discovery endpoint. Returns x402-compatible service information for Bazaar indexing.",
+          responses: { "200": { description: "x402 service information" } } 
+        } 
+      },
       "/screenshot": {
         post: {
           tags: ["Core"], summary: "Capture Screenshot", operationId: "captureScreenshot",
@@ -313,11 +331,34 @@ export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env }>) {
 
 WebLens provides AI-powered web scraping, research, and data extraction services. All paid endpoints use the x402 protocol for HTTP-native micropayments - no accounts, no API keys, just pay per use with USDC.
 
+## Why Choose WebLens?
+
+- **Zero friction**: No accounts, API keys, or subscriptions - just pay per request
+- **AI-optimized**: Designed for autonomous agents with structured outputs
+- **Instant settlement**: Payments settle in ~1-2 seconds on Base
+- **No fees**: x402 protocol has 0 platform fees
+- **Bazaar listed**: Discoverable via Coinbase Bazaar for AI agents
+
+## Quick Start for AI Agents
+
+1. Call any endpoint (e.g., POST /fetch/basic with {"url": "https://example.com"})
+2. Receive 402 Payment Required with payment details
+3. Sign USDC payment using your wallet (Base network)
+4. Retry with X-PAYMENT header containing signed payload
+5. Receive data with X-PAYMENT-RESPONSE settlement proof
+
+## Discovery Endpoints
+
+- GET /discovery - Full service catalog with all endpoints, pricing, and capabilities
+- GET /.well-known/x402 - Standard x402 discovery for Bazaar indexing
+- GET /mcp/info - MCP server information for AI agent integration
+
 ## API Base URL
 
 - Production: https://api.weblens.dev
 - Documentation: https://api.weblens.dev/docs
 - OpenAPI Spec: https://api.weblens.dev/openapi.json
+- Discovery: https://api.weblens.dev/discovery
 
 ## Payment Protocol
 

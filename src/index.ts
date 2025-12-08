@@ -19,6 +19,7 @@ import { securityMiddleware } from "./middleware/security";
 import { registerOpenAPIRoutes } from "./openapi";
 import { batchFetchHandler } from "./tools/batch-fetch";
 import { compareHandler } from "./tools/compare";
+import { discoveryHandler, wellKnownX402Handler } from "./tools/discovery";
 import { extractData } from "./tools/extract-data";
 import { fetchBasic } from "./tools/fetch-basic";
 import { fetchPro } from "./tools/fetch-pro";
@@ -135,23 +136,51 @@ app.use("*", securityMiddleware);
 // ============================================
 registerOpenAPIRoutes(app);
 
+// ============================================
+// Discovery Endpoints (free)
+// Optimized for Bazaar indexing and AI agent discovery
+// ============================================
+app.get("/discovery", discoveryHandler);
+app.get("/.well-known/x402", wellKnownX402Handler);
+
 // API Documentation (free) - JSON summary
 app.get("/", (c) => {
     return c.json({
         name: "WebLens",
         version: "2.0.0",
-        description: "Premium Web Intelligence API with x402 micropayments",
+        description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments",
+        tagline: "Web scraping, research, and data extraction for AI agents",
         documentation: {
             interactive: "/docs",
             openapi: "/openapi.json",
             llms: "/llms.txt",
+            discovery: "/discovery",
+            wellKnown: "/.well-known/x402",
+        },
+        mcp: {
+            remote: "/mcp",
+            info: "/mcp/info",
+            local: "npx -y weblens-mcp",
         },
         supportedNetworks: SUPPORTED_NETWORKS,
         x402: {
             version: 1,
             protocol: "https://x402.org",
+            facilitator: "CDP (Coinbase)",
             description: "HTTP-native micropayments using 402 Payment Required",
+            bazaarListed: true,
         },
+        capabilities: [
+            "web-scraping",
+            "javascript-rendering", 
+            "screenshot-capture",
+            "web-search",
+            "data-extraction",
+            "ai-research",
+            "pdf-extraction",
+            "url-monitoring",
+            "agent-memory",
+        ],
     });
 });
 
