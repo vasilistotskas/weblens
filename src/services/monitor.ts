@@ -45,7 +45,7 @@ function getOwnerMonitorsKey(ownerId: string): string {
  */
 export function clampInterval(interval: number | undefined): number {
   const { minInterval, maxInterval } = PRICING.monitor;
-  if (interval === undefined) return minInterval;
+  if (interval === undefined) {return minInterval;}
   return Math.max(minInterval, Math.min(maxInterval, interval));
 }
 
@@ -110,7 +110,7 @@ export async function getMonitor(
   const { kv } = config;
   const data = await kv.get(getMonitorKey(monitorId));
   
-  if (!data) return null;
+  if (!data) {return null;}
 
   try {
     return JSON.parse(data) as StoredMonitor;
@@ -131,7 +131,7 @@ export async function deleteMonitor(
   
   // Get monitor first to check ownership and existence
   const monitor = await getMonitor(config, monitorId);
-  if (!monitor) return false;
+  if (!monitor) {return false;}
 
   // Delete the monitor
   await kv.delete(getMonitorKey(monitorId));
@@ -156,7 +156,7 @@ export async function updateMonitorAfterCheck(
   const { kv } = config;
   const monitor = await getMonitor(config, monitorId);
   
-  if (!monitor) return null;
+  if (!monitor) {return null;}
 
   const now = new Date().toISOString();
   const perCheckCents = parseFloat(PRICING.monitor.perCheck.replace("$", "")) * 100;
@@ -186,7 +186,7 @@ export async function listMonitorsByOwner(
   const { kv } = config;
   const data = await kv.get(getOwnerMonitorsKey(ownerId));
   
-  if (!data) return [];
+  if (!data) {return [];}
 
   try {
     return JSON.parse(data) as string[];
@@ -232,7 +232,7 @@ async function removeMonitorFromOwnerList(
   const key = getOwnerMonitorsKey(ownerId);
   const data = await kv.get(key);
   
-  if (!data) return;
+  if (!data) {return;}
 
   try {
     const monitors = JSON.parse(data) as string[];

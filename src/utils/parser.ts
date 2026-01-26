@@ -78,25 +78,25 @@ export function extractMetadata(html: string): {
 
   // Title
   const titleMatch = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
-  if (titleMatch) metadata.title = decodeHtmlEntities(titleMatch[1].trim());
+  if (titleMatch) {metadata.title = decodeHtmlEntities(titleMatch[1].trim());}
 
   // Meta description
   const descMatch = /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i.exec(html);
-  if (descMatch) metadata.description = decodeHtmlEntities(descMatch[1]);
+  if (descMatch) {metadata.description = decodeHtmlEntities(descMatch[1]);}
 
   // OG description fallback
   if (!metadata.description) {
     const ogDescMatch = /<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i.exec(html);
-    if (ogDescMatch) metadata.description = decodeHtmlEntities(ogDescMatch[1]);
+    if (ogDescMatch) {metadata.description = decodeHtmlEntities(ogDescMatch[1]);}
   }
 
   // Author
   const authorMatch = /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i.exec(html);
-  if (authorMatch) metadata.author = decodeHtmlEntities(authorMatch[1]);
+  if (authorMatch) {metadata.author = decodeHtmlEntities(authorMatch[1]);}
 
   // Published date
   const dateMatch = /<meta[^>]*property=["']article:published_time["'][^>]*content=["']([^"']+)["']/i.exec(html);
-  if (dateMatch) metadata.publishedAt = dateMatch[1];
+  if (dateMatch) {metadata.publishedAt = dateMatch[1];}
 
   return metadata;
 }

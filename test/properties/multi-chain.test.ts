@@ -5,19 +5,12 @@
  * **Validates: Requirements 4.1**
  * 
  * For any 402 Payment Required response, the accepts array SHALL contain 
- * payment options for at least Base and Solana networks.
+ * payment options for at least Base network (with potential for multi-chain in future).
  */
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { NETWORKS, SUPPORTED_NETWORKS, FACILITATORS } from "../../src/config";
-import {
-  getSupportedNetworks,
-  getFacilitatorForNetwork,
-  isNetworkSupported,
-  getSupportedNetworkNames,
-  type SupportedNetwork,
-} from "../../src/middleware/payment";
 
 describe("Property 9: Multi-chain payment options", () => {
   /**
@@ -27,9 +20,10 @@ describe("Property 9: Multi-chain payment options", () => {
   it("each network has a valid facilitator URL", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom(...getSupportedNetworkNames()),
+        fc.constantFrom(...(Object.keys(NETWORKS) as (keyof typeof NETWORKS)[])),
         (network) => {
-          const facilitatorUrl = getFacilitatorForNetwork(network);
+          const config = NETWORKS[network];
+          const facilitatorUrl = config.facilitatorUrl;
 
           // Facilitator URL must be a valid URL
           expect(facilitatorUrl).toBeTruthy();
@@ -48,9 +42,11 @@ describe("Property 9: Multi-chain payment options", () => {
   it("Base networks use appropriate facilitator", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("base", "base-sepolia") as fc.Arbitrary<SupportedNetwork>,
+        fc.constantFrom("base", "base-sepolia") as fc.Arbitrary<keyof typeof NETWORKS>,
         (network) => {
-          const facilitatorUrl = getFacilitatorForNetwork(network);
+          const config = NETWORKS[network];
+          const facilitatorUrl = config.facilitatorUrl;
+          
           if (network === "base-sepolia") {
             expect(facilitatorUrl).toBe(FACILITATORS.testnet);
           } else {
@@ -70,9 +66,10 @@ describe("Property 9: Multi-chain payment options", () => {
   it("Solana and Polygon use PayAI facilitator", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("solana", "polygon") as fc.Arbitrary<SupportedNetwork>,
+        fc.constantFrom("solana", "polygon") as fc.Arbitrary<keyof typeof NETWORKS>,
         (network) => {
-          const facilitatorUrl = getFacilitatorForNetwork(network);
+          const config = NETWORKS[network];
+          const facilitatorUrl = config.facilitatorUrl;
           expect(facilitatorUrl).toBe(FACILITATORS.payai);
         }
       ),
@@ -109,69 +106,75 @@ describe("Property 9: Multi-chain payment options", () => {
   });
 
   /**
-   * Property: isNetworkSupported correctly identifies valid networks
-   * For any supported network name, isNetworkSupported SHALL return true
+   * Property: SUPPORTED_NETWORKS constant contains only Base
+   * Currently only Base mainnet is supported for production
    */
-  it("isNetworkSupported correctly identifies valid networks", () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom(...getSupportedNetworkNames()),
-        (network) => {
-          expect(isNetworkSupported(network)).toBe(true);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: isNetworkSupported rejects invalid networks
-   * For any invalid network name, isNetworkSupported SHALL return false
-   */
-  it("isNetworkSupported rejects invalid networks", () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom("ethereum", "bitcoin", "invalid", "mainnet", "testnet"),
-        (network) => {
-          expect(isNetworkSupported(network)).toBe(false);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: SUPPORTED_NETWORKS constant matches getSupportedNetworkNames
-   * The exported constant SHALL match the function output
-   */
-  it("SUPPORTED_NETWORKS constant matches getSupportedNetworkNames", () => {
+  it("SUPPORTED_NETWORKS contains only Base mainnet", () => {
     fc.assert(
       fc.property(fc.constant(null), () => {
-        const fromConstant = [...SUPPORTED_NETWORKS].sort();
-        const fromFunction = getSupportedNetworkNames().sort();
-
-        expect(fromConstant).toEqual(fromFunction);
+        expect(SUPPORTED_NETWORKS).toEqual(["base"]);
       }),
       { numRuns: 100 }
     );
   });
 
   /**
-   * Property: getSupportedNetworks returns valid configurations
-   * For any network config returned, it SHALL have valid network and facilitatorUrl
+   * Property: Base mainnet is in SUPPORTED_NETWORKS
+   * Base SHALL be the primary supported network
    */
-  it("getSupportedNetworks returns valid configurations", () => {
+  it("Base mainnet is in SUPPORTED_NETWORKS", () => {
     fc.assert(
       fc.property(fc.constant(null), () => {
-        const configs = getSupportedNetworks();
+        expect(SUPPORTED_NETWORKS).toContain("base");
+      }),
+      { numRuns: 100 }
+    );
+  });
 
-        for (const config of configs) {
-          // Network must be a supported network
-          expect(isNetworkSupported(config.network)).toBe(true);
-
-          // Facilitator URL must be valid
-          expect(config.facilitatorUrl).toBeTruthy();
+  /**
+   * Property: All NETWORKS have valid configuration structure
+   * Each network config SHALL have facilitator, facilitatorUrl, and isTestnet
+   */
+  it("all NETWORKS have valid configuration structure", () => {
+    fc.assert(
+      fc.property(fc.constant(null), () => {
+        const networkKeys = Object.keys(NETWORKS) as (keyof typeof NETWORKS)[];
+        
+        for (const network of networkKeys) {
+          const config = NETWORKS[network];
+          
+          // Must have all required fields
+          expect(config).toHaveProperty("facilitator");
+          expect(config).toHaveProperty("facilitatorUrl");
+          expect(config).toHaveProperty("isTestnet");
+          
+          // Facilitator URL must be valid HTTPS
           expect(config.facilitatorUrl.startsWith("https://")).toBe(true);
+          
+          // isTestnet must be boolean
+          expect(typeof config.isTestnet).toBe("boolean");
+        }
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  /**
+   * Property: Testnet networks are properly flagged
+   * Networks with "sepolia" or "devnet" SHALL have isTestnet: true
+   */
+  it("testnet networks are properly flagged", () => {
+    fc.assert(
+      fc.property(fc.constant(null), () => {
+        const networkKeys = Object.keys(NETWORKS) as (keyof typeof NETWORKS)[];
+        
+        for (const network of networkKeys) {
+          const config = NETWORKS[network];
+          const isTestnetName = network.includes("sepolia") || network.includes("devnet");
+          
+          if (isTestnetName) {
+            expect(config.isTestnet).toBe(true);
+          }
         }
       }),
       { numRuns: 100 }

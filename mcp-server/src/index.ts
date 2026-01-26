@@ -2,18 +2,20 @@
 /**
  * WebLens MCP Server
  * Exposes WebLens API tools to AI agents via Model Context Protocol
- * Handles x402 payments automatically
+ * Handles x402 payments automatically using v2 API
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { withPaymentInterceptor, createSigner } from "x402-axios";
+import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import axios, { AxiosInstance } from "axios";
+import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod/v4";
 
 // Configuration from environment
 const WEBLENS_URL = process.env.WEBLENS_URL || "https://api.weblens.dev";
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
 
 if (!PRIVATE_KEY) {
   console.error("Error: PRIVATE_KEY environment variable is required");
@@ -25,20 +27,24 @@ if (!PRIVATE_KEY) {
 let client: AxiosInstance;
 
 async function initClient() {
-  // Create signer for x402 payments on Base mainnet
-  const signer = await createSigner("base", PRIVATE_KEY as `0x${string}`);
+  // Create account from private key
+  const account = privateKeyToAccount(PRIVATE_KEY);
+  
+  // Create x402 client and register EVM scheme
+  const x402 = new x402Client();
+  registerExactEvmScheme(x402, { signer: account });
   
   // Create axios client with x402 payment handling
-  client = withPaymentInterceptor(
+  client = wrapAxiosWithPayment(
     axios.create({ baseURL: WEBLENS_URL }),
-    signer
+    x402
   );
 }
 
 // Create MCP server
 const server = new McpServer({
   name: "weblens",
-  version: "1.0.0",
+  version: "2.0.0",
 });
 
 // Tool: Fetch webpage (basic)
@@ -230,7 +236,7 @@ server.tool(
 async function main() {
   // Initialize x402 payment client
   await initClient();
-  console.error("WebLens MCP server: x402 client initialized");
+  console.error("WebLens MCP server: x402 v2 client initialized");
   
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -34,29 +34,149 @@ Facilitators verify and settle payments on behalf of servers. Available facilita
 | PayAI | `https://facilitator.payai.network` | solana, base, polygon, avalanche, sei, peaq, iotex + testnets | ✅ |
 | x402.rs | `https://facilitator.x402.rs` | base-sepolia, base, xdc | ✅ |
 
-## x402-hono Middleware Usage
+## x402 v2 Hono Middleware Usage with Bazaar
+
+**IMPORTANT: WebLens now uses x402 v2 API with `@x402/hono`, `@x402/core`, `@x402/evm`, and `@x402/extensions` packages.**
 
 ```typescript
-import { paymentMiddleware } from "x402-hono";
+import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { paymentMiddleware } from "@x402/hono";
 
+// Create facilitator client
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"  // For testnet
+  // OR for mainnet with CDP:
+  // url: "https://api.cdp.coinbase.com/platform/v2/x402"
+});
+
+// Create resource server, register EVM scheme AND Bazaar extension
+const NETWORK_CAIP2 = "eip155:84532"; // Base Sepolia
+// OR "eip155:8453" for Base mainnet
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register(NETWORK_CAIP2, new ExactEvmScheme())
+  .registerExtension(bazaarResourceServerExtension);  // REQUIRED for Bazaar listing
+
+// Apply middleware with discovery metadata
 app.use(
   "/endpoint",
   paymentMiddleware(
-    "0xYourWalletAddress",  // Receiving wallet
     {
       "/endpoint": {
-        price: "$0.01",      // Price string for USDC
-        network: "base-sepolia",
-        config: {
-          description: "Endpoint description",
-          discoverable: true,  // For Bazaar discovery
+        accepts: [{
+          scheme: "exact",
+          price: "$0.01",
+          network: NETWORK_CAIP2,
+          payTo: "0xYourWalletAddress",
+        }],
+        description: "Endpoint description",
+        mimeType: "application/json",
+        // Add Bazaar discovery extension for automatic cataloging
+        extensions: {
+          ...declareDiscoveryExtension({
+            input: {
+              // Input schema for discovery
+              bodyType: "json",
+              bodyFields: {
+                url: { type: "string", required: true },
+              },
+            },
+            output: {
+              // Output schema for discovery
+              schema: {
+                properties: {
+                  result: { type: "string" },
+                },
+              },
+            },
+          }),
         },
       },
     },
-    { url: "https://x402.org/facilitator" }  // Facilitator URL
+    resourceServer
   )
 );
 ```
+
+### v1 to v2 Migration Notes
+
+**Package Changes:**
+- Replace `x402-hono` with `@x402/hono`
+- Add `@x402/core` and `@x402/evm` packages
+- Add `@x402/extensions` for Bazaar support
+- `@coinbase/x402` v2.1.0+ is compatible with v2 packages
+
+**API Changes:**
+- Use `HTTPFacilitatorClient` instead of facilitator URL objects
+- Use `x402ResourceServer` and register schemes explicitly
+- Use CAIP-2 network format (`eip155:8453` instead of `base`)
+- Middleware config structure changed: `accepts` array with `scheme`, `price`, `network`, `payTo`
+- No more `config.discoverable` - all endpoints are discoverable by default
+
+**Bazaar Integration (REQUIRED for listing):**
+- Register `bazaarResourceServerExtension` on resource server
+- Use `declareDiscoveryExtension()` in route configurations
+- Include input/output schemas for better discovery
+- Facilitator automatically catalogs services when processing payments
+
+## Bazaar Discovery Extension
+
+To get listed in the Coinbase Bazaar (REQUIRED for AI agent discovery):
+
+1. **Register the extension on your resource server:**
+```typescript
+import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
+
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register(NETWORK_CAIP2, new ExactEvmScheme())
+  .registerExtension(bazaarResourceServerExtension);
+```
+
+2. **Declare discovery metadata in route configs:**
+```typescript
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+
+{
+  "/endpoint": {
+    accepts: [...],
+    description: "Clear description of what your endpoint does",
+    mimeType: "application/json",
+    extensions: {
+      ...declareDiscoveryExtension({
+        input: {
+          bodyType: "json",
+          bodyFields: {
+            url: { type: "string", description: "URL to fetch", required: true },
+          },
+        },
+        output: {
+          example: {
+            content: "Sample content...",
+            title: "Sample Title",
+          },
+          schema: {
+            properties: {
+              content: { type: "string" },
+              title: { type: "string" },
+            },
+          },
+        },
+      }),
+    },
+  },
+}
+```
+
+**IMPORTANT:** The `output` field should include BOTH `example` and `schema`:
+- `example`: Realistic sample response demonstrating your API's format
+- `schema`: JSON Schema defining the response structure
+
+**How it works:**
+- Facilitator extracts discovery metadata when processing payments
+- Services are automatically cataloged in the Bazaar
+- AI agents can query `/discovery/resources` to find your service
+- No manual registration needed - happens automatically with first payment
 
 ## Price Configuration
 
@@ -68,10 +188,11 @@ app.use(
 
 To support multiple networks, configure routes with different network values. The 402 response `accepts` array will contain payment options for each configured network.
 
-### Network Mappings for WebLens
-- `base` → CDP facilitator object from `@coinbase/x402` (production)
-- `base-sepolia` → `https://x402.org/facilitator` (testnet only)
-- `solana`, `polygon`, `avalanche` → PayAI facilitator (`https://facilitator.payai.network`)
+### Network Mappings for WebLens (v2 CAIP-2 Format)
+- `eip155:8453` (Base mainnet) → CDP facilitator with API keys
+- `eip155:84532` (Base Sepolia testnet) → `https://x402.org/facilitator`
+- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` (Solana mainnet) → PayAI facilitator
+- `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet) → `https://x402.org/facilitator`
 
 ## Token Support
 
@@ -117,6 +238,7 @@ Agents need programmatic wallets (CDP Wallet API, viem, ethers HD wallets) to si
 Common issues:
 - **402 after attaching X-PAYMENT**: Check signature validity, payment amount >= maxAmountRequired, sufficient USDC balance
 - **Testnet works but mainnet fails**: Ensure `network: "base"` (not "base-sepolia"), wallet has mainnet USDC
+- **Not listed in Bazaar**: Ensure `bazaarResourceServerExtension` is registered and `declareDiscoveryExtension()` is used in routes
 
 ## Documentation References
 
@@ -126,3 +248,4 @@ Common issues:
 - Network support: https://x402.gitbook.io/x402/core-concepts/network-and-token-support
 - FAQ: https://x402.gitbook.io/x402/faq
 - MCP Integration: https://x402.gitbook.io/x402/guides/mcp-server-with-x402
+- Bazaar Discovery: https://docs.cdp.coinbase.com/x402/bazaar

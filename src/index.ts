@@ -5,12 +5,16 @@
  * Requirements: All
  */
 
-import { createFacilitatorConfig, facilitator as cdpFacilitator } from "@coinbase/x402";
+import { createFacilitatorConfig } from "@coinbase/x402";
+import { HTTPFacilitatorClient, x402ResourceServer  } from "@x402/core/server";
+import type {RoutesConfig} from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { paymentMiddleware } from "@x402/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { Address } from "viem";
-import { paymentMiddleware } from "x402-hono";
 import { PRICING, SUPPORTED_NETWORKS } from "./config";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
@@ -35,13 +39,13 @@ import { smartExtractHandler } from "./tools/smart-extract";
 import type { Env } from "./types";
 
 // ============================================
-// CDP Facilitator Configuration
+// CDP Facilitator Configuration (x402 v2)
 // ============================================
 // 
 // IMPORTANT: In Cloudflare Workers, environment variables from wrangler.toml [vars]
 // are available at MODULE INITIALIZATION time as global variables.
 // 
-// The x402-hono middleware requires the facilitator config at module init time,
+// The @x402/hono middleware requires the facilitator config at module init time,
 // so we read the CDP API keys from the global scope where Cloudflare injects them.
 // ============================================
 
@@ -82,26 +86,81 @@ if (cdpApiKeyId && cdpApiKeySecret) {
 }
 
 // Testnet facilitator - x402.org supports Base Sepolia with fake USDC
-const TESTNET_FACILITATOR = { url: "https://x402.org/facilitator" as const };
+const TESTNET_FACILITATOR_CLIENT = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
 
-// Create CDP facilitator config for mainnet
-const CDP_FACILITATOR = cdpApiKeyId && cdpApiKeySecret 
-  ? createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret)
-  : cdpFacilitator;
+// Create CDP facilitator client for mainnet
+const CDP_FACILITATOR_CLIENT = cdpApiKeyId && cdpApiKeySecret 
+  ? new HTTPFacilitatorClient(createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret))
+  : new HTTPFacilitatorClient({ url: "https://api.cdp.coinbase.com/platform/v2/x402" });
 
 // PayAI Facilitator - Fallback for mainnet if CDP keys not available
-const PAYAI_FACILITATOR = { url: "https://facilitator.payai.network" as const };
+const PAYAI_FACILITATOR_CLIENT = new HTTPFacilitatorClient({
+  url: "https://facilitator.payai.network"
+});
 
 // Choose facilitator based on network
 // - Testnet: Always use x402.org facilitator (free, fake money)
 // - Mainnet: Use CDP (for Bazaar) or PayAI as fallback
-const FACILITATOR = IS_TESTNET 
-  ? TESTNET_FACILITATOR 
-  : (cdpApiKeyId && cdpApiKeySecret ? CDP_FACILITATOR : PAYAI_FACILITATOR);
+const FACILITATOR_CLIENT = IS_TESTNET 
+  ? TESTNET_FACILITATOR_CLIENT 
+  : (cdpApiKeyId && cdpApiKeySecret ? CDP_FACILITATOR_CLIENT : PAYAI_FACILITATOR_CLIENT);
+
+// Create x402 resource server and register EVM scheme + Bazaar extension
+// For Base Sepolia (testnet): eip155:84532
+// For Base mainnet: eip155:8453
+const NETWORK_CAIP2 = IS_TESTNET ? "eip155:84532" : "eip155:8453";
+const resourceServer = new x402ResourceServer(FACILITATOR_CLIENT)
+  .register(NETWORK_CAIP2, new ExactEvmScheme())
+  .registerExtension(bazaarResourceServerExtension);
 
 console.log("🚀 Using facilitator:", IS_TESTNET 
   ? "x402.org (TESTNET - fake money)" 
   : (cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI"));
+console.log("🌐 Network CAIP-2:", NETWORK_CAIP2);
+console.log("🔍 Bazaar extension registered for discovery");
+
+// Helper function to create v2 payment middleware config with Bazaar discovery
+function createPaymentConfig(
+  path: string, 
+  price: string, 
+  description: string, 
+  inputSchema?: {
+    bodyType?: "json";
+    bodyFields?: Record<string, { type: string; description?: string; required?: boolean }>;
+  }, 
+  outputExample?: Record<string, unknown>,
+  outputSchema?: {
+    type?: string;
+    properties?: Record<string, { type: string; description?: string }>;
+    required?: string[];
+  }
+): RoutesConfig {
+  return {
+    [path]: {
+      accepts: [{
+        scheme: "exact" as const,
+        price,
+        network: NETWORK_CAIP2,
+        payTo: PAY_TO_ADDRESS as Address,
+      }],
+      description,
+      mimeType: "application/json" as const,
+      extensions: {
+        ...declareDiscoveryExtension({
+          ...(inputSchema && { input: inputSchema }),
+          ...(outputExample && outputSchema && { 
+            output: {
+              example: outputExample,
+              schema: outputSchema,
+            }
+          }),
+        }),
+      },
+    },
+  };
+}
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -234,38 +293,40 @@ app.use("*", async (c, next) => {
 app.use(
     "/fetch/basic",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/fetch/basic": {
-                price: PRICING.fetch.basic,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL of the webpage to fetch", required: true },
-                            timeout: { type: "number", description: "Request timeout in milliseconds (default: 10000)" },
-                            cache: { type: "boolean", description: "Enable caching (default: true)" },
-                            cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            url: { type: "string", description: "Fetched URL" },
-                            title: { type: "string", description: "Page title" },
-                            content: { type: "string", description: "Clean markdown content" },
-                            tier: { type: "string" },
-                            fetchedAt: { type: "string", description: "ISO timestamp" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/fetch/basic",
+            PRICING.fetch.basic,
+            "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL of the webpage to fetch", required: true },
+                    timeout: { type: "number", description: "Request timeout in milliseconds (default: 10000)" },
+                    cache: { type: "boolean", description: "Enable caching (default: true)" },
+                    cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                url: "https://example.com/article",
+                title: "Example Article Title",
+                content: "# Article Heading\n\nClean markdown content...",
+                tier: "basic",
+                fetchedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_abc123",
+            },
+            {
+                type: "object",
+                properties: {
+                    url: { type: "string", description: "Fetched URL" },
+                    title: { type: "string", description: "Page title" },
+                    content: { type: "string", description: "Clean markdown content" },
+                    tier: { type: "string" },
+                    fetchedAt: { type: "string", description: "ISO timestamp" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -273,38 +334,40 @@ app.use(
 app.use(
     "/fetch/pro",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/fetch/pro": {
-                price: PRICING.fetch.pro,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL of the webpage to fetch", required: true },
-                            waitFor: { type: "string", description: "CSS selector to wait for before capturing content" },
-                            timeout: { type: "number", description: "Request timeout in milliseconds (default: 15000)" },
-                            cache: { type: "boolean", description: "Enable caching (default: true)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            url: { type: "string", description: "Fetched URL" },
-                            title: { type: "string", description: "Page title" },
-                            content: { type: "string", description: "Clean markdown content after JS rendering" },
-                            tier: { type: "string" },
-                            fetchedAt: { type: "string", description: "ISO timestamp" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/fetch/pro",
+            PRICING.fetch.pro,
+            "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL of the webpage to fetch", required: true },
+                    waitFor: { type: "string", description: "CSS selector to wait for before capturing content" },
+                    timeout: { type: "number", description: "Request timeout in milliseconds (default: 15000)" },
+                    cache: { type: "boolean", description: "Enable caching (default: true)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                url: "https://app.example.com",
+                title: "Dynamic App Title",
+                content: "# App Content\n\nRendered after JavaScript execution...",
+                tier: "pro",
+                fetchedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_xyz789",
+            },
+            {
+                type: "object",
+                properties: {
+                    url: { type: "string", description: "Fetched URL" },
+                    title: { type: "string", description: "Page title" },
+                    content: { type: "string", description: "Clean markdown content after JS rendering" },
+                    tier: { type: "string" },
+                    fetchedAt: { type: "string", description: "ISO timestamp" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -312,36 +375,36 @@ app.use(
 app.use(
     "/screenshot",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/screenshot": {
-                price: PRICING.screenshot,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL of the webpage to screenshot", required: true },
-                            selector: { type: "string", description: "CSS selector to capture specific element" },
-                            fullPage: { type: "boolean", description: "Capture entire scrollable page (default: false)" },
-                            timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            url: { type: "string", description: "Screenshotted URL" },
-                            image: { type: "string", description: "Base64-encoded PNG image" },
-                            capturedAt: { type: "string", description: "ISO timestamp" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/screenshot",
+            PRICING.screenshot,
+            "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL of the webpage to screenshot", required: true },
+                    selector: { type: "string", description: "CSS selector to capture specific element" },
+                    fullPage: { type: "boolean", description: "Capture entire scrollable page (default: false)" },
+                    timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                url: "https://example.com",
+                image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                capturedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_screen123",
+            },
+            {
+                type: "object",
+                properties: {
+                    url: { type: "string", description: "Screenshotted URL" },
+                    image: { type: "string", description: "Base64-encoded PNG image" },
+                    capturedAt: { type: "string", description: "ISO timestamp" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -349,34 +412,37 @@ app.use(
 app.use(
     "/search",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/search": {
-                price: PRICING.search,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            query: { type: "string", description: "Search query", required: true },
-                            limit: { type: "number", description: "Number of results to return (default: 10, max: 20)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            query: { type: "string", description: "Original search query" },
-                            results: { type: "array", description: "Array of search results with title, url, snippet" },
-                            searchedAt: { type: "string", description: "ISO timestamp" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/search",
+            PRICING.search,
+            "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    query: { type: "string", description: "Search query", required: true },
+                    limit: { type: "number", description: "Number of results to return (default: 10, max: 20)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                query: "x402 payment protocol",
+                results: [
+                    { title: "x402 Documentation", url: "https://x402.org", snippet: "HTTP-native micropayments..." },
+                    { title: "Getting Started", url: "https://x402.org/docs", snippet: "Learn how to integrate..." },
+                ],
+                searchedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_search456",
+            },
+            {
+                type: "object",
+                properties: {
+                    query: { type: "string", description: "Original search query" },
+                    results: { type: "array", description: "Array of search results with title, url, snippet" },
+                    searchedAt: { type: "string", description: "ISO timestamp" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -384,35 +450,35 @@ app.use(
 app.use(
     "/extract",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/extract": {
-                price: PRICING.extract,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL of the webpage to extract from", required: true },
-                            schema: { type: "object", description: "JSON schema defining the data structure to extract", required: true },
-                            instructions: { type: "string", description: "Natural language instructions to guide extraction" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            url: { type: "string", description: "Source URL" },
-                            data: { type: "object", description: "Extracted data matching the provided schema" },
-                            extractedAt: { type: "string", description: "ISO timestamp" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/extract",
+            PRICING.extract,
+            "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL of the webpage to extract from", required: true },
+                    schema: { type: "object", description: "JSON schema defining the data structure to extract", required: true },
+                    instructions: { type: "string", description: "Natural language instructions to guide extraction" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                url: "https://example.com/product",
+                data: { name: "Product Name", price: 99.99, inStock: true },
+                extractedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_extract789",
+            },
+            {
+                type: "object",
+                properties: {
+                    url: { type: "string", description: "Source URL" },
+                    data: { type: "object", description: "Extracted data matching the provided schema" },
+                    extractedAt: { type: "string", description: "ISO timestamp" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -426,35 +492,38 @@ app.use(
 app.use(
     "/batch/fetch",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/batch/fetch": {
-                price: "$0.006", // Minimum price for 2 URLs
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            urls: { type: "array", description: "Array of URLs to fetch (2-20)", required: true },
-                            timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
-                            tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            results: { type: "array", description: "Array of fetch results with url, status, content, title" },
-                            summary: { type: "object", description: "Summary with total, successful, failed counts" },
-                            totalPrice: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/batch/fetch",
+            "$0.006", // Minimum price for 2 URLs
+            "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    urls: { type: "array", description: "Array of URLs to fetch (2-20)", required: true },
+                    timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
+                    tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                results: [
+                    { url: "https://example.com/1", status: "success", title: "Page 1", content: "Content 1..." },
+                    { url: "https://example.com/2", status: "success", title: "Page 2", content: "Content 2..." },
+                ],
+                summary: { total: 2, successful: 2, failed: 0 },
+                totalPrice: "$0.006",
+                requestId: "req_batch123",
+            },
+            {
+                type: "object",
+                properties: {
+                    results: { type: "array", description: "Array of fetch results with url, status, content, title" },
+                    summary: { type: "object", description: "Summary with total, successful, failed counts" },
+                    totalPrice: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -462,37 +531,41 @@ app.use(
 app.use(
     "/research",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/research": {
-                price: PRICING.research,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            query: { type: "string", description: "Research topic or question", required: true },
-                            resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)" },
-                            includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            query: { type: "string" },
-                            sources: { type: "array", description: "Array of sources with url, title, snippet" },
-                            summary: { type: "string", description: "AI-generated research summary" },
-                            keyFindings: { type: "array", description: "Bullet points of key findings" },
-                            researchedAt: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/research",
+            PRICING.research,
+            "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    query: { type: "string", description: "Research topic or question", required: true },
+                    resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)" },
+                    includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                query: "x402 payment protocol benefits",
+                sources: [
+                    { url: "https://x402.org", title: "x402 Protocol", snippet: "HTTP-native micropayments..." },
+                ],
+                summary: "x402 is an open payment protocol that enables instant crypto payments for API access...",
+                keyFindings: ["Zero fees", "Instant settlement", "No accounts needed"],
+                researchedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_research456",
+            },
+            {
+                type: "object",
+                properties: {
+                    query: { type: "string" },
+                    sources: { type: "array", description: "Array of sources with url, title, snippet" },
+                    summary: { type: "string", description: "AI-generated research summary" },
+                    keyFindings: { type: "array", description: "Bullet points of key findings" },
+                    researchedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -500,37 +573,42 @@ app.use(
 app.use(
     "/extract/smart",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/extract/smart": {
-                price: PRICING.smartExtract,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL of the webpage to extract from", required: true },
-                            query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", required: true },
-                            format: { type: "string", description: "Output format: json or text (default: json)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            url: { type: "string" },
-                            query: { type: "string" },
-                            data: { type: "array", description: "Array of extracted items with value, context, confidence" },
-                            explanation: { type: "string", description: "AI explanation of extraction" },
-                            extractedAt: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/extract/smart",
+            PRICING.smartExtract,
+            "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL of the webpage to extract from", required: true },
+                    query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", required: true },
+                    format: { type: "string", description: "Output format: json or text (default: json)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                url: "https://example.com/contact",
+                query: "find all email addresses",
+                data: [
+                    { value: "contact@example.com", context: "Contact page footer", confidence: 0.95 },
+                    { value: "support@example.com", context: "Support section", confidence: 0.92 },
+                ],
+                explanation: "Found 2 email addresses in the contact page",
+                extractedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_smart789",
+            },
+            {
+                type: "object",
+                properties: {
+                    url: { type: "string" },
+                    query: { type: "string" },
+                    data: { type: "array", description: "Array of extracted items with value, context, confidence" },
+                    explanation: { type: "string", description: "AI explanation of extraction" },
+                    extractedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -538,36 +616,41 @@ app.use(
 app.use(
     "/pdf",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/pdf": {
-                price: PRICING.pdf,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL of the PDF document", required: true },
-                            pages: { type: "array", description: "Specific page numbers to extract (omit for all pages)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            url: { type: "string" },
-                            metadata: { type: "object", description: "PDF metadata with title, author, pageCount" },
-                            pages: { type: "array", description: "Array of pages with pageNumber and content" },
-                            fullText: { type: "string", description: "All pages concatenated" },
-                            extractedAt: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/pdf",
+            PRICING.pdf,
+            "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL of the PDF document", required: true },
+                    pages: { type: "array", description: "Specific page numbers to extract (omit for all pages)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                url: "https://example.com/document.pdf",
+                metadata: { title: "Sample Document", author: "John Doe", pageCount: 10 },
+                pages: [
+                    { pageNumber: 1, content: "Page 1 text content..." },
+                    { pageNumber: 2, content: "Page 2 text content..." },
+                ],
+                fullText: "Page 1 text content... Page 2 text content...",
+                extractedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_pdf123",
+            },
+            {
+                type: "object",
+                properties: {
+                    url: { type: "string" },
+                    metadata: { type: "object", description: "PDF metadata with title, author, pageCount" },
+                    pages: { type: "array", description: "Array of pages with pageNumber and content" },
+                    fullText: { type: "string", description: "All pages concatenated" },
+                    extractedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -575,34 +658,41 @@ app.use(
 app.use(
     "/compare",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/compare": {
-                price: PRICING.compare,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            urls: { type: "array", description: "Array of 2-3 URLs to compare", required: true },
-                            focus: { type: "string", description: "What aspect to focus the comparison on (e.g., 'pricing', 'features')" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            sources: { type: "array", description: "Array of sources with url, title, content" },
-                            comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
-                            comparedAt: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/compare",
+            PRICING.compare,
+            "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    urls: { type: "array", description: "Array of 2-3 URLs to compare", required: true },
+                    focus: { type: "string", description: "What aspect to focus the comparison on (e.g., 'pricing', 'features')" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                sources: [
+                    { url: "https://product-a.com", title: "Product A", content: "Features: X, Y, Z..." },
+                    { url: "https://product-b.com", title: "Product B", content: "Features: A, B, C..." },
+                ],
+                comparison: {
+                    similarities: ["Both offer feature X", "Similar pricing models"],
+                    differences: ["Product A has Z, Product B has C"],
+                    summary: "Product A focuses on simplicity while Product B offers more advanced features...",
+                },
+                comparedAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_compare456",
+            },
+            {
+                type: "object",
+                properties: {
+                    sources: { type: "array", description: "Array of sources with url, title, content" },
+                    comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
+                    comparedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -610,39 +700,42 @@ app.use(
 app.use(
     "/monitor/create",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/monitor/create": {
-                price: PRICING.monitor.setup,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            url: { type: "string", description: "URL to monitor for changes", required: true },
-                            webhookUrl: { type: "string", description: "Webhook URL to receive change notifications", required: true },
-                            checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)" },
-                            notifyOn: { type: "string", description: "What triggers notification: any, content, or status (default: any)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            monitorId: { type: "string" },
-                            url: { type: "string" },
-                            webhookUrl: { type: "string" },
-                            checkInterval: { type: "number" },
-                            nextCheckAt: { type: "string" },
-                            createdAt: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/monitor/create",
+            PRICING.monitor.setup,
+            "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    url: { type: "string", description: "URL to monitor for changes", required: true },
+                    webhookUrl: { type: "string", description: "Webhook URL to receive change notifications", required: true },
+                    checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)" },
+                    notifyOn: { type: "string", description: "What triggers notification: any, content, or status (default: any)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                monitorId: "mon_abc123xyz",
+                url: "https://example.com/status",
+                webhookUrl: "https://your-app.com/webhook",
+                checkInterval: 1,
+                nextCheckAt: "2026-01-26T13:00:00.000Z",
+                createdAt: "2026-01-26T12:00:00.000Z",
+                requestId: "req_monitor789",
+            },
+            {
+                type: "object",
+                properties: {
+                    monitorId: { type: "string" },
+                    url: { type: "string" },
+                    webhookUrl: { type: "string" },
+                    checkInterval: { type: "number" },
+                    nextCheckAt: { type: "string" },
+                    createdAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -650,35 +743,35 @@ app.use(
 app.use(
     "/memory/set",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/memory/set": {
-                price: PRICING.memory.write,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
-                    discoverable: true,
-                    inputSchema: {
-                        bodyType: "json" as const,
-                        bodyFields: {
-                            key: { type: "string", description: "Storage key (max 256 chars)", required: true },
-                            value: { type: "object", description: "JSON-serializable value (max 100KB)", required: true },
-                            ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)" },
-                        },
-                    },
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            key: { type: "string" },
-                            stored: { type: "boolean" },
-                            expiresAt: { type: "string" },
-                            requestId: { type: "string" },
-                        },
-                    },
+        createPaymentConfig(
+            "/memory/set",
+            PRICING.memory.write,
+            "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
+            {
+                bodyType: "json" as const,
+                bodyFields: {
+                    key: { type: "string", description: "Storage key (max 256 chars)", required: true },
+                    value: { type: "object", description: "JSON-serializable value (max 100KB)", required: true },
+                    ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)" },
                 },
             },
-        },
-        FACILITATOR
+            {
+                key: "user_preferences",
+                stored: true,
+                expiresAt: "2026-02-02T12:00:00.000Z",
+                requestId: "req_memory123",
+            },
+            {
+                type: "object",
+                properties: {
+                    key: { type: "string" },
+                    stored: { type: "boolean" },
+                    expiresAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -686,18 +779,28 @@ app.use(
 app.use(
     "/memory/get/*",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/memory/get/*": {
-                price: PRICING.memory.read,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
-                    discoverable: true,
-                },
+        createPaymentConfig(
+            "/memory/get/*",
+            PRICING.memory.read,
+            "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
+            undefined,
+            {
+                key: "user_preferences",
+                value: { theme: "dark", language: "en" },
+                expiresAt: "2026-02-02T12:00:00.000Z",
+                requestId: "req_memget789",
             },
-        },
-        FACILITATOR
+            {
+                type: "object",
+                properties: {
+                    key: { type: "string" },
+                    value: { type: "object", description: "Stored JSON value" },
+                    expiresAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 
@@ -705,26 +808,26 @@ app.use(
 app.use(
     "/memory/list",
     paymentMiddleware(
-        PAY_TO_ADDRESS as Address,
-        {
-            "/memory/list": {
-                price: PRICING.memory.read,
-                network: NETWORK as "base" | "base-sepolia",
-                config: {
-                    description: "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
-                    discoverable: true,
-                    outputSchema: {
-                        type: "object",
-                        properties: {
-                            keys: { type: "array", description: "Array of stored keys" },
-                            count: { type: "number" },
-                            requestId: { type: "string" },
-                        },
-                    },
-                },
+        createPaymentConfig(
+            "/memory/list",
+            PRICING.memory.read,
+            "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
+            undefined,
+            {
+                keys: ["user_preferences", "session_data", "cache_config"],
+                count: 3,
+                requestId: "req_memlist456",
             },
-        },
-        FACILITATOR
+            {
+                type: "object",
+                properties: {
+                    keys: { type: "array", description: "Array of stored keys" },
+                    count: { type: "number" },
+                    requestId: { type: "string" },
+                },
+            }
+        ),
+        resourceServer
     )
 );
 

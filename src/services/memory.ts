@@ -42,7 +42,7 @@ function getKeysListKey(walletAddress: string): string {
  */
 export function clampTtl(ttl: number | undefined): number {
   const { minTtl, maxTtl, defaultTtl } = PRICING.memory;
-  if (ttl === undefined) return defaultTtl;
+  if (ttl === undefined) {return defaultTtl;}
   return Math.max(minTtl, Math.min(maxTtl, ttl));
 }
 
@@ -102,7 +102,7 @@ export async function getMemory(
   const namespacedKey = getNamespacedKey(walletAddress, key);
 
   const data = await kv.get(namespacedKey);
-  if (!data) return null;
+  if (!data) {return null;}
 
   try {
     return JSON.parse(data) as StoredValue;
@@ -124,7 +124,7 @@ export async function deleteMemory(
 
   // Check if key exists first
   const exists = await kv.get(namespacedKey);
-  if (!exists) return false;
+  if (!exists) {return false;}
 
   await kv.delete(namespacedKey);
   
@@ -144,7 +144,7 @@ export async function listMemoryKeys(
   const keysListKey = getKeysListKey(walletAddress);
 
   const data = await kv.get(keysListKey);
-  if (!data) return [];
+  if (!data) {return [];}
 
   try {
     return JSON.parse(data) as string[];
@@ -190,7 +190,7 @@ async function removeKeyFromList(
   const keysListKey = getKeysListKey(walletAddress);
   const data = await kv.get(keysListKey);
   
-  if (!data) return;
+  if (!data) {return;}
 
   try {
     const keys = JSON.parse(data) as string[];

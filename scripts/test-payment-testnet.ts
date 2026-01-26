@@ -7,7 +7,7 @@
  * 3. Start local dev server with testnet config:
  *    wrangler dev --env testnet
  * 4. Run this script:
- *    $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment-testnet.ts
+ *    $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment-testnet.ts
  *
  * This uses FAKE money - no real funds required!
  * 
@@ -15,17 +15,16 @@
  */
 
 import axios from "axios";
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
-import { withPaymentInterceptor } from "x402-axios";
+import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import type { Hex } from "viem";
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
 
 if (!PRIVATE_KEY) {
     console.error("❌ Set PRIVATE_KEY environment variable");
-    console.log("Example: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment-testnet.ts");
+    console.log("Example: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment-testnet.ts");
     process.exit(1);
 }
 
@@ -70,7 +69,7 @@ async function sleep(ms: number) {
 }
 
 async function testEndpoint(
-    client: ReturnType<typeof withPaymentInterceptor>,
+    client: ReturnType<typeof wrapAxiosWithPayment>,
     endpoint: TestEndpoint
 ): Promise<boolean> {
     console.log(`\n--- Testing ${endpoint.name} (${endpoint.price}) ---`);
@@ -109,25 +108,21 @@ async function testEndpoint(
 async function main() {
     const account = privateKeyToAccount(PRIVATE_KEY);
 
-    // Use Base Sepolia TESTNET
-    const walletClient = createWalletClient({
-        account,
-        chain: baseSepolia,
-        transport: http(),
-    });
-
     console.log("🧪 TESTNET MODE - Using fake money!");
     console.log("🔑 Wallet:", account.address);
-    console.log("⛓️  Chain:", baseSepolia.name, `(chainId: ${baseSepolia.id})`);
     console.log("🌐 API:", API_URL);
     console.log("");
     console.log("📝 Get testnet USDC: https://faucet.circle.com/ (select Base Sepolia)");
     console.log("📝 Get testnet ETH:  https://www.alchemy.com/faucets/base-sepolia");
     console.log("");
 
-    const client = withPaymentInterceptor(
+    // Create x402 client and register EVM scheme
+    const x402 = new x402Client();
+    registerExactEvmScheme(x402, { signer: account });
+
+    const client = wrapAxiosWithPayment(
         axios.create({ baseURL: API_URL, timeout: 60000 }),
-        walletClient as any
+        x402
     );
 
     const results: { name: string; success: boolean }[] = [];

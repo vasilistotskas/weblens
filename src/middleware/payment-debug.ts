@@ -95,12 +95,12 @@ function validateEIP3009Authorization(auth: PaymentPayload["payload"]): string[]
   const { authorization } = auth;
 
   // Check required EIP-3009 fields
-  if (!authorization.from) issues.push("Missing authorization.from");
-  if (!authorization.to) issues.push("Missing authorization.to");
-  if (!authorization.value) issues.push("Missing authorization.value");
-  if (!authorization.validAfter) issues.push("Missing authorization.validAfter");
-  if (!authorization.validBefore) issues.push("Missing authorization.validBefore");
-  if (!authorization.nonce) issues.push("Missing authorization.nonce");
+  if (!authorization.from) {issues.push("Missing authorization.from");}
+  if (!authorization.to) {issues.push("Missing authorization.to");}
+  if (!authorization.value) {issues.push("Missing authorization.value");}
+  if (!authorization.validAfter) {issues.push("Missing authorization.validAfter");}
+  if (!authorization.validBefore) {issues.push("Missing authorization.validBefore");}
+  if (!authorization.nonce) {issues.push("Missing authorization.nonce");}
 
   // Validate address formats
   if (authorization.from && !authorization.from.startsWith("0x")) {

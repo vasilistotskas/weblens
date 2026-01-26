@@ -4,21 +4,22 @@
  * Prerequisites:
  * 1. Have USDC on Base mainnet in your wallet
  * 2. Export your wallet private key
- * 3. Run: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment.ts
+ * 3. Run: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment.ts
  *
  * Total cost: ~$0.15 USDC to test all endpoints
  */
 
 import axios from "axios";
 import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor } from "x402-axios";
+import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import type { Hex } from "viem";
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
 
 if (!PRIVATE_KEY) {
     console.error("❌ Set PRIVATE_KEY environment variable");
-    console.log("Example: $env:PRIVATE_KEY='0x...' ; npx ts-node scripts/test-payment.ts");
+    console.log("Example: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment.ts");
     process.exit(1);
 }
 
@@ -126,7 +127,7 @@ async function sleep(ms: number) {
 }
 
 async function testEndpoint(
-    client: ReturnType<typeof withPaymentInterceptor>,
+    client: ReturnType<typeof wrapAxiosWithPayment>,
     endpoint: TestEndpoint
 ): Promise<boolean> {
     console.log(`\n--- Testing ${endpoint.name} (${endpoint.price}) ---`);
@@ -178,11 +179,15 @@ async function main() {
         const price = parseFloat(e.price.replace("$", ""));
         return sum + price;
     }, 0);
-    console.log(`💵 Estimated total cost: $${totalCost.toFixed(4)} USDC`);
+    console.log(`💵 Estimated total cost: ${totalCost.toFixed(4)} USDC`);
 
-    const client = withPaymentInterceptor(
+    // Create x402 client and register EVM scheme
+    const x402 = new x402Client();
+    registerExactEvmScheme(x402, { signer: account });
+
+    const client = wrapAxiosWithPayment(
         axios.create({ baseURL: API_URL, timeout: 120000 }),
-        account
+        x402
     );
 
     const results: { name: string; success: boolean }[] = [];
