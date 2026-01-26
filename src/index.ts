@@ -138,13 +138,13 @@ function createPaymentConfig(
   path: string, 
   price: string, 
   description: string, 
+  inputExample?: Record<string, unknown>,
   inputSchema?: {
-    bodyType?: "json";
-    bodyFields?: Record<string, { type: string; description?: string; required?: boolean }>;
+    properties?: Record<string, { type: string; description?: string; maxLength?: number; minimum?: number; maximum?: number }>;
+    required?: string[];
   }, 
   outputExample?: Record<string, unknown>,
   outputSchema?: {
-    type?: string;
     properties?: Record<string, { type: string; description?: string }>;
     required?: string[];
   }
@@ -161,7 +161,9 @@ function createPaymentConfig(
       mimeType: "application/json" as const,
       extensions: {
         ...declareDiscoveryExtension({
-          ...(inputSchema && { input: inputSchema }),
+          bodyType: "json" as const, // POST endpoints use JSON body
+          ...(inputExample && { input: inputExample }),
+          ...(inputSchema && { inputSchema }),
           ...(outputExample && outputSchema && { 
             output: {
               example: outputExample,
@@ -188,16 +190,17 @@ function createLazyPaymentMiddleware(
   path: string,
   price: string,
   description: string,
-  inputSchema?: Parameters<typeof createPaymentConfig>[3],
-  outputExample?: Parameters<typeof createPaymentConfig>[4],
-  outputSchema?: Parameters<typeof createPaymentConfig>[5]
+  inputExample?: Parameters<typeof createPaymentConfig>[3],
+  inputSchema?: Parameters<typeof createPaymentConfig>[4],
+  outputExample?: Parameters<typeof createPaymentConfig>[5],
+  outputSchema?: Parameters<typeof createPaymentConfig>[6]
 ): MiddlewareHandler {
   let middleware: MiddlewareHandler | null = null;
 
   return async (c, next) => {
     if (!middleware) {
       console.log(`🔧 [First Request] Initializing payment middleware for ${path}...`);
-      const config = createPaymentConfig(path, price, description, inputSchema, outputExample, outputSchema);
+      const config = createPaymentConfig(path, price, description, inputExample, inputSchema, outputExample, outputSchema);
       const server = getResourceServer();
       middleware = paymentMiddleware(config, server);
       console.log(`✅ [First Request] Payment middleware initialized for ${path}`);
@@ -341,14 +344,15 @@ app.use(
         "/fetch/basic",
         PRICING.fetch.basic,
         "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
+        { url: "https://example.com/article", timeout: 10000, cache: true, cacheTtl: 3600 },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL of the webpage to fetch", required: true },
+            properties: {
+                url: { type: "string", description: "URL of the webpage to fetch" },
                 timeout: { type: "number", description: "Request timeout in milliseconds (default: 10000)" },
                 cache: { type: "boolean", description: "Enable caching (default: true)" },
-                cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)" },
+                cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)", minimum: 60, maximum: 86400 },
             },
+            required: ["url"],
         },
         {
             url: "https://example.com/article",
@@ -359,7 +363,6 @@ app.use(
             requestId: "req_abc123",
         },
         {
-            type: "object",
             properties: {
                 url: { type: "string", description: "Fetched URL" },
                 title: { type: "string", description: "Page title" },
@@ -379,14 +382,15 @@ app.use(
         "/fetch/pro",
         PRICING.fetch.pro,
         "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
+        { url: "https://app.example.com", waitFor: ".content", timeout: 15000, cache: true },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL of the webpage to fetch", required: true },
+            properties: {
+                url: { type: "string", description: "URL of the webpage to fetch" },
                 waitFor: { type: "string", description: "CSS selector to wait for before capturing content" },
                 timeout: { type: "number", description: "Request timeout in milliseconds (default: 15000)" },
                 cache: { type: "boolean", description: "Enable caching (default: true)" },
             },
+            required: ["url"],
         },
         {
             url: "https://app.example.com",
@@ -397,7 +401,6 @@ app.use(
             requestId: "req_xyz789",
         },
         {
-            type: "object",
             properties: {
                 url: { type: "string", description: "Fetched URL" },
                 title: { type: "string", description: "Page title" },
@@ -417,14 +420,15 @@ app.use(
         "/screenshot",
         PRICING.screenshot,
         "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
+        { url: "https://example.com", selector: ".main-content", fullPage: false, timeout: 10000 },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL of the webpage to screenshot", required: true },
+            properties: {
+                url: { type: "string", description: "URL of the webpage to screenshot" },
                 selector: { type: "string", description: "CSS selector to capture specific element" },
                 fullPage: { type: "boolean", description: "Capture entire scrollable page (default: false)" },
-                timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)" },
+                timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)", minimum: 5000, maximum: 30000 },
             },
+            required: ["url"],
         },
         {
             url: "https://example.com",
@@ -433,7 +437,6 @@ app.use(
             requestId: "req_screen123",
         },
         {
-            type: "object",
             properties: {
                 url: { type: "string", description: "Screenshotted URL" },
                 image: { type: "string", description: "Base64-encoded PNG image" },
@@ -451,12 +454,13 @@ app.use(
         "/search",
         PRICING.search,
         "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
+        { query: "x402 payment protocol", limit: 10 },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                query: { type: "string", description: "Search query", required: true },
-                limit: { type: "number", description: "Number of results to return (default: 10, max: 20)" },
+            properties: {
+                query: { type: "string", description: "Search query" },
+                limit: { type: "number", description: "Number of results to return (default: 10, max: 20)", maximum: 20 },
             },
+            required: ["query"],
         },
         {
             query: "x402 payment protocol",
@@ -468,7 +472,6 @@ app.use(
             requestId: "req_search456",
         },
         {
-            type: "object",
             properties: {
                 query: { type: "string", description: "Original search query" },
                 results: { type: "array", description: "Array of search results with title, url, snippet" },
@@ -486,13 +489,14 @@ app.use(
         "/extract",
         PRICING.extract,
         "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
+        { url: "https://example.com/product", schema: { name: { type: "string" }, price: { type: "number" } }, instructions: "Extract product details" },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL of the webpage to extract from", required: true },
-                schema: { type: "object", description: "JSON schema defining the data structure to extract", required: true },
+            properties: {
+                url: { type: "string", description: "URL of the webpage to extract from" },
+                schema: { type: "object", description: "JSON schema defining the data structure to extract" },
                 instructions: { type: "string", description: "Natural language instructions to guide extraction" },
             },
+            required: ["url", "schema"],
         },
         {
             url: "https://example.com/product",
@@ -501,7 +505,6 @@ app.use(
             requestId: "req_extract789",
         },
         {
-            type: "object",
             properties: {
                 url: { type: "string", description: "Source URL" },
                 data: { type: "object", description: "Extracted data matching the provided schema" },
@@ -525,13 +528,14 @@ app.use(
         "/batch/fetch",
         "$0.006", // Minimum price for 2 URLs
         "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
+        { urls: ["https://example.com/1", "https://example.com/2"], timeout: 10000, tier: "basic" },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                urls: { type: "array", description: "Array of URLs to fetch (2-20)", required: true },
+            properties: {
+                urls: { type: "array", description: "Array of URLs to fetch (2-20)" },
                 timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
                 tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
             },
+            required: ["urls"],
         },
         {
             results: [
@@ -543,7 +547,6 @@ app.use(
             requestId: "req_batch123",
         },
         {
-            type: "object",
             properties: {
                 results: { type: "array", description: "Array of fetch results with url, status, content, title" },
                 summary: { type: "object", description: "Summary with total, successful, failed counts" },
@@ -561,13 +564,14 @@ app.use(
         "/research",
         PRICING.research,
         "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
+        { query: "x402 payment protocol benefits", resultCount: 5, includeRawContent: false },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                query: { type: "string", description: "Research topic or question", required: true },
-                resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)" },
+            properties: {
+                query: { type: "string", description: "Research topic or question" },
+                resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)", minimum: 1, maximum: 10 },
                 includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
             },
+            required: ["query"],
         },
         {
             query: "x402 payment protocol benefits",
@@ -580,7 +584,6 @@ app.use(
             requestId: "req_research456",
         },
         {
-            type: "object",
             properties: {
                 query: { type: "string" },
                 sources: { type: "array", description: "Array of sources with url, title, snippet" },
@@ -600,13 +603,14 @@ app.use(
         "/extract/smart",
         PRICING.smartExtract,
         "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
+        { url: "https://example.com/contact", query: "find all email addresses", format: "json" },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL of the webpage to extract from", required: true },
-                query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", required: true },
+            properties: {
+                url: { type: "string", description: "URL of the webpage to extract from" },
+                query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", maxLength: 500 },
                 format: { type: "string", description: "Output format: json or text (default: json)" },
             },
+            required: ["url", "query"],
         },
         {
             url: "https://example.com/contact",
@@ -620,7 +624,6 @@ app.use(
             requestId: "req_smart789",
         },
         {
-            type: "object",
             properties: {
                 url: { type: "string" },
                 query: { type: "string" },
@@ -640,12 +643,13 @@ app.use(
         "/pdf",
         PRICING.pdf,
         "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
+        { url: "https://example.com/document.pdf", pages: [1, 2, 3] },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL of the PDF document", required: true },
+            properties: {
+                url: { type: "string", description: "URL of the PDF document" },
                 pages: { type: "array", description: "Specific page numbers to extract (omit for all pages)" },
             },
+            required: ["url"],
         },
         {
             url: "https://example.com/document.pdf",
@@ -659,7 +663,6 @@ app.use(
             requestId: "req_pdf123",
         },
         {
-            type: "object",
             properties: {
                 url: { type: "string" },
                 metadata: { type: "object", description: "PDF metadata with title, author, pageCount" },
@@ -679,12 +682,13 @@ app.use(
         "/compare",
         PRICING.compare,
         "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
+        { urls: ["https://product-a.com", "https://product-b.com"], focus: "pricing and features" },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                urls: { type: "array", description: "Array of 2-3 URLs to compare", required: true },
+            properties: {
+                urls: { type: "array", description: "Array of 2-3 URLs to compare" },
                 focus: { type: "string", description: "What aspect to focus the comparison on (e.g., 'pricing', 'features')" },
             },
+            required: ["urls"],
         },
         {
             sources: [
@@ -700,7 +704,6 @@ app.use(
             requestId: "req_compare456",
         },
         {
-            type: "object",
             properties: {
                 sources: { type: "array", description: "Array of sources with url, title, content" },
                 comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
@@ -718,14 +721,15 @@ app.use(
         "/monitor/create",
         PRICING.monitor.setup,
         "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
+        { url: "https://example.com/status", webhookUrl: "https://your-app.com/webhook", checkInterval: 1, notifyOn: "any" },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                url: { type: "string", description: "URL to monitor for changes", required: true },
-                webhookUrl: { type: "string", description: "Webhook URL to receive change notifications", required: true },
-                checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)" },
+            properties: {
+                url: { type: "string", description: "URL to monitor for changes" },
+                webhookUrl: { type: "string", description: "Webhook URL to receive change notifications" },
+                checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)", minimum: 1, maximum: 24 },
                 notifyOn: { type: "string", description: "What triggers notification: any, content, or status (default: any)" },
             },
+            required: ["url", "webhookUrl"],
         },
         {
             monitorId: "mon_abc123xyz",
@@ -737,7 +741,6 @@ app.use(
             requestId: "req_monitor789",
         },
         {
-            type: "object",
             properties: {
                 monitorId: { type: "string" },
                 url: { type: "string" },
@@ -758,13 +761,14 @@ app.use(
         "/memory/set",
         PRICING.memory.write,
         "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
+        { key: "user_preferences", value: { theme: "dark", language: "en" }, ttl: 168 },
         {
-            bodyType: "json" as const,
-            bodyFields: {
-                key: { type: "string", description: "Storage key (max 256 chars)", required: true },
-                value: { type: "object", description: "JSON-serializable value (max 100KB)", required: true },
-                ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)" },
+            properties: {
+                key: { type: "string", description: "Storage key (max 256 chars)", maxLength: 256 },
+                value: { type: "object", description: "JSON-serializable value (max 100KB)" },
+                ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)", minimum: 1, maximum: 720 },
             },
+            required: ["key", "value"],
         },
         {
             key: "user_preferences",
@@ -773,7 +777,6 @@ app.use(
             requestId: "req_memory123",
         },
         {
-            type: "object",
             properties: {
                 key: { type: "string" },
                 stored: { type: "boolean" },
@@ -792,6 +795,7 @@ app.use(
         PRICING.memory.read,
         "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
         undefined,
+        undefined,
         {
             key: "user_preferences",
             value: { theme: "dark", language: "en" },
@@ -799,7 +803,6 @@ app.use(
             requestId: "req_memget789",
         },
         {
-            type: "object",
             properties: {
                 key: { type: "string" },
                 value: { type: "object", description: "Stored JSON value" },
@@ -818,13 +821,13 @@ app.use(
         PRICING.memory.read,
         "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
         undefined,
+        undefined,
         {
             keys: ["user_preferences", "session_data", "cache_config"],
             count: 3,
             requestId: "req_memlist456",
         },
         {
-            type: "object",
             properties: {
                 keys: { type: "array", description: "Array of stored keys" },
                 count: { type: "number" },

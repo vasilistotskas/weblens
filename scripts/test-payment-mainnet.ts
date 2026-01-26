@@ -1,15 +1,14 @@
 /**
- * Test script for x402 payments on WebLens (defaults to PRODUCTION - Base Mainnet)
+ * Test script for x402 payments on WebLens PRODUCTION (Base Mainnet)
  *
  * Prerequisites:
- * 1. Have USDC on Base mainnet in your wallet (for production)
+ * 1. Have USDC on Base mainnet in your wallet
  * 2. Export your wallet private key
- * 3. Run: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment.ts
+ * 3. Run: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment-mainnet.ts
  *
- * For testnet (Base Sepolia with fake USDC):
- * Run: $env:API_URL='http://localhost:8787' ; $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment.ts
- *
- * Total cost: ~$0.20 USDC (production) or FREE (testnet with fake USDC)
+ * Total cost: ~$0.20 USDC to test all endpoints
+ * 
+ * IMPORTANT: This uses REAL MONEY on Base mainnet!
  */
 
 import axios from "axios";
@@ -22,11 +21,11 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
 
 if (!PRIVATE_KEY) {
     console.error("❌ Set PRIVATE_KEY environment variable");
-    console.log("Example: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment.ts");
+    console.log("Example: $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment-mainnet.ts");
     process.exit(1);
 }
 
-const API_URL = process.env.API_URL || "https://api.weblens.dev";
+const API_URL = "https://api.weblens.dev";
 
 interface TestEndpoint {
     name: string;
@@ -174,7 +173,6 @@ async function testEndpoint(
                         const decoded = JSON.parse(Buffer.from(paymentRequired, "base64").toString());
                         console.log("  💳 Payment required for network:", decoded.accepts?.[0]?.network);
                         console.log("  💵 Amount:", decoded.accepts?.[0]?.amount, "wei");
-                        console.log("  💰 Asset:", decoded.accepts?.[0]?.asset);
                     } catch {
                         console.log("  💳 Payment required (could not decode header)");
                     }
@@ -191,14 +189,7 @@ async function main() {
     const account = privateKeyToAccount(PRIVATE_KEY);
     console.log("🔑 Wallet:", account.address);
     console.log("🌐 API:", API_URL);
-    
-    const isProduction = API_URL.includes("api.weblens.dev");
-    if (isProduction) {
-        console.log("⚠️  Network: Base Mainnet (REAL MONEY!)");
-    } else {
-        console.log("✅ Network: Base Sepolia Testnet (fake USDC)");
-    }
-    
+    console.log("⚠️  Network: Base Mainnet (REAL MONEY!)");
     console.log(`📋 Testing ${ENDPOINTS.length} endpoints`);
 
     const totalCost = ENDPOINTS.reduce((sum, e) => {
@@ -206,11 +197,8 @@ async function main() {
         return sum + price;
     }, 0);
     console.log(`💵 Estimated total cost: ${totalCost.toFixed(4)} USDC`);
-    
-    if (isProduction) {
-        console.log("\n⚠️  Make sure your wallet has at least", totalCost.toFixed(4), "USDC on Base mainnet!");
-        console.log("⚠️  USDC contract on Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
-    }
+    console.log("\n⚠️  Make sure your wallet has at least", totalCost.toFixed(4), "USDC on Base mainnet!");
+    console.log("⚠️  USDC contract on Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
 
     // Create x402 client and register EVM scheme
     const x402 = new x402Client();
