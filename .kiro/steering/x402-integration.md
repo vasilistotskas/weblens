@@ -233,12 +233,82 @@ Agents follow the same flow as humans:
 
 Agents need programmatic wallets (CDP Wallet API, viem, ethers HD wallets) to sign EIP-712 payloads.
 
+## Cloudflare Workers Specific Configuration
+
+**CRITICAL: Cloudflare Workers cannot call `fetch()` during module initialization (global scope).**
+
+The `paymentMiddleware` from `@x402/hono` validates routes at module load time by calling the facilitator's `/supported` endpoint, which uses `fetch()`. This is explicitly forbidden in Cloudflare Workers.
+
+### Solution: Lazy Initialization Pattern
+
+```typescript
+// Create lazy initialization function
+let resourceServer: x402ResourceServer | null = null;
+
+function getResourceServer(): x402ResourceServer {
+  if (resourceServer) {
+    return resourceServer;
+  }
+
+  console.log("🔧 [First Request] Initializing x402 resource server...");
+
+  const facilitatorClient = new HTTPFacilitatorClient({
+    url: "https://x402.org/facilitator"
+  });
+
+  resourceServer = new x402ResourceServer(facilitatorClient);
+  resourceServer.register(NETWORK_CAIP2, new ExactEvmScheme());
+  resourceServer.registerExtension(bazaarResourceServerExtension);
+
+  return resourceServer;
+}
+
+// Create lazy payment middleware wrapper
+function createLazyPaymentMiddleware(
+  path: string,
+  price: string,
+  description: string,
+  inputSchema?: any,
+  outputExample?: any,
+  outputSchema?: any
+) {
+  let middleware: ReturnType<typeof paymentMiddleware> | null = null;
+
+  return async (c: any, next: any) => {
+    if (!middleware) {
+      const config = createPaymentConfig(path, price, description, inputSchema, outputExample, outputSchema);
+      const server = getResourceServer();
+      middleware = paymentMiddleware(config, server);
+    }
+    return middleware(c, next);
+  };
+}
+
+// Use lazy middleware for all endpoints
+app.use("/endpoint", createLazyPaymentMiddleware(
+  "/endpoint",
+  "$0.01",
+  "Description",
+  inputSchema,
+  outputExample,
+  outputSchema
+));
+```
+
+### Key Points:
+- Resource server initialization is deferred until first request
+- Each endpoint's middleware is initialized on its first request
+- No `fetch()` calls happen during module load
+- Works perfectly with Cloudflare Workers deployment
+
 ## Troubleshooting
 
 Common issues:
 - **402 after attaching X-PAYMENT**: Check signature validity, payment amount >= maxAmountRequired, sufficient USDC balance
 - **Testnet works but mainnet fails**: Ensure `network: "base"` (not "base-sepolia"), wallet has mainnet USDC
 - **Not listed in Bazaar**: Ensure `bazaarResourceServerExtension` is registered and `declareDiscoveryExtension()` is used in routes
+- **500 errors on Cloudflare Workers**: Use lazy initialization pattern to avoid `fetch()` in global scope
+- **Empty 402 response body**: This is expected in v2 - payment requirements are in `PAYMENT-REQUIRED` header
 
 ## Documentation References
 

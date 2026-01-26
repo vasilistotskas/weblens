@@ -19,6 +19,7 @@
     "@hono/eslint-config": "^2.0.6",
     "@scalar/hono-api-reference": "^0.9.37",
     "@types/node": "^25.0.10",
+    "@x402/axios": "^2.2.0",
     "@x402/core": "^2.2.0",
     "@x402/evm": "^2.2.0",
     "@x402/extensions": "^2.2.0",
@@ -29,7 +30,6 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260124.0",
-    "@x402/axios": "^2.2.0",
     "axios": "^1.13.3",
     "eslint": "9.39.2",
     "fast-check": "^4.5.3",

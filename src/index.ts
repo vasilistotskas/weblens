@@ -12,6 +12,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { paymentMiddleware } from "@x402/hono";
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { Address } from "viem";
@@ -85,41 +86,52 @@ if (cdpApiKeyId && cdpApiKeySecret) {
     throw new Error("CDP_API_KEY_ID and CDP_API_KEY_SECRET are required");
 }
 
-// Testnet facilitator - x402.org supports Base Sepolia with fake USDC
-const TESTNET_FACILITATOR_CLIENT = new HTTPFacilitatorClient({
-  url: "https://x402.org/facilitator"
-});
-
-// Create CDP facilitator client for mainnet
-const CDP_FACILITATOR_CLIENT = cdpApiKeyId && cdpApiKeySecret 
-  ? new HTTPFacilitatorClient(createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret))
-  : new HTTPFacilitatorClient({ url: "https://api.cdp.coinbase.com/platform/v2/x402" });
-
-// PayAI Facilitator - Fallback for mainnet if CDP keys not available
-const PAYAI_FACILITATOR_CLIENT = new HTTPFacilitatorClient({
-  url: "https://facilitator.payai.network"
-});
-
-// Choose facilitator based on network
-// - Testnet: Always use x402.org facilitator (free, fake money)
-// - Mainnet: Use CDP (for Bazaar) or PayAI as fallback
-const FACILITATOR_CLIENT = IS_TESTNET 
-  ? TESTNET_FACILITATOR_CLIENT 
-  : (cdpApiKeyId && cdpApiKeySecret ? CDP_FACILITATOR_CLIENT : PAYAI_FACILITATOR_CLIENT);
-
-// Create x402 resource server and register EVM scheme + Bazaar extension
 // For Base Sepolia (testnet): eip155:84532
 // For Base mainnet: eip155:8453
 const NETWORK_CAIP2 = IS_TESTNET ? "eip155:84532" : "eip155:8453";
-const resourceServer = new x402ResourceServer(FACILITATOR_CLIENT)
-  .register(NETWORK_CAIP2, new ExactEvmScheme())
-  .registerExtension(bazaarResourceServerExtension);
 
-console.log("🚀 Using facilitator:", IS_TESTNET 
+console.log("🚀 Facilitator will be:", IS_TESTNET 
   ? "x402.org (TESTNET - fake money)" 
   : (cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI"));
 console.log("🌐 Network CAIP-2:", NETWORK_CAIP2);
-console.log("🔍 Bazaar extension registered for discovery");
+
+// ============================================
+// Lazy Resource Server Initialization
+// ============================================
+// CRITICAL: Cloudflare Workers cannot call fetch() during module initialization.
+// The paymentMiddleware calls facilitator's /supported endpoint during init,
+// which uses fetch(). We must defer this until the first request.
+//
+// Verified by test-middleware-init.js which shows fetch() is called during init.
+// ============================================
+
+let resourceServer: x402ResourceServer | null = null;
+
+function getResourceServer(): x402ResourceServer {
+  if (resourceServer) {
+    return resourceServer;
+  }
+
+  console.log("🔧 [First Request] Initializing x402 resource server...");
+
+  // Create facilitator client
+  const facilitatorClient = IS_TESTNET
+    ? new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" })
+    : cdpApiKeyId && cdpApiKeySecret
+    ? new HTTPFacilitatorClient(createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret))
+    : new HTTPFacilitatorClient({ url: "https://facilitator.payai.network" });
+
+  // Create and configure resource server
+  resourceServer = new x402ResourceServer(facilitatorClient);
+  resourceServer.register(NETWORK_CAIP2, new ExactEvmScheme());
+  resourceServer.registerExtension(bazaarResourceServerExtension);
+
+  console.log("✅ [First Request] x402 resource server initialized");
+  console.log("   Facilitator:", IS_TESTNET ? "x402.org" : (cdpApiKeyId ? "CDP" : "PayAI"));
+  console.log("   Bazaar extension registered for discovery");
+
+  return resourceServer;
+}
 
 // Helper function to create v2 payment middleware config with Bazaar discovery
 function createPaymentConfig(
@@ -159,6 +171,39 @@ function createPaymentConfig(
         }),
       },
     },
+  };
+}
+
+// ============================================
+// Lazy Payment Middleware Factory
+// ============================================
+// Creates a middleware that defers paymentMiddleware initialization until first request.
+// This is required for Cloudflare Workers because paymentMiddleware calls fetch()
+// during initialization to validate supported networks with the facilitator.
+//
+// Returns MiddlewareHandler type from Hono (same as paymentMiddleware return type).
+// ============================================
+
+function createLazyPaymentMiddleware(
+  path: string,
+  price: string,
+  description: string,
+  inputSchema?: Parameters<typeof createPaymentConfig>[3],
+  outputExample?: Parameters<typeof createPaymentConfig>[4],
+  outputSchema?: Parameters<typeof createPaymentConfig>[5]
+): MiddlewareHandler {
+  let middleware: MiddlewareHandler | null = null;
+
+  return async (c, next) => {
+    if (!middleware) {
+      console.log(`🔧 [First Request] Initializing payment middleware for ${path}...`);
+      const config = createPaymentConfig(path, price, description, inputSchema, outputExample, outputSchema);
+      const server = getResourceServer();
+      middleware = paymentMiddleware(config, server);
+      console.log(`✅ [First Request] Payment middleware initialized for ${path}`);
+    }
+
+    return middleware(c, next);
   };
 }
 
@@ -292,193 +337,178 @@ app.use("*", async (c, next) => {
 // /fetch/basic - Basic tier fetch without JS rendering
 app.use(
     "/fetch/basic",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/fetch/basic",
-            PRICING.fetch.basic,
-            "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL of the webpage to fetch", required: true },
-                    timeout: { type: "number", description: "Request timeout in milliseconds (default: 10000)" },
-                    cache: { type: "boolean", description: "Enable caching (default: true)" },
-                    cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)" },
-                },
+    createLazyPaymentMiddleware(
+        "/fetch/basic",
+        PRICING.fetch.basic,
+        "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL of the webpage to fetch", required: true },
+                timeout: { type: "number", description: "Request timeout in milliseconds (default: 10000)" },
+                cache: { type: "boolean", description: "Enable caching (default: true)" },
+                cacheTtl: { type: "number", description: "Cache TTL in seconds, 60-86400 (default: 3600)" },
             },
-            {
-                url: "https://example.com/article",
-                title: "Example Article Title",
-                content: "# Article Heading\n\nClean markdown content...",
-                tier: "basic",
-                fetchedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_abc123",
+        },
+        {
+            url: "https://example.com/article",
+            title: "Example Article Title",
+            content: "# Article Heading\n\nClean markdown content...",
+            tier: "basic",
+            fetchedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_abc123",
+        },
+        {
+            type: "object",
+            properties: {
+                url: { type: "string", description: "Fetched URL" },
+                title: { type: "string", description: "Page title" },
+                content: { type: "string", description: "Clean markdown content" },
+                tier: { type: "string" },
+                fetchedAt: { type: "string", description: "ISO timestamp" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    url: { type: "string", description: "Fetched URL" },
-                    title: { type: "string", description: "Page title" },
-                    content: { type: "string", description: "Clean markdown content" },
-                    tier: { type: "string" },
-                    fetchedAt: { type: "string", description: "ISO timestamp" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /fetch/pro - Pro tier fetch with full JS rendering
 app.use(
     "/fetch/pro",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/fetch/pro",
-            PRICING.fetch.pro,
-            "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL of the webpage to fetch", required: true },
-                    waitFor: { type: "string", description: "CSS selector to wait for before capturing content" },
-                    timeout: { type: "number", description: "Request timeout in milliseconds (default: 15000)" },
-                    cache: { type: "boolean", description: "Enable caching (default: true)" },
-                },
+    createLazyPaymentMiddleware(
+        "/fetch/pro",
+        PRICING.fetch.pro,
+        "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL of the webpage to fetch", required: true },
+                waitFor: { type: "string", description: "CSS selector to wait for before capturing content" },
+                timeout: { type: "number", description: "Request timeout in milliseconds (default: 15000)" },
+                cache: { type: "boolean", description: "Enable caching (default: true)" },
             },
-            {
-                url: "https://app.example.com",
-                title: "Dynamic App Title",
-                content: "# App Content\n\nRendered after JavaScript execution...",
-                tier: "pro",
-                fetchedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_xyz789",
+        },
+        {
+            url: "https://app.example.com",
+            title: "Dynamic App Title",
+            content: "# App Content\n\nRendered after JavaScript execution...",
+            tier: "pro",
+            fetchedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_xyz789",
+        },
+        {
+            type: "object",
+            properties: {
+                url: { type: "string", description: "Fetched URL" },
+                title: { type: "string", description: "Page title" },
+                content: { type: "string", description: "Clean markdown content after JS rendering" },
+                tier: { type: "string" },
+                fetchedAt: { type: "string", description: "ISO timestamp" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    url: { type: "string", description: "Fetched URL" },
-                    title: { type: "string", description: "Page title" },
-                    content: { type: "string", description: "Clean markdown content after JS rendering" },
-                    tier: { type: "string" },
-                    fetchedAt: { type: "string", description: "ISO timestamp" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /screenshot - Capture webpage screenshots
 app.use(
     "/screenshot",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/screenshot",
-            PRICING.screenshot,
-            "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL of the webpage to screenshot", required: true },
-                    selector: { type: "string", description: "CSS selector to capture specific element" },
-                    fullPage: { type: "boolean", description: "Capture entire scrollable page (default: false)" },
-                    timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)" },
-                },
+    createLazyPaymentMiddleware(
+        "/screenshot",
+        PRICING.screenshot,
+        "Capture high-quality screenshots of any webpage using headless browser. Supports custom viewport sizes, full-page capture, and element-specific screenshots.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL of the webpage to screenshot", required: true },
+                selector: { type: "string", description: "CSS selector to capture specific element" },
+                fullPage: { type: "boolean", description: "Capture entire scrollable page (default: false)" },
+                timeout: { type: "number", description: "Timeout in ms, 5000-30000 (default: 10000)" },
             },
-            {
-                url: "https://example.com",
-                image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                capturedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_screen123",
+        },
+        {
+            url: "https://example.com",
+            image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            capturedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_screen123",
+        },
+        {
+            type: "object",
+            properties: {
+                url: { type: "string", description: "Screenshotted URL" },
+                image: { type: "string", description: "Base64-encoded PNG image" },
+                capturedAt: { type: "string", description: "ISO timestamp" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    url: { type: "string", description: "Screenshotted URL" },
-                    image: { type: "string", description: "Base64-encoded PNG image" },
-                    capturedAt: { type: "string", description: "ISO timestamp" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /search - Real-time web search
 app.use(
     "/search",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/search",
-            PRICING.search,
-            "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    query: { type: "string", description: "Search query", required: true },
-                    limit: { type: "number", description: "Number of results to return (default: 10, max: 20)" },
-                },
+    createLazyPaymentMiddleware(
+        "/search",
+        PRICING.search,
+        "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Perfect for AI agents needing current information.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                query: { type: "string", description: "Search query", required: true },
+                limit: { type: "number", description: "Number of results to return (default: 10, max: 20)" },
             },
-            {
-                query: "x402 payment protocol",
-                results: [
-                    { title: "x402 Documentation", url: "https://x402.org", snippet: "HTTP-native micropayments..." },
-                    { title: "Getting Started", url: "https://x402.org/docs", snippet: "Learn how to integrate..." },
-                ],
-                searchedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_search456",
+        },
+        {
+            query: "x402 payment protocol",
+            results: [
+                { title: "x402 Documentation", url: "https://x402.org", snippet: "HTTP-native micropayments..." },
+                { title: "Getting Started", url: "https://x402.org/docs", snippet: "Learn how to integrate..." },
+            ],
+            searchedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_search456",
+        },
+        {
+            type: "object",
+            properties: {
+                query: { type: "string", description: "Original search query" },
+                results: { type: "array", description: "Array of search results with title, url, snippet" },
+                searchedAt: { type: "string", description: "ISO timestamp" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    query: { type: "string", description: "Original search query" },
-                    results: { type: "array", description: "Array of search results with title, url, snippet" },
-                    searchedAt: { type: "string", description: "ISO timestamp" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /extract - Structured data extraction
 app.use(
     "/extract",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/extract",
-            PRICING.extract,
-            "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL of the webpage to extract from", required: true },
-                    schema: { type: "object", description: "JSON schema defining the data structure to extract", required: true },
-                    instructions: { type: "string", description: "Natural language instructions to guide extraction" },
-                },
+    createLazyPaymentMiddleware(
+        "/extract",
+        PRICING.extract,
+        "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context. Great for scraping product info, articles, contacts, etc.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL of the webpage to extract from", required: true },
+                schema: { type: "object", description: "JSON schema defining the data structure to extract", required: true },
+                instructions: { type: "string", description: "Natural language instructions to guide extraction" },
             },
-            {
-                url: "https://example.com/product",
-                data: { name: "Product Name", price: 99.99, inStock: true },
-                extractedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_extract789",
+        },
+        {
+            url: "https://example.com/product",
+            data: { name: "Product Name", price: 99.99, inStock: true },
+            extractedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_extract789",
+        },
+        {
+            type: "object",
+            properties: {
+                url: { type: "string", description: "Source URL" },
+                data: { type: "object", description: "Extracted data matching the provided schema" },
+                extractedAt: { type: "string", description: "ISO timestamp" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    url: { type: "string", description: "Source URL" },
-                    data: { type: "object", description: "Extracted data matching the provided schema" },
-                    extractedAt: { type: "string", description: "ISO timestamp" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
@@ -491,343 +521,316 @@ app.use(
 // Note: Price is per-URL, middleware uses base price for 2 URLs minimum
 app.use(
     "/batch/fetch",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/batch/fetch",
-            "$0.006", // Minimum price for 2 URLs
-            "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    urls: { type: "array", description: "Array of URLs to fetch (2-20)", required: true },
-                    timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
-                    tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
-                },
+    createLazyPaymentMiddleware(
+        "/batch/fetch",
+        "$0.006", // Minimum price for 2 URLs
+        "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                urls: { type: "array", description: "Array of URLs to fetch (2-20)", required: true },
+                timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
+                tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
             },
-            {
-                results: [
-                    { url: "https://example.com/1", status: "success", title: "Page 1", content: "Content 1..." },
-                    { url: "https://example.com/2", status: "success", title: "Page 2", content: "Content 2..." },
-                ],
-                summary: { total: 2, successful: 2, failed: 0 },
-                totalPrice: "$0.006",
-                requestId: "req_batch123",
+        },
+        {
+            results: [
+                { url: "https://example.com/1", status: "success", title: "Page 1", content: "Content 1..." },
+                { url: "https://example.com/2", status: "success", title: "Page 2", content: "Content 2..." },
+            ],
+            summary: { total: 2, successful: 2, failed: 0 },
+            totalPrice: "$0.006",
+            requestId: "req_batch123",
+        },
+        {
+            type: "object",
+            properties: {
+                results: { type: "array", description: "Array of fetch results with url, status, content, title" },
+                summary: { type: "object", description: "Summary with total, successful, failed counts" },
+                totalPrice: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    results: { type: "array", description: "Array of fetch results with url, status, content, title" },
-                    summary: { type: "object", description: "Summary with total, successful, failed counts" },
-                    totalPrice: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /research - One-stop research
 app.use(
     "/research",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/research",
-            PRICING.research,
-            "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    query: { type: "string", description: "Research topic or question", required: true },
-                    resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)" },
-                    includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
-                },
+    createLazyPaymentMiddleware(
+        "/research",
+        PRICING.research,
+        "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings. Perfect for quick research tasks.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                query: { type: "string", description: "Research topic or question", required: true },
+                resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)" },
+                includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
             },
-            {
-                query: "x402 payment protocol benefits",
-                sources: [
-                    { url: "https://x402.org", title: "x402 Protocol", snippet: "HTTP-native micropayments..." },
-                ],
-                summary: "x402 is an open payment protocol that enables instant crypto payments for API access...",
-                keyFindings: ["Zero fees", "Instant settlement", "No accounts needed"],
-                researchedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_research456",
+        },
+        {
+            query: "x402 payment protocol benefits",
+            sources: [
+                { url: "https://x402.org", title: "x402 Protocol", snippet: "HTTP-native micropayments..." },
+            ],
+            summary: "x402 is an open payment protocol that enables instant crypto payments for API access...",
+            keyFindings: ["Zero fees", "Instant settlement", "No accounts needed"],
+            researchedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_research456",
+        },
+        {
+            type: "object",
+            properties: {
+                query: { type: "string" },
+                sources: { type: "array", description: "Array of sources with url, title, snippet" },
+                summary: { type: "string", description: "AI-generated research summary" },
+                keyFindings: { type: "array", description: "Bullet points of key findings" },
+                researchedAt: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    query: { type: "string" },
-                    sources: { type: "array", description: "Array of sources with url, title, snippet" },
-                    summary: { type: "string", description: "AI-generated research summary" },
-                    keyFindings: { type: "array", description: "Bullet points of key findings" },
-                    researchedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /extract/smart - AI-powered smart extraction
 app.use(
     "/extract/smart",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/extract/smart",
-            PRICING.smartExtract,
-            "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL of the webpage to extract from", required: true },
-                    query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", required: true },
-                    format: { type: "string", description: "Output format: json or text (default: json)" },
-                },
+    createLazyPaymentMiddleware(
+        "/extract/smart",
+        PRICING.smartExtract,
+        "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL of the webpage to extract from", required: true },
+                query: { type: "string", description: "Natural language description of what to extract (e.g., 'find all email addresses')", required: true },
+                format: { type: "string", description: "Output format: json or text (default: json)" },
             },
-            {
-                url: "https://example.com/contact",
-                query: "find all email addresses",
-                data: [
-                    { value: "contact@example.com", context: "Contact page footer", confidence: 0.95 },
-                    { value: "support@example.com", context: "Support section", confidence: 0.92 },
-                ],
-                explanation: "Found 2 email addresses in the contact page",
-                extractedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_smart789",
+        },
+        {
+            url: "https://example.com/contact",
+            query: "find all email addresses",
+            data: [
+                { value: "contact@example.com", context: "Contact page footer", confidence: 0.95 },
+                { value: "support@example.com", context: "Support section", confidence: 0.92 },
+            ],
+            explanation: "Found 2 email addresses in the contact page",
+            extractedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_smart789",
+        },
+        {
+            type: "object",
+            properties: {
+                url: { type: "string" },
+                query: { type: "string" },
+                data: { type: "array", description: "Array of extracted items with value, context, confidence" },
+                explanation: { type: "string", description: "AI explanation of extraction" },
+                extractedAt: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    url: { type: "string" },
-                    query: { type: "string" },
-                    data: { type: "array", description: "Array of extracted items with value, context, confidence" },
-                    explanation: { type: "string", description: "AI explanation of extraction" },
-                    extractedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /pdf - PDF text extraction
 app.use(
     "/pdf",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/pdf",
-            PRICING.pdf,
-            "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL of the PDF document", required: true },
-                    pages: { type: "array", description: "Specific page numbers to extract (omit for all pages)" },
-                },
+    createLazyPaymentMiddleware(
+        "/pdf",
+        PRICING.pdf,
+        "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL of the PDF document", required: true },
+                pages: { type: "array", description: "Specific page numbers to extract (omit for all pages)" },
             },
-            {
-                url: "https://example.com/document.pdf",
-                metadata: { title: "Sample Document", author: "John Doe", pageCount: 10 },
-                pages: [
-                    { pageNumber: 1, content: "Page 1 text content..." },
-                    { pageNumber: 2, content: "Page 2 text content..." },
-                ],
-                fullText: "Page 1 text content... Page 2 text content...",
-                extractedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_pdf123",
+        },
+        {
+            url: "https://example.com/document.pdf",
+            metadata: { title: "Sample Document", author: "John Doe", pageCount: 10 },
+            pages: [
+                { pageNumber: 1, content: "Page 1 text content..." },
+                { pageNumber: 2, content: "Page 2 text content..." },
+            ],
+            fullText: "Page 1 text content... Page 2 text content...",
+            extractedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_pdf123",
+        },
+        {
+            type: "object",
+            properties: {
+                url: { type: "string" },
+                metadata: { type: "object", description: "PDF metadata with title, author, pageCount" },
+                pages: { type: "array", description: "Array of pages with pageNumber and content" },
+                fullText: { type: "string", description: "All pages concatenated" },
+                extractedAt: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    url: { type: "string" },
-                    metadata: { type: "object", description: "PDF metadata with title, author, pageCount" },
-                    pages: { type: "array", description: "Array of pages with pageNumber and content" },
-                    fullText: { type: "string", description: "All pages concatenated" },
-                    extractedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /compare - URL comparison
 app.use(
     "/compare",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/compare",
-            PRICING.compare,
-            "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    urls: { type: "array", description: "Array of 2-3 URLs to compare", required: true },
-                    focus: { type: "string", description: "What aspect to focus the comparison on (e.g., 'pricing', 'features')" },
-                },
+    createLazyPaymentMiddleware(
+        "/compare",
+        PRICING.compare,
+        "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary. Great for product comparisons, article analysis, etc.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                urls: { type: "array", description: "Array of 2-3 URLs to compare", required: true },
+                focus: { type: "string", description: "What aspect to focus the comparison on (e.g., 'pricing', 'features')" },
             },
-            {
-                sources: [
-                    { url: "https://product-a.com", title: "Product A", content: "Features: X, Y, Z..." },
-                    { url: "https://product-b.com", title: "Product B", content: "Features: A, B, C..." },
-                ],
-                comparison: {
-                    similarities: ["Both offer feature X", "Similar pricing models"],
-                    differences: ["Product A has Z, Product B has C"],
-                    summary: "Product A focuses on simplicity while Product B offers more advanced features...",
-                },
-                comparedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_compare456",
+        },
+        {
+            sources: [
+                { url: "https://product-a.com", title: "Product A", content: "Features: X, Y, Z..." },
+                { url: "https://product-b.com", title: "Product B", content: "Features: A, B, C..." },
+            ],
+            comparison: {
+                similarities: ["Both offer feature X", "Similar pricing models"],
+                differences: ["Product A has Z, Product B has C"],
+                summary: "Product A focuses on simplicity while Product B offers more advanced features...",
             },
-            {
-                type: "object",
-                properties: {
-                    sources: { type: "array", description: "Array of sources with url, title, content" },
-                    comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
-                    comparedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+            comparedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_compare456",
+        },
+        {
+            type: "object",
+            properties: {
+                sources: { type: "array", description: "Array of sources with url, title, content" },
+                comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
+                comparedAt: { type: "string" },
+                requestId: { type: "string" },
+            },
+        }
     )
 );
 
 // /monitor/create - Create URL monitor
 app.use(
     "/monitor/create",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/monitor/create",
-            PRICING.monitor.setup,
-            "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    url: { type: "string", description: "URL to monitor for changes", required: true },
-                    webhookUrl: { type: "string", description: "Webhook URL to receive change notifications", required: true },
-                    checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)" },
-                    notifyOn: { type: "string", description: "What triggers notification: any, content, or status (default: any)" },
-                },
+    createLazyPaymentMiddleware(
+        "/monitor/create",
+        PRICING.monitor.setup,
+        "Create a URL monitor for change detection. Get notified via webhook when page content or status changes. Supports 1-24 hour check intervals.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                url: { type: "string", description: "URL to monitor for changes", required: true },
+                webhookUrl: { type: "string", description: "Webhook URL to receive change notifications", required: true },
+                checkInterval: { type: "number", description: "Check interval in hours, 1-24 (default: 1)" },
+                notifyOn: { type: "string", description: "What triggers notification: any, content, or status (default: any)" },
             },
-            {
-                monitorId: "mon_abc123xyz",
-                url: "https://example.com/status",
-                webhookUrl: "https://your-app.com/webhook",
-                checkInterval: 1,
-                nextCheckAt: "2026-01-26T13:00:00.000Z",
-                createdAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_monitor789",
+        },
+        {
+            monitorId: "mon_abc123xyz",
+            url: "https://example.com/status",
+            webhookUrl: "https://your-app.com/webhook",
+            checkInterval: 1,
+            nextCheckAt: "2026-01-26T13:00:00.000Z",
+            createdAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_monitor789",
+        },
+        {
+            type: "object",
+            properties: {
+                monitorId: { type: "string" },
+                url: { type: "string" },
+                webhookUrl: { type: "string" },
+                checkInterval: { type: "number" },
+                nextCheckAt: { type: "string" },
+                createdAt: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    monitorId: { type: "string" },
-                    url: { type: "string" },
-                    webhookUrl: { type: "string" },
-                    checkInterval: { type: "number" },
-                    nextCheckAt: { type: "string" },
-                    createdAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /memory/set - Store value
 app.use(
     "/memory/set",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/memory/set",
-            PRICING.memory.write,
-            "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
-            {
-                bodyType: "json" as const,
-                bodyFields: {
-                    key: { type: "string", description: "Storage key (max 256 chars)", required: true },
-                    value: { type: "object", description: "JSON-serializable value (max 100KB)", required: true },
-                    ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)" },
-                },
+    createLazyPaymentMiddleware(
+        "/memory/set",
+        PRICING.memory.write,
+        "Store a value in persistent key-value storage. Perfect for AI agents to remember context across sessions. Supports JSON values up to 100KB with configurable TTL.",
+        {
+            bodyType: "json" as const,
+            bodyFields: {
+                key: { type: "string", description: "Storage key (max 256 chars)", required: true },
+                value: { type: "object", description: "JSON-serializable value (max 100KB)", required: true },
+                ttl: { type: "number", description: "Time-to-live in hours, 1-720 (default: 168 = 7 days)" },
             },
-            {
-                key: "user_preferences",
-                stored: true,
-                expiresAt: "2026-02-02T12:00:00.000Z",
-                requestId: "req_memory123",
+        },
+        {
+            key: "user_preferences",
+            stored: true,
+            expiresAt: "2026-02-02T12:00:00.000Z",
+            requestId: "req_memory123",
+        },
+        {
+            type: "object",
+            properties: {
+                key: { type: "string" },
+                stored: { type: "boolean" },
+                expiresAt: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    key: { type: "string" },
-                    stored: { type: "boolean" },
-                    expiresAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /memory/get/* - Retrieve value
 app.use(
     "/memory/get/*",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/memory/get/*",
-            PRICING.memory.read,
-            "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
-            undefined,
-            {
-                key: "user_preferences",
-                value: { theme: "dark", language: "en" },
-                expiresAt: "2026-02-02T12:00:00.000Z",
-                requestId: "req_memget789",
+    createLazyPaymentMiddleware(
+        "/memory/get/*",
+        PRICING.memory.read,
+        "Retrieve a stored value by key from persistent storage. Use GET /memory/get/{key} to fetch previously stored data.",
+        undefined,
+        {
+            key: "user_preferences",
+            value: { theme: "dark", language: "en" },
+            expiresAt: "2026-02-02T12:00:00.000Z",
+            requestId: "req_memget789",
+        },
+        {
+            type: "object",
+            properties: {
+                key: { type: "string" },
+                value: { type: "object", description: "Stored JSON value" },
+                expiresAt: { type: "string" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    key: { type: "string" },
-                    value: { type: "object", description: "Stored JSON value" },
-                    expiresAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
 // /memory/list - List keys
 app.use(
     "/memory/list",
-    paymentMiddleware(
-        createPaymentConfig(
-            "/memory/list",
-            PRICING.memory.read,
-            "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
-            undefined,
-            {
-                keys: ["user_preferences", "session_data", "cache_config"],
-                count: 3,
-                requestId: "req_memlist456",
+    createLazyPaymentMiddleware(
+        "/memory/list",
+        PRICING.memory.read,
+        "List all stored keys for the current wallet. Returns all active keys in your persistent storage namespace.",
+        undefined,
+        {
+            keys: ["user_preferences", "session_data", "cache_config"],
+            count: 3,
+            requestId: "req_memlist456",
+        },
+        {
+            type: "object",
+            properties: {
+                keys: { type: "array", description: "Array of stored keys" },
+                count: { type: "number" },
+                requestId: { type: "string" },
             },
-            {
-                type: "object",
-                properties: {
-                    keys: { type: "array", description: "Array of stored keys" },
-                    count: { type: "number" },
-                    requestId: { type: "string" },
-                },
-            }
-        ),
-        resourceServer
+        }
     )
 );
 
