@@ -1,7 +1,7 @@
 # WebLens - Premium Web Intelligence API
 # Cloudflare Workers configuration
 
-name = "weblens"
+name = "weblens-production"
 main = "src/index.ts"
 compatibility_date = "2025-11-01"
 compatibility_flags = ["nodejs_compat"]
@@ -80,18 +80,12 @@ binding = "BROWSER"
 # ============================================
 # Secrets (set via `wrangler secret put` or Cloudflare dashboard)
 # ============================================
-# The following secrets must be configured per environment:
+# The following secrets must be configured:
 #
 #   wrangler secret put CDP_API_KEY_ID
 #   wrangler secret put CDP_API_KEY_SECRET
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler secret put SERP_API_KEY
-#
-# For production:
-#   wrangler secret put CDP_API_KEY_ID --env production
-#   wrangler secret put CDP_API_KEY_SECRET --env production
-#   wrangler secret put ANTHROPIC_API_KEY --env production
-#   wrangler secret put SERP_API_KEY --env production
 
 # ============================================
 # Build Configuration
@@ -105,47 +99,6 @@ command = "npm run build"
 # ============================================
 
 [observability]
-enabled = true
-
-# ============================================
-# Production Environment
-# ============================================
-
-[env.production]
-name = "weblens-production"
-workers_dev = false
-
-# Production uses same KV namespaces
-[[env.production.kv_namespaces]]
-binding = "CACHE"
-id = "4b22a633ea824b80a3ec8003add92d0c"
-
-[[env.production.kv_namespaces]]
-binding = "MEMORY"
-id = "822c601a204c45b8bfd4f47dea4805a8"
-
-[[env.production.kv_namespaces]]
-binding = "MONITOR"
-id = "56bc1fc46c3747978227b19d89d38b41"
-
-[[env.production.durable_objects.bindings]]
-name = "MONITOR_SCHEDULER"
-class_name = "MonitorScheduler"
-
-[[env.production.routes]]
-pattern = "api.weblens.dev"
-custom_domain = true
-
-[env.production.vars]
-NETWORK = "base"
-# Public wallet address for receiving payments
-PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
-# All API keys are stored as Cloudflare secrets (not in this file)
-
-[env.production.browser]
-binding = "BROWSER"
-
-[env.production.observability]
 enabled = true
 
 # ============================================
