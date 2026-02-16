@@ -34,7 +34,7 @@ const SECURITY_HEADERS = {
 const DOCS_SECURITY_HEADERS = {
   ...SECURITY_HEADERS,
   // Allow Scalar API reference scripts and styles
-  "Content-Security-Policy": 
+  "Content-Security-Policy":
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; " +
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " +
@@ -52,14 +52,38 @@ const DOCS_SECURITY_HEADERS = {
 const BLOCKED_HEADERS = ["X-Powered-By", "Server"];
 
 /**
+ * Relaxed security headers for dashboard (needs to load Tailwind, Modules, etc.)
+ */
+const DASHBOARD_SECURITY_HEADERS = {
+  ...SECURITY_HEADERS,
+  "Content-Security-Policy":
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh https://static.cloudflareinsights.com; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "connect-src 'self' https:; " +
+    "img-src 'self' data: https:; " +
+    "worker-src 'self' blob:; " +
+    "frame-ancestors 'none'",
+  "Cross-Origin-Resource-Policy": "cross-origin",
+};
+
+/**
  * Security middleware - adds security headers to all responses
  */
 export async function securityMiddleware(c: Context, next: Next) {
   await next();
 
-  // Use relaxed CSP for documentation pages
-  const isDocsPage = c.req.path === "/docs" || c.req.path.startsWith("/docs/");
-  const headers = isDocsPage ? DOCS_SECURITY_HEADERS : SECURITY_HEADERS;
+  // Use relaxed CSP for documentation and dashboard pages
+  const path = c.req.path;
+  const isDocsPage = path === "/docs" || path.startsWith("/docs/");
+  const isDashboardPage = path === "/dashboard";
+
+  let headers = SECURITY_HEADERS;
+  if (isDocsPage) {
+    headers = DOCS_SECURITY_HEADERS;
+  } else if (isDashboardPage) {
+    headers = DASHBOARD_SECURITY_HEADERS;
+  }
 
   // Add security headers
   for (const [name, value] of Object.entries(headers)) {
