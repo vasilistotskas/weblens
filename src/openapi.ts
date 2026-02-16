@@ -43,23 +43,23 @@ Cached responses are **70% cheaper** than fresh fetches.`,
     paths: {
       "/": { get: { tags: ["System"], summary: "API Info", operationId: "getApiInfo", responses: { "200": { description: "API info" } } } },
       "/health": { get: { tags: ["System"], summary: "Health Check", operationId: "healthCheck", responses: { "200": { description: "Health status" } } } },
-      "/discovery": { 
-        get: { 
-          tags: ["System"], 
-          summary: "Service Discovery", 
+      "/discovery": {
+        get: {
+          tags: ["System"],
+          summary: "Service Discovery",
           operationId: "getDiscovery",
           description: "Machine-readable service catalog optimized for AI agent discovery. Returns all available endpoints, pricing, capabilities, and integration options.",
-          responses: { "200": { description: "Service catalog with endpoints, pricing, and capabilities" } } 
-        } 
+          responses: { "200": { description: "Service catalog with endpoints, pricing, and capabilities" } }
+        }
       },
-      "/.well-known/x402": { 
-        get: { 
-          tags: ["System"], 
-          summary: "x402 Discovery", 
+      "/.well-known/x402": {
+        get: {
+          tags: ["System"],
+          summary: "x402 Discovery",
           operationId: "getWellKnownX402",
           description: "Standard x402 discovery endpoint. Returns x402-compatible service information for Bazaar indexing.",
-          responses: { "200": { description: "x402 service information" } } 
-        } 
+          responses: { "200": { description: "x402 service information" } }
+        }
       },
       "/screenshot": {
         post: {
@@ -116,8 +116,55 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchRequest" } } } },
           responses: { "200": { description: "Batch results", content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
-      },    
-  "/research": {
+      },
+      "/fetch/resilient": {
+        post: {
+          tags: ["Core"], summary: "Resilient Fetch (Agent Prime)", operationId: "resilientFetch",
+          description: `Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Price: ${PRICING.fetch.resilient}`,
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchRequest" } } } },
+          responses: { "200": { description: "Fetch results", content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/dashboard": {
+        get: {
+          tags: ["System"], summary: "Agent Dashboard", operationId: "getDashboard",
+          description: "HTML dashboard for connecting wallet, viewing balance, and transaction history.",
+          responses: { "200": { description: "HTML Dashboard" } },
+        },
+      },
+      "/credits/buy": {
+        post: {
+          tags: ["Credits"], summary: "Buy Credits", operationId: "buyCredits",
+          description: "Purchase agent credits with x402. Fixed $10 bundle implies 20% bonus.",
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { amount: { type: "string", example: "$10.00" } } } } } },
+          responses: { "200": { description: "Credits purchased" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/credits/balance": {
+        get: {
+          tags: ["Credits"], summary: "Get Balance", operationId: "getCreditsBalance",
+          description: "Get current credit balance. Requires X-CREDIT-WALLET and X-CREDIT-SIGNATURE headers.",
+          parameters: [
+            { name: "X-CREDIT-WALLET", in: "header", required: true, schema: { type: "string" } },
+            { name: "X-CREDIT-SIGNATURE", in: "header", required: true, schema: { type: "string" } },
+            { name: "X-CREDIT-TIMESTAMP", in: "header", required: true, schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "Balance info" }, "401": { description: "Invalid signature" } },
+        },
+      },
+      "/credits/history": {
+        get: {
+          tags: ["Credits"], summary: "Get History", operationId: "getCreditsHistory",
+          description: "Get credit transaction history. Requires X-CREDIT-WALLET and X-CREDIT-SIGNATURE headers.",
+          parameters: [
+            { name: "X-CREDIT-WALLET", in: "header", required: true, schema: { type: "string" } },
+            { name: "X-CREDIT-SIGNATURE", in: "header", required: true, schema: { type: "string" } },
+            { name: "X-CREDIT-TIMESTAMP", in: "header", required: true, schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "Transaction history" }, "401": { description: "Invalid signature" } },
+        },
+      },
+      "/research": {
         post: {
           tags: ["Research"], summary: "Research Topic", operationId: "research",
           description: `Search + fetch + AI summarize. Price: ${PRICING.research}`,
@@ -239,6 +286,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         SmartExtractResponse: { type: "object", properties: { url: { type: "string" }, query: { type: "string" }, data: { type: "array" }, explanation: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
         BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 20 }, timeout: { type: "integer" }, tier: { type: "string" } } },
         BatchFetchResponse: { type: "object", properties: { results: { type: "array" }, summary: { type: "object" }, totalPrice: { type: "string" }, requestId: { type: "string" } } },
+        ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string" }, timeout: { type: "integer" } } },
+        ResilientFetchResponse: { type: "object", properties: { url: { type: "string" }, title: { type: "string" }, content: { type: "string" }, provider: { type: "object" }, tier: { type: "string" }, fetchedAt: { type: "string" }, requestId: { type: "string" } } },
         ResearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, resultCount: { type: "integer" }, includeRawContent: { type: "boolean" } } },
         ResearchResponse: { type: "object", properties: { query: { type: "string" }, sources: { type: "array" }, summary: { type: "string" }, keyFindings: { type: "array" }, researchedAt: { type: "string" }, requestId: { type: "string" } } },
         PdfExtractRequest: { type: "object", required: ["url"], properties: { url: { type: "string" }, pages: { type: "array", items: { type: "integer" } } } },
@@ -250,8 +299,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         MemorySetRequest: { type: "object", required: ["key", "value"], properties: { key: { type: "string" }, value: {}, ttl: { type: "integer" } } },
         MemorySetResponse: { type: "object", properties: { key: { type: "string" }, stored: { type: "boolean" }, expiresAt: { type: "string" }, requestId: { type: "string" } } },
         ErrorResponse: { type: "object", properties: { error: { type: "string" }, code: { type: "string" }, message: { type: "string" }, requestId: { type: "string" } } },
-      }, 
-     responses: {
+      },
+      responses: {
         PaymentRequired: {
           description: "Payment required - use x402 protocol. Parse the accepts array, sign payment with your wallet, retry with X-PAYMENT header.",
           content: {
@@ -261,10 +310,10 @@ Cached responses are **70% cheaper** than fresh fetches.`,
                 required: ["accepts", "x402Version"],
                 properties: {
                   error: { type: "string", description: "Error message" },
-                  accepts: { 
-                    type: "array", 
+                  accepts: {
+                    type: "array",
                     description: "Array of payment options",
-                    items: { 
+                    items: {
                       type: "object",
                       properties: {
                         scheme: { type: "string", description: "Payment scheme (e.g., 'exact')" },
@@ -542,6 +591,33 @@ For AI agents using Model Context Protocol:
 - \`extract_pdf\` - Extract text from PDFs
 - \`compare_urls\` - Compare 2-3 webpages
 - \`batch_fetch\` - Fetch multiple URLs in parallel
+- \`fetch_resilient\` - Resilient fetch with fallback (Agent Prime)
+
+## Endpoints
+
+### Core Endpoints
+
+#### POST /fetch/resilient
+Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Guarantees best-effort retrieval.
+- Price: $0.025
+- Body: \`{"url": "string", "timeout?": number}\`
+- Returns: \`{"url", "content", "provider": {"id", "name"}, "tier", "fetchedAt", "requestId"}\`
+
+### Agent Credits (Prepaid)
+
+Bypass per-request x402 signatures by pre-funding an account.
+
+#### POST /credits/buy
+Purchase credits with x402. Currently supports fixed $10 bundle (with 20% bonus = $12 credits).
+- Body: \`{"amount": "$10.00"}\`
+
+#### GET /credits/balance
+Check current credit balance.
+- Header: \`X-CREDIT-WALLET\`: Your wallet address
+- Header: \`X-CREDIT-SIGNATURE\`: Signature of "WebLens Auth..." message
+
+#### GET /dashboard
+Human-friendly UI to manage credits and view history.
 
 ## Response Headers
 

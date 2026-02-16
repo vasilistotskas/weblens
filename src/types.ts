@@ -18,6 +18,7 @@ export interface Env {
   CACHE?: KVNamespace; // Cloudflare KV for caching
   MEMORY?: KVNamespace; // Cloudflare KV for agent memory
   MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
+  CREDITS?: KVNamespace; // Cloudflare KV for agent credit accounts
   MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
   // Optional API keys
   SERP_API_KEY?: string;

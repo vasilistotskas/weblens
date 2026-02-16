@@ -58,8 +58,9 @@ const DEFAULT_MAX_TOKENS = 4000;
 
 /**
  * Call Claude API with a prompt
+ * Exported as callClaudePublic for use by intel service workflows
  */
-async function callClaude(
+export async function callClaude(
   config: AIServiceConfig,
   prompt: string,
   systemPrompt?: string

@@ -11,6 +11,7 @@ export const PRICING = {
   fetch: {
     basic: "$0.005",
     pro: "$0.015",
+    resilient: "$0.025", // Multi-provider fallback (Agent Prime)
   },
   search: "$0.005",
   extract: "$0.03",
@@ -50,6 +51,27 @@ export const PRICING = {
     minTtl: 1,        // hours
     maxTtl: 720,      // 30 days
     defaultTtl: 168,  // 7 days
+  },
+
+  // Intelligence endpoints (Knowledge Arbitrageur)
+  // Premium pricing — chains multiple tools + AI into structured intelligence
+  intel: {
+    company: "$0.50",       // Company deep dive
+    market: "$2.00",        // Market research report
+    competitive: "$3.00",   // Competitive analysis
+    siteAudit: "$0.30",     // Full site audit
+  },
+
+  // Agent Prime: multi-provider routing
+  providerMargin: 0.15, // 15% margin on proxied requests
+
+  // Agent Credit Accounts (Clearing House seed)
+  credits: {
+    tiers: [
+      { minDeposit: "$10", bonus: 0.20 },   // 20% bonus
+      { minDeposit: "$50", bonus: 0.30 },   // 30% bonus
+      { minDeposit: "$100", bonus: 0.40 },  // 40% bonus
+    ],
   },
 } as const;
 
@@ -192,4 +214,11 @@ export type EndpointName =
   | "pdf"
   | "compare"
   | "memory-read"
-  | "memory-write";
+  | "memory-write"
+  | "intel-company"
+  | "intel-market"
+  | "intel-competitive"
+  | "intel-site-audit"
+  | "fetch-resilient"
+  | "credits-buy"
+  | "credits-balance";

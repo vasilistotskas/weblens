@@ -58,6 +58,15 @@ binding = "MONITOR"
 id = "56bc1fc46c3747978227b19d89d38b41"
 
 # ============================================
+# KV Namespace for Agent Credits
+# ============================================
+
+# Create KV namespace: wrangler kv:namespace create "CREDITS"
+[[kv_namespaces]]
+binding = "CREDITS"
+id = "2d9c601a204c45b8bfd4f47dea4805b9"
+
+# ============================================
 # Durable Objects for Monitor Scheduling
 # ============================================
 
@@ -123,6 +132,10 @@ id = "822c601a204c45b8bfd4f47dea4805a8"
 [[env.testnet.kv_namespaces]]
 binding = "MONITOR"
 id = "56bc1fc46c3747978227b19d89d38b41"
+
+[[env.testnet.kv_namespaces]]
+binding = "CREDITS"
+id = "2d9c601a204c45b8bfd4f47dea4805b9"
 
 [[env.testnet.durable_objects.bindings]]
 name = "MONITOR_SCHEDULER"

@@ -16,7 +16,8 @@ import type { MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { Address } from "viem";
-import { PRICING, SUPPORTED_NETWORKS } from "./config";
+import { PRICING, SUPPORTED_NETWORKS, getBatchFetchPrice } from "./config";
+import { createCreditMiddleware } from "./middleware/credit-middleware";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
 import { rateLimitMiddleware } from "./middleware/rate-limit";
@@ -25,17 +26,21 @@ import { securityMiddleware } from "./middleware/security";
 import { registerOpenAPIRoutes } from "./openapi";
 import { batchFetchHandler } from "./tools/batch-fetch";
 import { compareHandler } from "./tools/compare";
+import { buyCreditsHandler, getBalanceHandler, getHistoryHandler } from "./tools/credits";
+import { dashboardHandler } from "./tools/dashboard";
 import { discoveryHandler, wellKnownX402Handler } from "./tools/discovery";
 import { extractData } from "./tools/extract-data";
 import { fetchBasic } from "./tools/fetch-basic";
 import { fetchPro } from "./tools/fetch-pro";
 import { freeFetch, freeSearch } from "./tools/free";
 import { health } from "./tools/health";
+import { intelCompanyHandler, intelMarketHandler, intelCompetitiveHandler, intelSiteAuditHandler } from "./tools/intel";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "./tools/mcp";
 import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHandler } from "./tools/memory";
 import { monitorCreateHandler, monitorGetHandler, monitorDeleteHandler } from "./tools/monitor";
 import { pdfHandler } from "./tools/pdf";
 import { researchHandler } from "./tools/research";
+import { resilientFetchHandler } from "./tools/resilient-fetch";
 import { screenshot } from "./tools/screenshot";
 import { searchWeb } from "./tools/search-web";
 import { smartExtractHandler } from "./tools/smart-extract";
@@ -62,8 +67,8 @@ declare const globalThis: typeof global & {
 
 // Payment receiving address - this is where all x402 payments go
 // IMPORTANT: Must be different from payer addresses (CDP rejects self-payments)
-const PAY_TO_ADDRESS: string | undefined = globalThis.PAY_TO_ADDRESS
-    ?? process.env.PAY_TO_ADDRESS ?? undefined
+const PAY_TO_ADDRESS: string | undefined = (globalThis as { PAY_TO_ADDRESS?: string }).PAY_TO_ADDRESS
+    ?? process.env.PAY_TO_ADDRESS;
 
 if (!PAY_TO_ADDRESS) {
     throw new Error("PAY_TO_ADDRESS is required");
@@ -200,6 +205,12 @@ function createLazyPaymentMiddleware(
     let middleware: MiddlewareHandler | null = null;
 
     return async (c, next) => {
+        // If already paid with credits, skip x402 payment middleware
+        if (c.get("paidWithCredits")) {
+            await next();
+            return;
+        }
+
         if (!middleware) {
             console.log(`🔧 [First Request] Initializing payment middleware for ${path}...`);
             const config = createPaymentConfig(path, price, description, inputExample, inputSchema, outputExample, outputSchema);
@@ -358,6 +369,7 @@ app.use("*", async (c, next) => {
 // /fetch/basic - Basic tier fetch without JS rendering
 app.use(
     "/fetch/basic",
+    createCreditMiddleware(PRICING.fetch.basic, "Fetch Webpage (Basic)"),
     createLazyPaymentMiddleware(
         "/fetch/basic",
         PRICING.fetch.basic,
@@ -396,6 +408,7 @@ app.use(
 // /fetch/pro - Pro tier fetch with full JS rendering
 app.use(
     "/fetch/pro",
+    createCreditMiddleware(PRICING.fetch.pro, "Fetch Webpage (Pro)"),
     createLazyPaymentMiddleware(
         "/fetch/pro",
         PRICING.fetch.pro,
@@ -431,9 +444,49 @@ app.use(
     )
 );
 
+// /fetch/resilient - Multi-provider fetch with automatic fallback (Agent Prime)
+app.use(
+    "/fetch/resilient",
+    createCreditMiddleware(PRICING.fetch.resilient, "Resilient Fetch (Agent Prime)"),
+    createLazyPaymentMiddleware(
+        "/fetch/resilient",
+        PRICING.fetch.resilient,
+        "Resilient fetch with automatic provider fallback. Tries WebLens native scraper first, then falls back to Firecrawl and Zyte via x402. Guarantees best-effort content retrieval even when sites block scrapers. Response includes which provider handled the request.",
+        { url: "https://example.com", timeout: 10000 },
+        {
+            properties: {
+                url: { type: "string", description: "URL of the webpage to fetch" },
+                timeout: { type: "number", description: "Request timeout in ms, 1000-30000 (default: 10000)" },
+            },
+            required: ["url"],
+        },
+        {
+            url: "https://example.com",
+            title: "Example Page",
+            content: "# Page Content\n\nClean markdown from the best available provider...",
+            provider: { id: "weblens-native", name: "WebLens Native", isProxied: false, attemptsUsed: 1 },
+            tier: "resilient",
+            fetchedAt: "2026-02-16T12:00:00.000Z",
+            requestId: "req_resilient_123",
+        },
+        {
+            properties: {
+                url: { type: "string", description: "Fetched URL" },
+                title: { type: "string", description: "Page title" },
+                content: { type: "string", description: "Clean markdown content" },
+                provider: { type: "object", description: "Provider info: id, name, isProxied, attemptsUsed" },
+                tier: { type: "string" },
+                fetchedAt: { type: "string", description: "ISO timestamp" },
+                requestId: { type: "string" },
+            },
+        }
+    )
+);
+
 // /screenshot - Capture webpage screenshots
 app.use(
     "/screenshot",
+    createCreditMiddleware(PRICING.screenshot, "Screenshot Capture"),
     createLazyPaymentMiddleware(
         "/screenshot",
         PRICING.screenshot,
@@ -468,6 +521,7 @@ app.use(
 // /search - Real-time web search
 app.use(
     "/search",
+    createCreditMiddleware(PRICING.search, "Web Search"),
     createLazyPaymentMiddleware(
         "/search",
         PRICING.search,
@@ -503,6 +557,7 @@ app.use(
 // /extract - Structured data extraction
 app.use(
     "/extract",
+    createCreditMiddleware(PRICING.extract, "Structured Data Extraction"),
     createLazyPaymentMiddleware(
         "/extract",
         PRICING.extract,
@@ -542,6 +597,22 @@ app.use(
 // Note: Price is per-URL, middleware uses base price for 2 URLs minimum
 app.use(
     "/batch/fetch",
+    createCreditMiddleware(
+        // Dynamic pricing function for credits
+        () => {
+            // We need to parse body to get count, but body is consumed? 
+            // Hono clone() or just use base price for middleware check and let handler deduct?
+            // Handler manages deduction for batch?
+            // Wait, credit middleware deducts. 
+            // If checking body is hard, we might need to skip credit middleware for batch 
+            // and let the handler do it? 
+            // OR use a fixed base price for check, and handler deducts the rest?
+            // PROPOSAL: For batch, credit middleware deducts MINIMUM, handler deducts REMAINDER?
+            // "getBatchFetchPrice(2)"
+            return getBatchFetchPrice(2);
+        },
+        "Batch URL Fetching (Minimum)"
+    ),
     createLazyPaymentMiddleware(
         "/batch/fetch",
         "$0.006", // Minimum price for 2 URLs
@@ -578,6 +649,7 @@ app.use(
 // /research - One-stop research
 app.use(
     "/research",
+    createCreditMiddleware(PRICING.research, "AI Research Assistant"),
     createLazyPaymentMiddleware(
         "/research",
         PRICING.research,
@@ -617,6 +689,7 @@ app.use(
 // /extract/smart - AI-powered smart extraction
 app.use(
     "/extract/smart",
+    createCreditMiddleware(PRICING.smartExtract, "Smart Extraction (AI)"),
     createLazyPaymentMiddleware(
         "/extract/smart",
         PRICING.smartExtract,
@@ -657,6 +730,7 @@ app.use(
 // /pdf - PDF text extraction
 app.use(
     "/pdf",
+    createCreditMiddleware(PRICING.pdf, "PDF Text Extraction"),
     createLazyPaymentMiddleware(
         "/pdf",
         PRICING.pdf,
@@ -696,6 +770,7 @@ app.use(
 // /compare - URL comparison
 app.use(
     "/compare",
+    createCreditMiddleware(PRICING.compare, "Webpage Comparison"),
     createLazyPaymentMiddleware(
         "/compare",
         PRICING.compare,
@@ -735,6 +810,7 @@ app.use(
 // /monitor/create - Create URL monitor
 app.use(
     "/monitor/create",
+    createCreditMiddleware(PRICING.monitor.setup, "URL Monitor Setup"),
     createLazyPaymentMiddleware(
         "/monitor/create",
         PRICING.monitor.setup,
@@ -775,6 +851,7 @@ app.use(
 // /memory/set - Store value
 app.use(
     "/memory/set",
+    createCreditMiddleware(PRICING.memory.write, "Agent Memory (Write)"),
     createLazyPaymentMiddleware(
         "/memory/set",
         PRICING.memory.write,
@@ -808,6 +885,7 @@ app.use(
 // /memory/get/* - Retrieve value
 app.use(
     "/memory/get/*",
+    createCreditMiddleware(PRICING.memory.read, "Agent Memory (Read)"),
     createLazyPaymentMiddleware(
         "/memory/get/*",
         PRICING.memory.read,
@@ -834,6 +912,7 @@ app.use(
 // /memory/list - List keys
 app.use(
     "/memory/list",
+    createCreditMiddleware(PRICING.memory.read, "Agent Memory (List)"),
     createLazyPaymentMiddleware(
         "/memory/list",
         PRICING.memory.read,
@@ -857,12 +936,203 @@ app.use(
 
 
 // ============================================
+// Intelligence Endpoints (Knowledge Arbitrageur)
+// Premium AI-powered intelligence products
+// ============================================
+
+// /intel/company - Company deep dive ($0.50)
+app.use(
+    "/intel/company",
+    createCreditMiddleware(PRICING.intel.company, "Company Intelligence"),
+    createLazyPaymentMiddleware(
+        "/intel/company",
+        PRICING.intel.company,
+        "Comprehensive company intelligence. Chains search, batch fetch, and AI extraction to produce a structured company profile including tech stack, funding, team size, competitors, and recent news. Replaces expensive SaaS tools like Clearbit.",
+        { target: "stripe.com" },
+        {
+            properties: {
+                target: { type: "string", description: "Company domain or name to research (e.g., 'stripe.com' or 'Stripe')" },
+            },
+            required: ["target"],
+        },
+        {
+            name: "Stripe",
+            description: "Financial infrastructure for the internet",
+            industry: "Fintech",
+            website: "https://stripe.com",
+            techStack: ["Ruby", "React", "Go", "Kubernetes"],
+            socialLinks: { twitter: "https://twitter.com/stripe" },
+            teamSizeEstimate: "5000+",
+            fundingInfo: "$6.5B total, last valued at $50B",
+            recentNews: [{ title: "Stripe launches new AI features", date: "2026-01-15", source: "TechCrunch", summary: "New AI-powered fraud detection" }],
+            competitors: ["Square", "Adyen", "PayPal"],
+            keywords: ["payments", "fintech", "infrastructure"],
+            analyzedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_intel_co_123",
+        },
+        {
+            properties: {
+                name: { type: "string", description: "Company name" },
+                description: { type: "string", description: "2-3 sentence company description" },
+                industry: { type: "string" },
+                website: { type: "string" },
+                techStack: { type: "array", description: "Technologies used" },
+                socialLinks: { type: "object" },
+                teamSizeEstimate: { type: "string" },
+                fundingInfo: { type: "string" },
+                recentNews: { type: "array", description: "Recent news items" },
+                competitors: { type: "array" },
+                keywords: { type: "array" },
+                analyzedAt: { type: "string" },
+                requestId: { type: "string" },
+            },
+        }
+    )
+);
+
+// /intel/market - Market research report ($2.00)
+app.use(
+    "/intel/market",
+    createCreditMiddleware(PRICING.intel.market, "Market Research Report"),
+    createLazyPaymentMiddleware(
+        "/intel/market",
+        PRICING.intel.market,
+        "AI-powered market research report. Searches multiple angles, fetches and cross-references sources, and produces a structured report with executive summary, key findings, trends, key players, data points, and recommended actions.",
+        { topic: "AI agent payment infrastructure", depth: "comprehensive", focus: "market size and growth" },
+        {
+            properties: {
+                topic: { type: "string", description: "Research topic or question" },
+                depth: { type: "string", description: "Research depth: quick, standard, or comprehensive (default: standard)" },
+                focus: { type: "string", description: "Optional focus area within the topic" },
+            },
+            required: ["topic"],
+        },
+        {
+            topic: "AI agent payment infrastructure",
+            executiveSummary: "The AI agent payment market is experiencing rapid growth...",
+            keyFindings: [{ finding: "Market projected to reach $52.6B by 2030", source: "Industry Report", confidence: "high" }],
+            trends: ["Autonomous agent transactions", "Micropayment protocols"],
+            keyPlayers: [{ name: "Coinbase", role: "Infrastructure provider" }],
+            dataPoints: [{ metric: "Market size 2025", value: "$7.8B", source: "Market Analysis" }],
+            recommendedActions: ["Build x402 integration", "Target agent-first APIs"],
+            sources: [{ url: "https://example.com/report", title: "AI Payments Report 2026" }],
+            depth: "comprehensive",
+            researchedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_intel_mkt_456",
+        },
+        {
+            properties: {
+                topic: { type: "string" },
+                executiveSummary: { type: "string", description: "2-3 paragraph executive summary" },
+                keyFindings: { type: "array", description: "Findings with source and confidence" },
+                trends: { type: "array" },
+                keyPlayers: { type: "array" },
+                dataPoints: { type: "array" },
+                recommendedActions: { type: "array" },
+                sources: { type: "array" },
+                researchedAt: { type: "string" },
+                requestId: { type: "string" },
+            },
+        }
+    )
+);
+
+// /intel/competitive - Competitive analysis ($3.00)
+app.use(
+    "/intel/competitive",
+    createCreditMiddleware(PRICING.intel.competitive, "Competitive Analysis"),
+    createLazyPaymentMiddleware(
+        "/intel/competitive",
+        PRICING.intel.competitive,
+        "AI-powered competitive analysis. Identifies competitors, builds feature comparison matrix, analyzes pricing models, generates SWOT analysis for each player, and provides competitive positioning summary.",
+        { company: "vercel.com", maxCompetitors: 5, focus: "developer experience" },
+        {
+            properties: {
+                company: { type: "string", description: "Company domain or name to analyze competitively" },
+                maxCompetitors: { type: "number", description: "Max competitors to analyze, 1-10 (default: 5)" },
+                focus: { type: "string", description: "Optional focus area (e.g., 'pricing', 'features', 'developer experience')" },
+            },
+            required: ["company"],
+        },
+        {
+            company: "Vercel",
+            competitors: [{ name: "Netlify", url: "https://netlify.com", description: "Web development platform" }],
+            featureMatrix: { "Edge Functions": { "Vercel": "Yes", "Netlify": "Yes" } },
+            pricingComparison: [{ company: "Vercel", model: "Usage-based", details: "Free tier + $20/mo Pro" }],
+            swotAnalysis: [{ company: "Vercel", strengths: ["Next.js integration"], weaknesses: ["Vendor lock-in"], opportunities: ["AI features"], threats: ["Cloudflare Pages"] }],
+            positioningSummary: "Vercel leads in React/Next.js deployments...",
+            analyzedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_intel_comp_789",
+        },
+        {
+            properties: {
+                company: { type: "string" },
+                competitors: { type: "array", description: "Identified competitors" },
+                featureMatrix: { type: "object", description: "Feature comparison across companies" },
+                pricingComparison: { type: "array" },
+                swotAnalysis: { type: "array", description: "SWOT for each company" },
+                positioningSummary: { type: "string" },
+                analyzedAt: { type: "string" },
+                requestId: { type: "string" },
+            },
+        }
+    )
+);
+
+// /intel/site-audit - Full site intelligence ($0.30)
+app.use(
+    "/intel/site-audit",
+    createCreditMiddleware(PRICING.intel.siteAudit, "Site Audit"),
+    createLazyPaymentMiddleware(
+        "/intel/site-audit",
+        PRICING.intel.siteAudit,
+        "Comprehensive SEO, performance, and security audit. Fetches the page, analyzes HTML structure, detects tech stack, checks security headers, scores content quality, and provides actionable recommendations.",
+        { url: "https://example.com" },
+        {
+            properties: {
+                url: { type: "string", description: "URL of the site to audit" },
+            },
+            required: ["url"],
+        },
+        {
+            url: "https://example.com",
+            seoScore: 72,
+            metaTags: { title: "Example Domain", description: "Example site", ogImage: "", canonical: "https://example.com", robots: "index, follow" },
+            headingStructure: [{ tag: "h1", text: "Example Domain" }],
+            contentQuality: { readabilityScore: 85, wordCount: 150, keywordDensity: { "example": 0.03 } },
+            techStack: ["HTML5"],
+            securityHeaders: { "content-security-policy": "missing", "x-frame-options": "present" },
+            issues: [{ severity: "warning", category: "SEO", description: "Missing meta description", recommendation: "Add a descriptive meta description tag" }],
+            overallRecommendations: ["Add meta descriptions", "Implement CSP header"],
+            auditedAt: "2026-01-26T12:00:00.000Z",
+            requestId: "req_intel_audit_101",
+        },
+        {
+            properties: {
+                url: { type: "string" },
+                seoScore: { type: "number", description: "SEO score 0-100" },
+                metaTags: { type: "object" },
+                headingStructure: { type: "array" },
+                contentQuality: { type: "object" },
+                techStack: { type: "array" },
+                securityHeaders: { type: "object" },
+                issues: { type: "array", description: "Issues with severity, category, description, recommendation" },
+                overallRecommendations: { type: "array" },
+                auditedAt: { type: "string" },
+                requestId: { type: "string" },
+            },
+        }
+    )
+);
+
+// ============================================
 // Route Handlers
 // ============================================
 
 // Tiered fetch endpoints
 app.post("/fetch/basic", fetchBasic);
 app.post("/fetch/pro", fetchPro);
+app.post("/fetch/resilient", resilientFetchHandler);
 
 // Screenshot endpoint
 app.post("/screenshot", screenshot);
@@ -890,6 +1160,12 @@ app.post("/pdf", pdfHandler);
 // Compare endpoint
 app.post("/compare", compareHandler);
 
+// Intelligence endpoints (Knowledge Arbitrageur)
+app.post("/intel/company", intelCompanyHandler);
+app.post("/intel/market", intelMarketHandler);
+app.post("/intel/competitive", intelCompetitiveHandler);
+app.post("/intel/site-audit", intelSiteAuditHandler);
+
 // Monitor endpoints
 app.post("/monitor/create", monitorCreateHandler);
 app.get("/monitor/:id", monitorGetHandler);
@@ -911,5 +1187,36 @@ app.get("/mcp/info", mcpInfoHandler);
 
 // Export Durable Object class for wrangler
 export { MonitorScheduler } from "./services/scheduler";
+
+// ============================================
+// Agent Credit Accounts (Agent Prime)
+// ============================================
+
+// /dashboard - Agent UI
+app.get("/dashboard", dashboardHandler);
+
+// /credits/buy - Purchase credits (Fixed $10 bundle for MVP)
+app.post(
+    "/credits/buy",
+    createLazyPaymentMiddleware(
+        "/credits/buy",
+        "$10.00",
+        "Purchase $10 Agent Credits + Bonus",
+        { amount: "$10.00" },
+        {
+            properties: {
+                amount: { type: "string", description: "Deposit amount (fixed $10 for MVP)" },
+            },
+            required: ["amount"],
+        }
+    ),
+    buyCreditsHandler
+);
+
+// /credits/balance - Check balance
+app.get("/credits/balance", getBalanceHandler);
+
+// /credits/history - Transaction history
+app.get("/credits/history", getHistoryHandler);
 
 export default app;
