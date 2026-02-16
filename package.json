@@ -8,9 +8,10 @@
     "build": "tsc --noEmit",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
-    "verify-bazaar": "npx tsx scripts/verify-bazaar.ts"
+    "lint": "eslint src scripts --ext .ts",
+    "lint:fix": "eslint src scripts --ext .ts --fix",
+    "verify-bazaar": "npx tsx scripts/verify-bazaar.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",

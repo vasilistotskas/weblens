@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { dashboardHandler } from "../../src/tools/dashboard";
 
+import { Context } from "hono";
+import { Env } from "../../src/types";
+
 describe("Dashboard UI", () => {
-    let mockContext: any;
+    let mockContext: Context<{ Bindings: Env }>;
 
     beforeEach(() => {
         mockContext = {
             html: vi.fn().mockImplementation((html) => html),
-        };
+        } as unknown as Context<{ Bindings: Env }>;
     });
 
     it("should serve HTML content", async () => {
