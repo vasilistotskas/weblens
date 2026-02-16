@@ -4,7 +4,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING } from "../config";
+import { PRICING, FREE_TIER } from "../config";
 import type { Env } from "../types";
 
 // Service catalog with rich metadata for AI agent discovery
@@ -203,11 +203,41 @@ export const SERVICE_CATALOG = {
         },
     },
     agentQuickStart: {
-        step1: "Call any endpoint (e.g., POST /fetch/basic with {url: 'https://example.com'})",
+        step0: "Try it free first! POST /free/fetch with {url: 'https://example.com'} — no wallet needed",
+        step1: "Call any paid endpoint (e.g., POST /fetch/basic with {url: 'https://example.com'})",
         step2: "Receive 402 Payment Required with payment details in JSON body",
         step3: "Sign USDC payment using your wallet (Base network)",
         step4: "Retry with X-PAYMENT header containing signed payload",
         step5: "Receive data with X-PAYMENT-RESPONSE settlement proof",
+    },
+    freeTier: {
+        description: "Try WebLens free — no wallet or payment needed",
+        endpoints: [
+            {
+                endpoint: "/free/fetch",
+                method: "POST",
+                name: "Free Fetch",
+                description: "Fetch any webpage (content truncated to 2000 chars)",
+                price: "FREE",
+                rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
+                tags: ["free", "web-scraping", "trial"],
+            },
+            {
+                endpoint: "/free/search",
+                method: "POST",
+                name: "Free Search",
+                description: `Web search (max ${FREE_TIER.searchMaxResults} results)`,
+                price: "FREE",
+                rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
+                tags: ["free", "search", "trial"],
+            },
+        ],
+        limits: {
+            requestsPerHour: FREE_TIER.maxRequestsPerHour,
+            fetchContentLength: FREE_TIER.fetchMaxContentLength,
+            searchMaxResults: FREE_TIER.searchMaxResults,
+        },
+        upgrade: "Use paid endpoints for full content, unlimited access, and premium features",
     },
 };
 
@@ -216,7 +246,7 @@ export const SERVICE_CATALOG = {
  */
 export function discoveryHandler(c: Context<{ Bindings: Env }>) {
     const baseUrl = new URL(c.req.url).origin;
-    
+
     return c.json({
         ...SERVICE_CATALOG,
         baseUrl,
@@ -243,7 +273,7 @@ export function discoveryHandler(c: Context<{ Bindings: Env }>) {
  */
 export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
     const baseUrl = new URL(c.req.url).origin;
-    
+
     return c.json({
         x402Version: 1,
         name: "WebLens",
@@ -274,5 +304,11 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         llms: `${baseUrl}/llms.txt`,
         mcp: `${baseUrl}/mcp`,
         discovery: `${baseUrl}/discovery`,
+        freeTier: {
+            description: "Try WebLens free — no wallet needed",
+            fetch: `${baseUrl}/free/fetch`,
+            search: `${baseUrl}/free/search`,
+            rateLimit: `${FREE_TIER.maxRequestsPerHour} requests/hour`,
+        },
     });
 }

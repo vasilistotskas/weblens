@@ -24,10 +24,13 @@ custom_domain = true
 
 [vars]
 NETWORK = "base"
+# Public wallet address for receiving payments
+PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
+# Secrets are set via Cloudflare dashboard or `wrangler secret put`
+# Do NOT add API keys here — they will be committed to version control
 
 # ============================================
 # KV Namespace for Caching
-# Requirement 3.1: Cache responses using Cloudflare KV
 # ============================================
 
 # Create KV namespace: wrangler kv:namespace create "CACHE"
@@ -38,7 +41,6 @@ id = "4b22a633ea824b80a3ec8003add92d0c"
 
 # ============================================
 # KV Namespace for Agent Memory
-# Requirement 7.1: Persistent key-value storage for AI agents
 # ============================================
 
 # Create KV namespace: wrangler kv:namespace create "MEMORY"
@@ -48,7 +50,6 @@ id = "822c601a204c45b8bfd4f47dea4805a8"
 
 # ============================================
 # KV Namespace for URL Monitors
-# Requirement 4.1: URL monitoring with webhook notifications
 # ============================================
 
 # Create KV namespace: wrangler kv:namespace create "MONITOR"
@@ -58,7 +59,6 @@ id = "56bc1fc46c3747978227b19d89d38b41"
 
 # ============================================
 # Durable Objects for Monitor Scheduling
-# Requirement 4.3: Scheduled URL checking
 # ============================================
 
 [[durable_objects.bindings]]
@@ -71,7 +71,6 @@ new_sqlite_classes = ["MonitorScheduler"]
 
 # ============================================
 # Browser Rendering
-# Requirement 1.1: Screenshot capture using Cloudflare Browser Rendering
 # Note: Requires paid Workers plan
 # ============================================
 
@@ -79,17 +78,20 @@ new_sqlite_classes = ["MonitorScheduler"]
 binding = "BROWSER"
 
 # ============================================
-# Secrets (set via wrangler secret put)
+# Secrets (set via `wrangler secret put` or Cloudflare dashboard)
 # ============================================
-# WALLET_ADDRESS - Wallet to receive payments
-# CDP_API_KEY_ID - CDP API key ID for Bazaar discovery
-# CDP_API_KEY_SECRET - CDP API key secret for Bazaar discovery
-# ANTHROPIC_API_KEY - For AI-powered extraction (optional)
+# The following secrets must be configured per environment:
 #
-# Set secrets with:
-#   wrangler secret put WALLET_ADDRESS
 #   wrangler secret put CDP_API_KEY_ID
 #   wrangler secret put CDP_API_KEY_SECRET
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put SERP_API_KEY
+#
+# For production:
+#   wrangler secret put CDP_API_KEY_ID --env production
+#   wrangler secret put CDP_API_KEY_SECRET --env production
+#   wrangler secret put ANTHROPIC_API_KEY --env production
+#   wrangler secret put SERP_API_KEY --env production
 
 # ============================================
 # Build Configuration
@@ -136,9 +138,51 @@ custom_domain = true
 
 [env.production.vars]
 NETWORK = "base"
+# Public wallet address for receiving payments
+PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
+# All API keys are stored as Cloudflare secrets (not in this file)
 
 [env.production.browser]
 binding = "BROWSER"
 
 [env.production.observability]
+enabled = true
+
+# ============================================
+# Testnet Environment (Base Sepolia)
+# For testing with fake USDC - no real money!
+# Run: wrangler dev --env testnet
+# ============================================
+
+[env.testnet]
+name = "weblens-testnet"
+workers_dev = true
+
+# Testnet KV namespaces (create with: wrangler kv:namespace create "CACHE" --env testnet)
+[[env.testnet.kv_namespaces]]
+binding = "CACHE"
+id = "4b22a633ea824b80a3ec8003add92d0c"
+
+[[env.testnet.kv_namespaces]]
+binding = "MEMORY"
+id = "822c601a204c45b8bfd4f47dea4805a8"
+
+[[env.testnet.kv_namespaces]]
+binding = "MONITOR"
+id = "56bc1fc46c3747978227b19d89d38b41"
+
+[[env.testnet.durable_objects.bindings]]
+name = "MONITOR_SCHEDULER"
+class_name = "MonitorScheduler"
+
+[env.testnet.vars]
+# Use Base Sepolia testnet
+NETWORK = "base-sepolia"
+# Payment receiving address (use same or different for testing)
+PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
+
+[env.testnet.browser]
+binding = "BROWSER"
+
+[env.testnet.observability]
 enabled = true

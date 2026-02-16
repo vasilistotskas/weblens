@@ -6,8 +6,8 @@
  */
 
 import { createFacilitatorConfig } from "@coinbase/x402";
-import { HTTPFacilitatorClient, x402ResourceServer  } from "@x402/core/server";
-import type {RoutesConfig} from "@x402/core/server";
+import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
+import type { RoutesConfig } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { paymentMiddleware } from "@x402/hono";
@@ -19,6 +19,7 @@ import type { Address } from "viem";
 import { PRICING, SUPPORTED_NETWORKS } from "./config";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
+import { rateLimitMiddleware } from "./middleware/rate-limit";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { securityMiddleware } from "./middleware/security";
 import { registerOpenAPIRoutes } from "./openapi";
@@ -28,6 +29,7 @@ import { discoveryHandler, wellKnownX402Handler } from "./tools/discovery";
 import { extractData } from "./tools/extract-data";
 import { fetchBasic } from "./tools/fetch-basic";
 import { fetchPro } from "./tools/fetch-pro";
+import { freeFetch, freeSearch } from "./tools/free";
 import { health } from "./tools/health";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "./tools/mcp";
 import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHandler } from "./tools/memory";
@@ -52,19 +54,19 @@ import type { Env } from "./types";
 
 // Cloudflare Workers injects [vars] as globals at module init time
 declare const globalThis: typeof global & {
-  PAY_TO_ADDRESS?: string;
-  CDP_API_KEY_ID?: string;
-  CDP_API_KEY_SECRET?: string;
-  NETWORK?: string;
+    PAY_TO_ADDRESS?: string;
+    CDP_API_KEY_ID?: string;
+    CDP_API_KEY_SECRET?: string;
+    NETWORK?: string;
 };
 
 // Payment receiving address - this is where all x402 payments go
 // IMPORTANT: Must be different from payer addresses (CDP rejects self-payments)
 const PAY_TO_ADDRESS: string | undefined = globalThis.PAY_TO_ADDRESS
-  ?? process.env.PAY_TO_ADDRESS ?? undefined
+    ?? process.env.PAY_TO_ADDRESS ?? undefined
 
 if (!PAY_TO_ADDRESS) {
-  throw new Error("PAY_TO_ADDRESS is required");
+    throw new Error("PAY_TO_ADDRESS is required");
 }
 
 // Network configuration - "base" for mainnet, "base-sepolia" for testnet
@@ -90,9 +92,9 @@ if (cdpApiKeyId && cdpApiKeySecret) {
 // For Base mainnet: eip155:8453
 const NETWORK_CAIP2 = IS_TESTNET ? "eip155:84532" : "eip155:8453";
 
-console.log("🚀 Facilitator will be:", IS_TESTNET 
-  ? "x402.org (TESTNET - fake money)" 
-  : (cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI"));
+console.log("🚀 Facilitator will be:", IS_TESTNET
+    ? "x402.org (TESTNET - fake money)"
+    : (cdpApiKeyId && cdpApiKeySecret ? "CDP (Bazaar enabled)" : "PayAI"));
 console.log("🌐 Network CAIP-2:", NETWORK_CAIP2);
 
 // ============================================
@@ -108,72 +110,72 @@ console.log("🌐 Network CAIP-2:", NETWORK_CAIP2);
 let resourceServer: x402ResourceServer | null = null;
 
 function getResourceServer(): x402ResourceServer {
-  if (resourceServer) {
+    if (resourceServer) {
+        return resourceServer;
+    }
+
+    console.log("🔧 [First Request] Initializing x402 resource server...");
+
+    // Create facilitator client
+    const facilitatorClient = IS_TESTNET
+        ? new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" })
+        : cdpApiKeyId && cdpApiKeySecret
+            ? new HTTPFacilitatorClient(createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret))
+            : new HTTPFacilitatorClient({ url: "https://facilitator.payai.network" });
+
+    // Create and configure resource server
+    resourceServer = new x402ResourceServer(facilitatorClient);
+    resourceServer.register(NETWORK_CAIP2, new ExactEvmScheme());
+    resourceServer.registerExtension(bazaarResourceServerExtension);
+
+    console.log("✅ [First Request] x402 resource server initialized");
+    console.log("   Facilitator:", IS_TESTNET ? "x402.org" : (cdpApiKeyId ? "CDP" : "PayAI"));
+    console.log("   Bazaar extension registered for discovery");
+
     return resourceServer;
-  }
-
-  console.log("🔧 [First Request] Initializing x402 resource server...");
-
-  // Create facilitator client
-  const facilitatorClient = IS_TESTNET
-    ? new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" })
-    : cdpApiKeyId && cdpApiKeySecret
-    ? new HTTPFacilitatorClient(createFacilitatorConfig(cdpApiKeyId, cdpApiKeySecret))
-    : new HTTPFacilitatorClient({ url: "https://facilitator.payai.network" });
-
-  // Create and configure resource server
-  resourceServer = new x402ResourceServer(facilitatorClient);
-  resourceServer.register(NETWORK_CAIP2, new ExactEvmScheme());
-  resourceServer.registerExtension(bazaarResourceServerExtension);
-
-  console.log("✅ [First Request] x402 resource server initialized");
-  console.log("   Facilitator:", IS_TESTNET ? "x402.org" : (cdpApiKeyId ? "CDP" : "PayAI"));
-  console.log("   Bazaar extension registered for discovery");
-
-  return resourceServer;
 }
 
 // Helper function to create v2 payment middleware config with Bazaar discovery
 function createPaymentConfig(
-  path: string, 
-  price: string, 
-  description: string, 
-  inputExample?: Record<string, unknown>,
-  inputSchema?: {
-    properties?: Record<string, { type: string; description?: string; maxLength?: number; minimum?: number; maximum?: number }>;
-    required?: string[];
-  }, 
-  outputExample?: Record<string, unknown>,
-  outputSchema?: {
-    properties?: Record<string, { type: string; description?: string }>;
-    required?: string[];
-  }
-): RoutesConfig {
-  return {
-    [path]: {
-      accepts: [{
-        scheme: "exact" as const,
-        price,
-        network: NETWORK_CAIP2,
-        payTo: PAY_TO_ADDRESS as Address,
-      }],
-      description,
-      mimeType: "application/json" as const,
-      extensions: {
-        ...declareDiscoveryExtension({
-          bodyType: "json" as const, // POST endpoints use JSON body
-          ...(inputExample && { input: inputExample }),
-          ...(inputSchema && { inputSchema }),
-          ...(outputExample && outputSchema && { 
-            output: {
-              example: outputExample,
-              schema: outputSchema,
-            }
-          }),
-        }),
-      },
+    path: string,
+    price: string,
+    description: string,
+    inputExample?: Record<string, unknown>,
+    inputSchema?: {
+        properties?: Record<string, { type: string; description?: string; maxLength?: number; minimum?: number; maximum?: number }>;
+        required?: string[];
     },
-  };
+    outputExample?: Record<string, unknown>,
+    outputSchema?: {
+        properties?: Record<string, { type: string; description?: string }>;
+        required?: string[];
+    }
+): RoutesConfig {
+    return {
+        [path]: {
+            accepts: [{
+                scheme: "exact" as const,
+                price,
+                network: NETWORK_CAIP2,
+                payTo: PAY_TO_ADDRESS as Address,
+            }],
+            description,
+            mimeType: "application/json" as const,
+            extensions: {
+                ...declareDiscoveryExtension({
+                    bodyType: "json" as const, // POST endpoints use JSON body
+                    ...(inputExample && { input: inputExample }),
+                    ...(inputSchema && { inputSchema }),
+                    ...(outputExample && outputSchema && {
+                        output: {
+                            example: outputExample,
+                            schema: outputSchema,
+                        }
+                    }),
+                }),
+            },
+        },
+    };
 }
 
 // ============================================
@@ -187,27 +189,27 @@ function createPaymentConfig(
 // ============================================
 
 function createLazyPaymentMiddleware(
-  path: string,
-  price: string,
-  description: string,
-  inputExample?: Parameters<typeof createPaymentConfig>[3],
-  inputSchema?: Parameters<typeof createPaymentConfig>[4],
-  outputExample?: Parameters<typeof createPaymentConfig>[5],
-  outputSchema?: Parameters<typeof createPaymentConfig>[6]
+    path: string,
+    price: string,
+    description: string,
+    inputExample?: Parameters<typeof createPaymentConfig>[3],
+    inputSchema?: Parameters<typeof createPaymentConfig>[4],
+    outputExample?: Parameters<typeof createPaymentConfig>[5],
+    outputSchema?: Parameters<typeof createPaymentConfig>[6]
 ): MiddlewareHandler {
-  let middleware: MiddlewareHandler | null = null;
+    let middleware: MiddlewareHandler | null = null;
 
-  return async (c, next) => {
-    if (!middleware) {
-      console.log(`🔧 [First Request] Initializing payment middleware for ${path}...`);
-      const config = createPaymentConfig(path, price, description, inputExample, inputSchema, outputExample, outputSchema);
-      const server = getResourceServer();
-      middleware = paymentMiddleware(config, server);
-      console.log(`✅ [First Request] Payment middleware initialized for ${path}`);
-    }
+    return async (c, next) => {
+        if (!middleware) {
+            console.log(`🔧 [First Request] Initializing payment middleware for ${path}...`);
+            const config = createPaymentConfig(path, price, description, inputExample, inputSchema, outputExample, outputSchema);
+            const server = getResourceServer();
+            middleware = paymentMiddleware(config, server);
+            console.log(`✅ [First Request] Payment middleware initialized for ${path}`);
+        }
 
-    return middleware(c, next);
-  };
+        return middleware(c, next);
+    };
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -277,9 +279,18 @@ app.get("/", (c) => {
             description: "HTTP-native micropayments using 402 Payment Required",
             bazaarListed: true,
         },
+        freeTier: {
+            description: "Try WebLens free — no wallet or payment needed",
+            endpoints: [
+                { path: "/free/fetch", method: "POST", description: "Fetch any webpage (truncated to 2000 chars)", limit: "10 requests/hour" },
+                { path: "/free/search", method: "POST", description: "Web search (max 3 results)", limit: "10 requests/hour" },
+            ],
+            rateLimit: "10 requests/hour per IP",
+            upgrade: "Use paid endpoints for full content and unlimited access",
+        },
         capabilities: [
             "web-scraping",
-            "javascript-rendering", 
+            "javascript-rendering",
             "screenshot-capture",
             "web-search",
             "data-extraction",
@@ -294,6 +305,13 @@ app.get("/", (c) => {
 // Health check endpoint (free)
 // Requirement 5.2: Return system health status
 app.get("/health", health);
+
+// ============================================
+// Free Tier Endpoints (no payment required)
+// Rate-limited access to demonstrate value
+// ============================================
+app.post("/free/fetch", rateLimitMiddleware, freeFetch);
+app.post("/free/search", rateLimitMiddleware, freeSearch);
 
 
 // ============================================
@@ -310,7 +328,7 @@ const PAID_ENDPOINTS = [
 app.use("*", async (c, next) => {
     const path = c.req.path;
     const method = c.req.method;
-    
+
     // Check if this is a paid endpoint that requires POST
     if (PAID_ENDPOINTS.includes(path) && method !== "POST") {
         return c.json({
@@ -323,7 +341,7 @@ app.use("*", async (c, next) => {
             "Allow": "POST",
         });
     }
-    
+
     await next();
 });
 

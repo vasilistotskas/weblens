@@ -13,7 +13,7 @@
         "mcp-remote",
         "https://mcp.api.coingecko.com/mcp"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "search_docs",
         "get_global"

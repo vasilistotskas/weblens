@@ -15,20 +15,20 @@ export const PRICING = {
   search: "$0.005",
   extract: "$0.03",
   cacheDiscount: 0.7, // 70% off for cached responses
-  
+
   // Batch fetch pricing
   batchFetch: {
     perUrl: "$0.003",
     minUrls: 2,
     maxUrls: 20,
   },
-  
+
   // Research endpoint
   research: "$0.08",
-  
+
   // Smart extraction (AI-powered, higher cost)
   smartExtract: "$0.035",
-  
+
   // URL monitoring
   monitor: {
     setup: "$0.01",
@@ -36,13 +36,13 @@ export const PRICING = {
     minInterval: 1,   // hours
     maxInterval: 24,  // hours
   },
-  
+
   // PDF extraction
   pdf: "$0.01",
-  
+
   // URL comparison
   compare: "$0.05",
-  
+
   // Agent memory storage
   memory: {
     write: "$0.001",
@@ -51,6 +51,21 @@ export const PRICING = {
     maxTtl: 720,      // 30 days
     defaultTtl: 168,  // 7 days
   },
+} as const;
+
+// Free tier configuration - rate-limited access without payment
+export const FREE_TIER = {
+  // Rate limiting
+  maxRequestsPerHour: 10,
+  rateLimitWindowSeconds: 3600, // 1 hour
+  kvKeyPrefix: "ratelimit",
+
+  // Content limits
+  fetchMaxContentLength: 2000, // chars
+  searchMaxResults: 3,
+
+  // Available free endpoints
+  endpoints: ["/free/fetch", "/free/search"] as readonly string[],
 } as const;
 
 // Facilitator URLs for payment verification
@@ -164,17 +179,17 @@ export function getBatchFetchPrice(urlCount: number): string {
 // Type exports for configuration
 export type NetworkName = keyof typeof NETWORKS;
 export type FacilitatorName = keyof typeof FACILITATORS;
-export type EndpointName = 
-  | "screenshot" 
-  | "fetch-basic" 
-  | "fetch-pro" 
-  | "search" 
+export type EndpointName =
+  | "screenshot"
+  | "fetch-basic"
+  | "fetch-pro"
+  | "search"
   | "extract"
-  | "batch-fetch" 
-  | "research" 
-  | "smart-extract" 
-  | "monitor" 
-  | "pdf" 
-  | "compare" 
-  | "memory-read" 
+  | "batch-fetch"
+  | "research"
+  | "smart-extract"
+  | "monitor"
+  | "pdf"
+  | "compare"
+  | "memory-read"
   | "memory-write";

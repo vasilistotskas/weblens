@@ -472,4 +472,19 @@ export interface MemoryListResponse {
   requestId: string;
 }
 
+// ============================================
+// Free Tier Types
+// ============================================
+
+export interface FreeTierMetadata {
+  tier: "free";
+  limits: {
+    contentLength?: number;
+    maxResults?: number;
+    requestsPerHour: number;
+  };
+  remainingRequests: number;
+  upgradeUrl: string;
+  message: string;
+}
 

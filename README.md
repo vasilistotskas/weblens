@@ -142,3 +142,79 @@ No accounts. No API keys. No subscriptions. Just pay per use.
 ## License
 
 MIT
+
+
+## Testing & Validation
+
+### Run Unit Tests
+```bash
+npm test
+```
+
+### Validate Bazaar Discovery Configuration
+Check if all endpoints are properly configured for Coinbase Bazaar discovery:
+```bash
+npx tsx scripts/validate-bazaar.ts
+```
+
+This validates:
+- ✅ Bazaar extension structure
+- ✅ JSON Schema validity
+- ✅ Input/output examples
+- ✅ HTTP method declarations
+
+### Check Bazaar Listing Status
+See if WebLens is listed in the Coinbase Bazaar:
+```bash
+npx tsx scripts/check-bazaar-listing.ts
+```
+
+**Note:** Endpoints are automatically cataloged by the CDP facilitator when the first payment is processed. To get listed, someone needs to make a successful payment.
+
+### Test Payments (Production)
+Test with real USDC on Base mainnet:
+```bash
+$env:PRIVATE_KEY='0x...'  # Your wallet private key
+npx tsx scripts/test-payment.ts
+```
+
+**Requirements:**
+- Wallet must have USDC on Base mainnet
+- USDC contract: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+- Estimated cost: ~$0.20 USDC for all endpoints
+
+### Test Payments (Testnet)
+Test with fake USDC on Base Sepolia testnet:
+```bash
+# Terminal 1: Start local testnet server
+npx wrangler dev --env testnet
+
+# Terminal 2: Run tests
+$env:API_URL='http://localhost:8787'
+$env:PRIVATE_KEY='0x...'
+npx tsx scripts/test-payment-testnet.ts
+```
+
+**Get testnet USDC:**
+- Faucet: https://faucet.circle.com/
+- Network: Base Sepolia
+- Free fake USDC for testing
+
+## Bazaar Discovery
+
+WebLens is configured for automatic discovery in the [Coinbase Bazaar](https://docs.cdp.coinbase.com/x402/bazaar), making it discoverable by AI agents.
+
+**How it works:**
+1. All endpoints include Bazaar discovery metadata
+2. CDP facilitator extracts metadata when processing payments
+3. Endpoints are automatically cataloged in the Bazaar
+4. AI agents can query `/discovery/resources` to find WebLens
+
+**Discovery metadata includes:**
+- Input schema (request parameters)
+- Output schema (response format)
+- Example requests and responses
+- Pricing information
+- Network support
+
+Run `npx tsx scripts/validate-bazaar.ts` to verify your configuration.
