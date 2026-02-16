@@ -16,27 +16,41 @@ const DASHBOARD_HTML = `
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebLens Agent Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        window.process = { env: { NODE_ENV: 'production' } };
+    </script>
     <script type="module">
         import { createWalletClient, custom } from 'https://esm.sh/viem';
-        import { mainnet, base } from 'https://esm.sh/viem/chains';
+        import { base } from 'https://esm.sh/viem/chains';
+
+        console.log("Dashboard module loaded");
 
         let walletClient;
         let account;
 
         async function connectWallet() {
-            if (!window.ethereum) {
-                alert("Please install Coinbase Wallet or Metamask");
-                return;
+            try {
+                if (!window.ethereum) {
+                    alert("No wallet found. Please install Coinbase Wallet or Metamask.");
+                    return;
+                }
+                
+                walletClient = createWalletClient({
+                    chain: base,
+                    transport: custom(window.ethereum)
+                });
+                
+                const [address] = await walletClient.requestAddresses();
+                account = address;
+                
+                document.getElementById('connect-btn').innerText = account.slice(0,6) + '...' + account.slice(-4);
+                document.getElementById('dashboard-content').classList.remove('hidden');
+                
+                await loadData();
+            } catch (error) {
+                console.error("Connection failed:", error);
+                alert("Connection failed: " + (error.message || error));
             }
-            walletClient = createWalletClient({
-                chain: base,
-                transport: custom(window.ethereum)
-            });
-            const [address] = await walletClient.requestAddresses();
-            account = address;
-            document.getElementById('connect-btn').innerText = account.slice(0,6) + '...' + account.slice(-4);
-            document.getElementById('dashboard-content').classList.remove('hidden');
-            loadData();
         }
 
         async function getAuthHeaders() {
@@ -54,29 +68,42 @@ const DASHBOARD_HTML = `
         }
 
         async function loadData() {
-            const headers = await getAuthHeaders();
-            
-            // Fetch Balance
-            const balanceRes = await fetch('/credits/balance', { headers });
-            const balanceData = await balanceRes.json();
-            document.getElementById('balance-display').innerText = balanceData.balance;
-            document.getElementById('tier-display').innerText = balanceData.tier.toUpperCase();
+            try {
+                const headers = await getAuthHeaders();
+                
+                // Fetch Balance
+                const balanceRes = await fetch('/credits/balance', { headers });
+                if (!balanceRes.ok) throw new Error('Failed to fetch balance');
+                const balanceData = await balanceRes.json();
+                document.getElementById('balance-display').innerText = balanceData.balance;
+                document.getElementById('tier-display').innerText = balanceData.tier.toUpperCase();
 
-            // Fetch History
-            const historyRes = await fetch('/credits/history', { headers });
-            const historyData = await historyRes.json();
-            const historyList = document.getElementById('history-list');
-            historyList.innerHTML = historyData.history.map(tx => \`
-                <div class="flex justify-between py-2 border-b border-gray-700">
-                    <div>
-                        <div class="font-bold">\${tx.description}</div>
-                        <div class="text-xs text-gray-400">\${new Date(tx.timestamp).toLocaleString()}</div>
+                // Fetch History
+                const historyRes = await fetch('/credits/history', { headers });
+                if (!historyRes.ok) throw new Error('Failed to fetch history');
+                const historyData = await historyRes.json();
+                const historyList = document.getElementById('history-list');
+                
+                if (historyData.history.length === 0) {
+                    historyList.innerHTML = '<div class="text-gray-500 text-center py-4">No transactions yet</div>';
+                    return;
+                }
+
+                historyList.innerHTML = historyData.history.map(tx => \`
+                    <div class="flex justify-between py-2 border-b border-gray-700">
+                        <div>
+                            <div class="font-bold">\${tx.description}</div>
+                            <div class="text-xs text-gray-400">\${new Date(tx.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div class="\${tx.amount < 0 ? 'text-red-400' : 'text-green-400'}">
+                            \${tx.amount < 0 ? '-' : '+'}\${Math.abs(tx.amount).toFixed(4)}
+                        </div>
                     </div>
-                    <div class="\${tx.amount < 0 ? 'text-red-400' : 'text-green-400'}">
-                        \${tx.amount < 0 ? '-' : '+'}\${Math.abs(tx.amount).toFixed(4)}
-                    </div>
-                </div>
-            \`).join('');
+                \`).join('');
+            } catch (error) {
+                console.error("Data load failed:", error);
+                alert("Failed to load data: " + error.message);
+            }
         }
 
         window.connectWallet = connectWallet;
