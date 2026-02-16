@@ -72,7 +72,7 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     "/intel/company": { target: "coinbase.com" },
     "/intel/market": { topic: "web3 payments" },
     "/intel/competitive": { company: "stripe.com" },
-    "/intel/site-audit": { url: "https://api.weblens.dev" },
+    "/intel/site-audit": { url: "https://example.com" },
     "/credits/buy": { amount: "$10.00" },
 };
 

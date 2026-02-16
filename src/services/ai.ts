@@ -57,6 +57,18 @@ const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const DEFAULT_MAX_TOKENS = 4000;
 
 /**
+ * Strip markdown code fences from Claude's response text.
+ * Claude sometimes wraps JSON output in ```json ... ``` blocks despite
+ * being instructed to respond with raw JSON only.
+ */
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  // Match ```json ... ``` or ``` ... ```
+  const fenceMatch = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i.exec(trimmed);
+  return fenceMatch ? fenceMatch[1].trim() : trimmed;
+}
+
+/**
  * Call Claude API with a prompt
  * Exported as callClaudePublic for use by intel service workflows
  */
@@ -94,7 +106,7 @@ export async function callClaude(
   interface ClaudeResponse { content: { text?: string }[] }
   const result: ClaudeResponse = await response.json();
   const firstContent = result.content[0];
-  return firstContent.text ?? "";
+  return stripCodeFences(firstContent.text ?? "");
 }
 
 /**
