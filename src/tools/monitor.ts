@@ -121,6 +121,19 @@ export async function monitorCreateHandler(c: Context<{ Bindings: Env }>) {
       notifyOn
     );
 
+    // Schedule background checks via Durable Object
+    if (c.env.MONITOR_SCHEDULER) {
+      const doId = c.env.MONITOR_SCHEDULER.idFromName("global");
+      const doStub = c.env.MONITOR_SCHEDULER.get(doId);
+      await doStub.fetch(new Request("https://do/schedule", {
+        method: "POST",
+        body: JSON.stringify({
+          monitorId: monitor.id,
+          intervalHours: monitor.checkInterval,
+        }),
+      }));
+    }
+
     const response: MonitorCreateResponse = {
       monitorId: monitor.id,
       url: monitor.url,
@@ -268,6 +281,16 @@ export async function monitorDeleteHandler(c: Context<{ Bindings: Env }>) {
         },
         404
       );
+    }
+
+    // Cancel scheduled checks via Durable Object
+    if (c.env.MONITOR_SCHEDULER) {
+      const doId = c.env.MONITOR_SCHEDULER.idFromName("global");
+      const doStub = c.env.MONITOR_SCHEDULER.get(doId);
+      await doStub.fetch(new Request("https://do/cancel", {
+        method: "POST",
+        body: JSON.stringify({ monitorId }),
+      }));
     }
 
     return c.json({
