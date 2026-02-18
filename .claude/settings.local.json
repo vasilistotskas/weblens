@@ -30,7 +30,13 @@
       "Bash(pnpm run test:*)",
       "Bash(pnpm run lint:fix:*)",
       "Bash(npx vitest run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "mcp__coinbase-cdp__SearchCoinbaseDeveloper",
+      "WebFetch(domain:api.cdp.coinbase.com)",
+      "Bash(npx tsx:*)",
+      "WebFetch(domain:api.weblens.dev)",
+      "Bash(python3:*)",
+      "Bash(SKIP_BAZAAR=true npx tsx:*)"
     ],
     "deny": [],
     "ask": []
