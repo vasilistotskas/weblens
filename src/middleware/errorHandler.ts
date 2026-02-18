@@ -60,6 +60,10 @@ const ERROR_CODE_MAP: Record<string, ErrorCode> = {
   // Service errors
   unavailable: "SERVICE_UNAVAILABLE",
   Unavailable: "SERVICE_UNAVAILABLE",
+
+  // ACV Errors
+  "verification failed": "ACV_FAILED",
+  "Proof verification": "ACV_FAILED",
 };
 
 /**
@@ -89,6 +93,8 @@ export function getHttpStatus(code: ErrorCode): number {
       return 402;
     case "ELEMENT_NOT_FOUND":
       return 404;
+    case "ACV_FAILED":
+      return 422;
     case "RATE_LIMITED":
       return 429;
     case "FETCH_TIMEOUT":

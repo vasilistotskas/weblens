@@ -49,6 +49,11 @@ export const SERVICE_CATALOG = {
         "persistent-memory",
         "batch-operations",
         "url-comparison",
+        "autonomous-context-verification",
+        "truth-oracle",
+        "web-intelligence",
+        "cryptographic-proofs",
+        "reputation-aware",
     ],
     useCases: [
         "AI agent web browsing and research",
@@ -328,13 +333,18 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
     return c.json({
         x402Version: 1,
         name: "WebLens",
-        tagline: "Give your AI agents web superpowers",
-        description: "Premium Web Intelligence API with x402 micropayments. Web scraping, research, screenshots, and data extraction for AI agents.",
+        tagline: "Give your AI agents web superpowers with verified data",
+        description: "Premium Web Intelligence API with x402 micropayments. Features Autonomous Context Verification (ACV), Dynamic Pricing, and Truth-as-a-Service for AI agents.",
         baseUrl,
         facilitator: "cdp",
         network: "base",
         token: "USDC",
         bazaarListed: true,
+        keywords: [
+            "web-scraping", "ai-agent", "x402", "micropayments", "truth-oracle",
+            "context-verification", "web-intelligence", "data-extraction",
+            "headless-browser", "research-assistant"
+        ],
         capabilities: SERVICE_CATALOG.capabilities,
         endpoints: SERVICE_CATALOG.services.map(s => ({
             path: s.endpoint,

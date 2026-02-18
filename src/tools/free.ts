@@ -8,6 +8,7 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
 import { FREE_TIER } from "../config";
+import { createErrorResponse } from "../middleware/errorHandler";
 import { validateURL } from "../services/validator";
 import type { Env, FreeTierMetadata } from "../types";
 import { generateRequestId } from "../utils/requestId";
@@ -196,7 +197,7 @@ export async function freeSearch(c: Context<{ Bindings: Env }>) {
         });
 
         if (!response.ok) {
-            return c.json({ error: "Search failed", requestId }, 502);
+            return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Search provider failed", requestId), 502);
         }
 
         const html = await response.text();
@@ -214,7 +215,7 @@ export async function freeSearch(c: Context<{ Bindings: Env }>) {
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
-        return c.json({ error: message, requestId }, 500);
+        return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
     }
 }
 

@@ -19,6 +19,7 @@ export interface Env {
   MEMORY?: KVNamespace; // Cloudflare KV for agent memory
   MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
   CREDITS?: KVNamespace; // Cloudflare KV for agent credit accounts
+  CREDIT_MANAGER?: DurableObjectNamespace;
   MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
   // Optional API keys
   SERP_API_KEY?: string;
@@ -26,6 +27,27 @@ export interface Env {
   // Legacy facilitator URLs (for multi-chain support)
   CDP_FACILITATOR_URL?: string;
   PAYAI_FACILITATOR_URL?: string;
+  SIGNING_PRIVATE_KEY?: string;
+  // Public key for verification (optional in Env, derived from private key)
+  SIGNING_PUBLIC_KEY?: string;
+}
+
+export interface Variables {
+  requestId: string;
+  validatedBody?: unknown;
+  paidWithCredits?: boolean;
+  startTime?: number;
+}
+
+// Augment Hono ContextVariableMap so c.get()/c.set() are typed
+declare module "hono" {
+  interface ContextVariableMap {
+    requestId: string;
+    validatedBody: unknown;
+    paidWithCredits: boolean;
+    creditWallet: string;
+    startTime: number;
+  }
 }
 
 // ============================================
@@ -79,6 +101,7 @@ export interface FetchResponse {
   metadata: PageMetadata;
   tier: "basic" | "pro";
   fetchedAt: string; // ISO timestamp
+  proof?: ProofOfContext; // ACV Proof
   cache?: CacheMetadata;
   requestId: string;
 }
@@ -98,6 +121,17 @@ export interface CachedResponse<T = unknown> {
   data: T;
   cachedAt: string; // ISO timestamp
   ttl: number; // seconds
+}
+
+// ============================================
+// ACV Types (Autonomous Context Verification)
+// ============================================
+
+export interface ProofOfContext {
+  hash: string;       // SHA-256 hash of the content
+  timestamp: string;  // ISO timestamp of verification
+  signature: string;  // Cryptographic signature of { hash, timestamp, url }
+  publicKey: string;  // Public key to verify signature
 }
 
 // ============================================
@@ -137,6 +171,7 @@ export interface ExtractResponse {
   url: string;
   data: Record<string, unknown>;
   extractedAt: string;
+  proof?: ProofOfContext; // ACV Proof
   requestId: string;
 }
 
@@ -168,7 +203,8 @@ export type ErrorCode =
   | "RESEARCH_FAILED"
   | "AI_UNAVAILABLE"
   | "MEMORY_KEY_NOT_FOUND"
-  | "MEMORY_VALUE_TOO_LARGE";
+  | "MEMORY_VALUE_TOO_LARGE"
+  | "ACV_FAILED";
 
 export interface ErrorResponse {
   error: string;

@@ -151,53 +151,6 @@ export const TIMEOUT_CONFIG = {
   max: 30000, // 30 seconds
 } as const;
 
-// Calculate cached price (70% discount)
-export function getCachedPrice(basePrice: string): string {
-  const amount = parseFloat(basePrice.replace("$", ""));
-  const cachedAmount = amount * (1 - PRICING.cacheDiscount);
-  return `$${cachedAmount.toFixed(4)}`;
-}
-
-// Get price for an endpoint
-export function getEndpointPrice(
-  endpoint: "screenshot" | "fetch-basic" | "fetch-pro" | "search" | "extract",
-  cached: boolean = false
-): string {
-  let basePrice: string;
-
-  switch (endpoint) {
-    case "screenshot":
-      basePrice = PRICING.screenshot;
-      break;
-    case "fetch-basic":
-      basePrice = PRICING.fetch.basic;
-      break;
-    case "fetch-pro":
-      basePrice = PRICING.fetch.pro;
-      break;
-    case "search":
-      basePrice = PRICING.search;
-      break;
-    case "extract":
-      basePrice = PRICING.extract;
-      break;
-    default: {
-      const _exhaustiveCheck: never = endpoint;
-      throw new Error(`Unknown endpoint: ${String(_exhaustiveCheck)}`);
-    }
-  }
-
-  return cached ? getCachedPrice(basePrice) : basePrice;
-}
-
-// Calculate batch fetch price (linear pricing: N URLs × $0.003)
-// Requirement 1.4: Batch fetch SHALL charge $0.003 per URL
-export function getBatchFetchPrice(urlCount: number): string {
-  const perUrlAmount = parseFloat(PRICING.batchFetch.perUrl.replace("$", ""));
-  const totalAmount = urlCount * perUrlAmount;
-  return `$${totalAmount.toFixed(3)}`;
-}
-
 // Type exports for configuration
 export type NetworkName = keyof typeof NETWORKS;
 export type FacilitatorName = keyof typeof FACILITATORS;

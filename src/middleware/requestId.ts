@@ -50,7 +50,7 @@ export async function requestIdMiddleware(c: Context, next: Next) {
  * Returns the request ID if set, or generates a new one
  */
 export function getRequestId(c: Context): string {
-  return (c.get(REQUEST_ID_KEY)) ?? generateRequestId();
+  return c.get(REQUEST_ID_KEY) || generateRequestId();
 }
 
 /**

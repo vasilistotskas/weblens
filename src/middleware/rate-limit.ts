@@ -9,6 +9,7 @@ import type { Context, Next } from "hono";
 import { FREE_TIER } from "../config";
 import type { Env } from "../types";
 
+/** KV-stored rate limit state for a single IP address. */
 interface RateLimitEntry {
     count: number;
     resetAt: number; // Unix timestamp in seconds

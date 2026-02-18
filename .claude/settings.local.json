@@ -23,7 +23,13 @@
       "Bash(npx wrangler tail:*)",
       "Bash(npm view:*)",
       "Bash(npx wrangler deploy:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(wc:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm run lint)",
+      "Bash(pnpm run test:*)",
+      "Bash(pnpm run lint:fix:*)",
+      "Bash(npx vitest run:*)"
     ],
     "deny": [],
     "ask": []

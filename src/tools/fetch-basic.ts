@@ -10,8 +10,9 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, FetchRequest, FetchResponse } from "../types";
+import type { Env, FetchRequest, FetchResponse, ProofOfContext } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
 
@@ -44,8 +45,9 @@ export interface FetchBasicResult {
  */
 export async function fetchBasicPage(
   url: string,
-  timeout: number = 10000
-): Promise<FetchBasicResult> {
+  timeout: number = 10000,
+  env?: Env
+): Promise<FetchBasicResult & { proof?: ProofOfContext }> {
   const response = await fetch(url, {
     headers: {
       "User-Agent":
@@ -64,7 +66,7 @@ export async function fetchBasicPage(
   const content = htmlToMarkdown(html);
   const metadata = extractMetadata(html);
 
-  return {
+  const result: FetchBasicResult & { proof?: ProofOfContext } = {
     url,
     title: metadata.title ?? "",
     content,
@@ -76,6 +78,24 @@ export async function fetchBasicPage(
     tier: "basic",
     fetchedAt: new Date().toISOString(),
   };
+
+  // Generate ACV Proof if environment provided
+  if (env && (env.SIGNING_PRIVATE_KEY || env.CDP_API_KEY_SECRET)) {
+    try {
+      const hash = await hashContent(html);
+      const { signature, publicKey } = await signContext(url, hash, result.fetchedAt, env);
+      result.proof = {
+        hash,
+        timestamp: result.fetchedAt,
+        signature,
+        publicKey
+      };
+    } catch (e) {
+      console.warn("Failed to generate ACV proof:", e);
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -84,7 +104,7 @@ export async function fetchBasicPage(
  */
 export async function fetchBasic(c: Context<{ Bindings: Env }>) {
   const requestId = generateRequestId();
-  
+
   try {
     const body = await c.req.json<FetchRequest>();
     const parsed = fetchBasicSchema.safeParse(body);
@@ -112,8 +132,8 @@ export async function fetchBasic(c: Context<{ Bindings: Env }>) {
       }, 400);
     }
 
-    // Fetch the page
-    const result = await fetchBasicPage(urlValidation.normalized ?? url, timeout);
+    // Fetch the page with ACV
+    const result = await fetchBasicPage(urlValidation.normalized ?? url, timeout, c.env);
 
     const response: FetchResponse = {
       ...result,
@@ -123,7 +143,7 @@ export async function fetchBasic(c: Context<{ Bindings: Env }>) {
     return c.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    
+
     // Check for timeout errors
     if (message.includes("timeout") || message.includes("aborted")) {
       return c.json({

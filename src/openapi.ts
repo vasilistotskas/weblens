@@ -6,7 +6,7 @@
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
 import { PRICING } from "./config";
-import type { Env } from "./types";
+import type { Env, Variables } from "./types";
 
 // OpenAPI 3.0 Document
 export function getOpenAPIDocument(baseUrl: string = "https://api.weblens.dev") {
@@ -276,12 +276,22 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         },
         FetchResponse: {
           type: "object",
-          properties: { url: { type: "string" }, title: { type: "string" }, content: { type: "string" }, metadata: { type: "object" }, tier: { type: "string" }, fetchedAt: { type: "string" }, cache: { type: "object" }, requestId: { type: "string" } },
+          properties: {
+            url: { type: "string" },
+            title: { type: "string" },
+            content: { type: "string" },
+            metadata: { type: "object" },
+            tier: { type: "string" },
+            fetchedAt: { type: "string" },
+            cache: { type: "object" },
+            proof: { $ref: "#/components/schemas/ProofOfContext" },
+            requestId: { type: "string" }
+          },
         },
         SearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, limit: { type: "integer" } } },
         SearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object" } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
         ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string" }, schema: { type: "object" }, instructions: { type: "string" } } },
-        ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
+        ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, proof: { $ref: "#/components/schemas/ProofOfContext" }, requestId: { type: "string" } } },
         SmartExtractRequest: { type: "object", required: ["url", "query"], properties: { url: { type: "string" }, query: { type: "string" }, format: { type: "string" } } },
         SmartExtractResponse: { type: "object", properties: { url: { type: "string" }, query: { type: "string" }, data: { type: "array" }, explanation: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
         BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 20 }, timeout: { type: "integer" }, tier: { type: "string" } } },
@@ -299,6 +309,16 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         MemorySetRequest: { type: "object", required: ["key", "value"], properties: { key: { type: "string" }, value: {}, ttl: { type: "integer" } } },
         MemorySetResponse: { type: "object", properties: { key: { type: "string" }, stored: { type: "boolean" }, expiresAt: { type: "string" }, requestId: { type: "string" } } },
         ErrorResponse: { type: "object", properties: { error: { type: "string" }, code: { type: "string" }, message: { type: "string" }, requestId: { type: "string" } } },
+        ProofOfContext: {
+          type: "object",
+          required: ["hash", "timestamp", "signature", "publicKey"],
+          properties: {
+            hash: { type: "string", description: "SHA-256 hash of the content" },
+            timestamp: { type: "string", description: "ISO timestamp of verification" },
+            signature: { type: "string", description: "Cryptographic signature" },
+            publicKey: { type: "string", description: "Public key to verify signature" },
+          }
+        },
       },
       responses: {
         PaymentRequired: {
@@ -355,7 +375,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
 /**
  * Register OpenAPI documentation routes
  */
-export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env }>) {
+export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
   // OpenAPI JSON spec
   app.get("/openapi.json", (c) => {
     const baseUrl = new URL(c.req.url).origin;

@@ -12,14 +12,14 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { PRICING } from "../../src/config";
-import { 
-  getCachedPrice, 
-  getBasePrice, 
+import {
+  getCachedPrice,
+  getBasePrice,
   getEndpointPrice,
   getDiscountAmount,
   getCacheDiscountPercentage,
   parsePrice
-} from "../../src/utils/pricing";
+} from "../../src/services/pricing";
 
 describe("Property 6: Cache hit returns reduced price", () => {
   /**
@@ -57,8 +57,8 @@ describe("Property 6: Cache hit returns reduced price", () => {
         (amount) => {
           const priceStr = `$${amount.toFixed(4)}`;
           const cachedPriceStr = getCachedPrice(priceStr);
-          const cachedAmount = parseFloat(cachedPriceStr);
-          
+          const cachedAmount = parsePrice(cachedPriceStr);
+
           expect(cachedAmount).toBeLessThan(amount);
         }
       ),
@@ -113,7 +113,7 @@ describe("Property 6: Cache hit returns reduced price", () => {
         fc.double({ min: 0.001, max: 100, noNaN: true }),
         (amount) => {
           const priceStr = `$${amount.toFixed(4)}`;
-          const cachedPrice = parseFloat(getCachedPrice(priceStr));
+          const cachedPrice = parsePrice(getCachedPrice(priceStr));
           const discount = getDiscountAmount(priceStr);
           
           // cached + discount should equal original (within tolerance)
@@ -152,7 +152,7 @@ describe("Property 6: Cache hit returns reduced price", () => {
       fc.property(
         fc.constantFrom("fetch-basic", "fetch-pro") as fc.Arbitrary<"fetch-basic" | "fetch-pro">,
         (endpoint) => {
-          const cachedPrice = parseFloat(getEndpointPrice(endpoint, true));
+          const cachedPrice = parsePrice(getEndpointPrice(endpoint, true));
           
           if (endpoint === "fetch-basic") {
             // $0.005 * 0.3 = $0.0015

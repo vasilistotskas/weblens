@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { createErrorResponse } from "../middleware/errorHandler";
 import type { Env, FetchRequest, FetchResponse } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
@@ -11,12 +12,14 @@ const fetchSchema = z.object({
 });
 
 export async function fetchPage(c: Context<{ Bindings: Env }>) {
+  const requestId = generateRequestId();
+
   try {
     const body = await c.req.json<FetchRequest>();
     const parsed = fetchSchema.safeParse(body);
 
     if (!parsed.success) {
-      return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+      return c.json({ ...createErrorResponse("INVALID_REQUEST", "Invalid request parameters", requestId), details: parsed.error.issues }, 400);
     }
 
     const { url, timeout } = parsed.data;
@@ -33,7 +36,7 @@ export async function fetchPage(c: Context<{ Bindings: Env }>) {
     });
 
     if (!response.ok) {
-      return c.json({ error: `Failed to fetch: ${String(response.status)} ${response.statusText}` }, 502);
+      return c.json(createErrorResponse("RENDER_FAILED", `Failed to fetch: ${String(response.status)} ${response.statusText}`, requestId), 502);
     }
 
     const html = await response.text();
@@ -51,12 +54,12 @@ export async function fetchPage(c: Context<{ Bindings: Env }>) {
       },
       tier: "basic",
       fetchedAt: new Date().toISOString(),
-      requestId: generateRequestId(),
+      requestId,
     };
 
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return c.json({ error: message }, 500);
+    return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
   }
 }

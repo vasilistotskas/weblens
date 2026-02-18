@@ -9,7 +9,8 @@
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { PRICING, getBatchFetchPrice } from "../../src/config";
+import { PRICING } from "../../src/config";
+import { getBatchFetchPrice } from "../../src/services/pricing";
 
 describe("Property 2: Batch fetch pricing is linear", () => {
   /**

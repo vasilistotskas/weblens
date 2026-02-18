@@ -11,7 +11,8 @@
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { PRICING, getEndpointPrice, getCachedPrice } from "../../src/config";
+import { PRICING } from "../../src/config";
+import { getEndpointPrice, getCachedPrice } from "../../src/services/pricing";
 
 describe("Property 3: Tier pricing consistency", () => {
   /**

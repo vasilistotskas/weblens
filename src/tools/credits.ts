@@ -10,6 +10,7 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
 import { PRICING } from "../config";
+import { createErrorResponse } from "../middleware/errorHandler";
 import {
     processDeposit,
     getCreditAccount,
@@ -64,7 +65,7 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
         }
     }
 
-    if (!c.env.CREDITS) {
+    if (!c.env.CREDIT_MANAGER) {
         return c.json(
             {
                 error: "SERVICE_UNAVAILABLE",
@@ -105,7 +106,7 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
 
         // Process the deposit
         const { account, bonusAccrued } = await processDeposit(
-            c.env.CREDITS,
+            c.env.CREDIT_MANAGER,
             walletAddress,
             amountUsd,
             requestId,
@@ -146,19 +147,19 @@ export async function getBalanceHandler(c: Context<{ Bindings: Env }>) {
     const timestamp = c.req.header("X-CREDIT-TIMESTAMP");
 
     if (!walletAddress || !signature || !timestamp) {
-        return c.json({ error: "MISSING_AUTH", message: "Missing authentication headers" }, 401);
+        return c.json(createErrorResponse("INVALID_REQUEST", "Missing authentication headers", requestId), 401);
     }
 
     const verification = await verifyWalletSignature(walletAddress, signature, timestamp);
     if (!verification.isValid) {
-        return c.json({ error: verification.code, message: verification.error }, 401);
+        return c.json(createErrorResponse("PAYMENT_FAILED", verification.error ?? "Invalid signature", requestId), 401);
     }
 
-    if (!c.env.CREDITS) {
-        return c.json({ error: "Service unavailable" }, 503);
+    if (!c.env.CREDIT_MANAGER) {
+        return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Credit service is not configured", requestId), 503);
     }
 
-    const account = await getCreditAccount(c.env.CREDITS, walletAddress);
+    const account = await getCreditAccount(c.env.CREDIT_MANAGER, walletAddress);
 
     if (!account) {
         return c.json({
@@ -191,19 +192,19 @@ export async function getHistoryHandler(c: Context<{ Bindings: Env }>) {
     const timestamp = c.req.header("X-CREDIT-TIMESTAMP");
 
     if (!walletAddress || !signature || !timestamp) {
-        return c.json({ error: "MISSING_AUTH", message: "Missing authentication headers" }, 401);
+        return c.json(createErrorResponse("INVALID_REQUEST", "Missing authentication headers", requestId), 401);
     }
 
     const verification = await verifyWalletSignature(walletAddress, signature, timestamp);
     if (!verification.isValid) {
-        return c.json({ error: verification.code, message: verification.error }, 401);
+        return c.json(createErrorResponse("PAYMENT_FAILED", verification.error ?? "Invalid signature", requestId), 401);
     }
 
-    if (!c.env.CREDITS) {
-        return c.json({ error: "Service unavailable" }, 503);
+    if (!c.env.CREDIT_MANAGER) {
+        return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Credit service is not configured", requestId), 503);
     }
 
-    const history = await getTransactionHistory(c.env.CREDITS, walletAddress);
+    const history = await getTransactionHistory(c.env.CREDIT_MANAGER, walletAddress);
 
     return c.json({
         history: history.map(tx => ({

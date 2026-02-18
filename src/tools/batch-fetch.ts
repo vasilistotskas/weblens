@@ -10,8 +10,9 @@
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
-import { PRICING, getBatchFetchPrice } from "../config";
+import { PRICING } from "../config";
 import { batchFetch } from "../services/batch";
+import { getBatchFetchPrice } from "../services/pricing";
 import { validateURL } from "../services/validator";
 import type { Env, BatchFetchRequest, BatchFetchResponse } from "../types";
 import { generateRequestId } from "../utils/requestId";

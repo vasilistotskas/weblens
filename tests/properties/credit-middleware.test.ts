@@ -33,12 +33,10 @@ describe("Credit Middleware", () => {
                 header: vi.fn() as unknown as (name: string) => string | undefined,
             },
             env: {
-                CREDITS: {
+                CREDIT_MANAGER: {
+                    idFromName: vi.fn(),
                     get: vi.fn(),
-                    put: vi.fn(),
-                    delete: vi.fn(),
-                    list: vi.fn(),
-                } as unknown as KVNamespace,
+                } as unknown as any,
             },
             get: vi.fn(),
             set: vi.fn(),

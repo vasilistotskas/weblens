@@ -13,8 +13,9 @@ import puppeteer from "@cloudflare/puppeteer";
 import type { Context } from "hono";
 import { z } from "zod/v4";
 import { VIEWPORT_BOUNDS } from "../config";
+import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, FetchRequest, FetchResponse } from "../types";
+import type { Env, FetchRequest, FetchResponse, ProofOfContext } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
 
@@ -37,6 +38,7 @@ export interface FetchProResult {
   };
   tier: "pro";
   fetchedAt: string;
+  proof?: ProofOfContext;
 }
 
 /**
@@ -58,6 +60,7 @@ async function sleep(ms: number): Promise<void> {
  */
 async function fetchProPageWithRetry(
   browserBinding: Fetcher,
+  env: Env,
   url: string,
   timeout: number = 10000,
   waitFor?: string,
@@ -67,7 +70,7 @@ async function fetchProPageWithRetry(
   const baseDelay = 1000; // Start with 1 second
 
   try {
-    return await fetchProPageInternal(browserBinding, url, timeout, waitFor);
+    return await fetchProPageInternal(browserBinding, env, url, timeout, waitFor);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -84,7 +87,7 @@ async function fetchProPageWithRetry(
       // Exponential backoff: 1s, 2s
       const delay = baseDelay * Math.pow(2, retryCount);
       await sleep(delay);
-      return fetchProPageWithRetry(browserBinding, url, timeout, waitFor, retryCount + 1);
+      return fetchProPageWithRetry(browserBinding, env, url, timeout, waitFor, retryCount + 1);
     }
 
     // Not retryable or max retries exceeded
@@ -97,6 +100,7 @@ async function fetchProPageWithRetry(
  */
 async function fetchProPageInternal(
   browserBinding: Fetcher,
+  env: Env,
   url: string,
   timeout: number = 10000,
   waitFor?: string
@@ -144,12 +148,12 @@ async function fetchProPageInternal(
 
     // Extract title from the page (more reliable than parsing HTML)
     const pageTitle = await page.title();
-    
+
     // Convert to markdown and extract metadata
     const content = htmlToMarkdown(html);
     const metadata = extractMetadata(html);
 
-    return {
+    const result: FetchProResult = {
       url,
       title: (pageTitle !== "" ? pageTitle : metadata.title) ?? "",
       content,
@@ -161,6 +165,27 @@ async function fetchProPageInternal(
       tier: "pro",
       fetchedAt: new Date().toISOString(),
     };
+
+    // Generate ACV Proof if possible
+    if (env.SIGNING_PRIVATE_KEY || env.CDP_API_KEY_SECRET) {
+      try {
+        const timestamp = result.fetchedAt;
+        const hash = await hashContent(html);
+        const { signature, publicKey } = await signContext(url, hash, timestamp, env);
+
+        result.proof = {
+          hash,
+          timestamp,
+          signature,
+          publicKey
+        };
+      } catch (err) {
+        console.warn(`Failed to generate ACV proof: ${String(err)}`);
+        // Do not fail the request, just omit the proof
+      }
+    }
+
+    return result;
   } finally {
     await browser.close();
   }
@@ -177,11 +202,12 @@ async function fetchProPageInternal(
  */
 export async function fetchProPage(
   browserBinding: Fetcher,
+  env: Env,
   url: string,
   timeout: number = 10000,
   waitFor?: string
 ): Promise<FetchProResult> {
-  return fetchProPageWithRetry(browserBinding, url, timeout, waitFor);
+  return fetchProPageWithRetry(browserBinding, env, url, timeout, waitFor);
 }
 
 /**
@@ -190,7 +216,7 @@ export async function fetchProPage(
  */
 export async function fetchPro(c: Context<{ Bindings: Env }>) {
   const requestId = generateRequestId();
-  
+
   try {
     const body = await c.req.json<FetchRequest>();
     const parsed = fetchProSchema.safeParse(body);
@@ -231,6 +257,7 @@ export async function fetchPro(c: Context<{ Bindings: Env }>) {
     // Fetch the page with JS rendering
     const result = await fetchProPage(
       c.env.BROWSER,
+      c.env,
       urlValidation.normalized ?? url,
       timeout,
       waitFor
@@ -244,7 +271,7 @@ export async function fetchPro(c: Context<{ Bindings: Env }>) {
     return c.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    
+
     // Check for timeout errors
     if (message.includes("timeout") || message.includes("Timeout") || message.includes("aborted")) {
       return c.json({

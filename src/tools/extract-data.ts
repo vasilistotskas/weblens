@@ -1,5 +1,7 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { createErrorResponse } from "../middleware/errorHandler";
+import { hashContent, signContext } from "../services/crypto";
 import type { Env, ExtractRequest, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
@@ -11,12 +13,14 @@ const extractSchema = z.object({
 });
 
 export async function extractData(c: Context<{ Bindings: Env }>) {
+  const requestId = generateRequestId();
+
   try {
     const body = await c.req.json<ExtractRequest>();
     const parsed = extractSchema.safeParse(body);
 
     if (!parsed.success) {
-      return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+      return c.json({ ...createErrorResponse("INVALID_REQUEST", "Invalid request parameters", requestId), details: parsed.error.issues }, 400);
     }
 
     const { url, schema, instructions } = parsed.data;
@@ -31,7 +35,7 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
     });
 
     if (!response.ok) {
-      return c.json({ error: `Failed to fetch: ${String(response.status)}` }, 502);
+      return c.json(createErrorResponse("RENDER_FAILED", `Failed to fetch: ${String(response.status)}`, requestId), 502);
     }
 
     const html = await response.text();
@@ -45,6 +49,7 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
         url,
         data,
         extractedAt: new Date().toISOString(),
+        requestId,
         note: "Basic extraction (no AI). Set ANTHROPIC_API_KEY for intelligent extraction.",
       });
     }
@@ -55,13 +60,31 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
       url,
       data,
       extractedAt: new Date().toISOString(),
-      requestId: generateRequestId(),
+      requestId,
     };
+
+    // Generate ACV Proof if possible
+    if (c.env.SIGNING_PRIVATE_KEY || c.env.CDP_API_KEY_SECRET) {
+      try {
+        const timestamp = result.extractedAt;
+        const hash = await hashContent(html);
+        const { signature, publicKey } = await signContext(url, hash, timestamp, c.env);
+
+        result.proof = {
+          hash,
+          timestamp,
+          signature,
+          publicKey
+        };
+      } catch (err) {
+        console.warn(`Failed to generate ACV proof: ${String(err)}`);
+      }
+    }
 
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return c.json({ error: message }, 500);
+    return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
   }
 }
 

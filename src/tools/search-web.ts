@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
+import { createErrorResponse } from "../middleware/errorHandler";
 import type { Env, SearchRequest, SearchResponse, SearchResult } from "../types";
 import { generateRequestId } from "../utils/requestId";
 
@@ -9,12 +10,14 @@ const searchSchema = z.object({
 });
 
 export async function searchWeb(c: Context<{ Bindings: Env }>) {
+  const requestId = generateRequestId();
+
   try {
     const body = await c.req.json<SearchRequest>();
     const parsed = searchSchema.safeParse(body);
 
     if (!parsed.success) {
-      return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+      return c.json({ ...createErrorResponse("INVALID_REQUEST", "Invalid request parameters", requestId), details: parsed.error.issues }, 400);
     }
 
     const { query, limit } = parsed.data;
@@ -31,7 +34,7 @@ export async function searchWeb(c: Context<{ Bindings: Env }>) {
     });
 
     if (!response.ok) {
-      return c.json({ error: "Search failed" }, 502);
+      return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Search provider failed", requestId), 502);
     }
 
     const html = await response.text();
@@ -41,13 +44,13 @@ export async function searchWeb(c: Context<{ Bindings: Env }>) {
       query,
       results,
       searchedAt: new Date().toISOString(),
-      requestId: generateRequestId(),
+      requestId,
     };
 
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return c.json({ error: message }, 500);
+    return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
   }
 }
 

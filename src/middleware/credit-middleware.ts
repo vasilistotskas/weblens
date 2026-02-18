@@ -13,15 +13,6 @@ import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
 
-// Extend Hono Context to include payment information
-declare module "hono" {
-    interface ContextVariableMap {
-        paidWithCredits?: boolean;
-        creditWallet?: string;
-        requestId?: string;
-    }
-}
-
 /**
  * Create credit payment middleware.
  * @param cost Function to determine cost of request (or fixed string)
@@ -37,7 +28,7 @@ export function createCreditMiddleware(
         const timestamp = c.req.header("X-CREDIT-TIMESTAMP");
 
         // If no credit wallet provided, proceed to next middleware (standard x402)
-        if (!creditWallet || !c.env.CREDITS) {
+        if (!creditWallet || !c.env.CREDIT_MANAGER) {
             await next(); return;
         }
 
@@ -57,14 +48,14 @@ export function createCreditMiddleware(
             }, 401);
         }
 
-        const requestId = c.get("requestId") ?? generateRequestId();
+        const requestId = c.get("requestId") || generateRequestId();
         const costStr = typeof cost === "function" ? cost(c) : cost;
         const amountUsd = parseFloat(costStr.replace("$", ""));
 
         try {
             // Attempt to debit credits
             await deductCredits(
-                c.env.CREDITS,
+                c.env.CREDIT_MANAGER,
                 creditWallet,
                 amountUsd,
                 description,

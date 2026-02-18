@@ -11,7 +11,8 @@
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { PRICING, getCachedPrice } from "../../src/config";
+import { PRICING } from "../../src/config";
+import { getCachedPrice } from "../../src/services/pricing";
 
 // All intel endpoint names and their expected prices
 const INTEL_ENDPOINTS = [
