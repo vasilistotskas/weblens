@@ -29,7 +29,8 @@
       "Bash(pnpm run lint)",
       "Bash(pnpm run test:*)",
       "Bash(pnpm run lint:fix:*)",
-      "Bash(npx vitest run:*)"
+      "Bash(npx vitest run:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []
