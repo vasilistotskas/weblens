@@ -186,7 +186,7 @@ export async function memoryGetHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    const key = c.req.param("key");
+    const key = c.req.query("key");
     if (!key) {
       return c.json(
         {
@@ -263,7 +263,7 @@ export async function memoryDeleteHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    const key = c.req.param("key");
+    const key = c.req.query("key");
     if (!key) {
       return c.json(
         {

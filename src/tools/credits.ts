@@ -20,11 +20,9 @@ import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
 
-// Schema for buy request
-// Note: Actual payment amount is determined by the x402 payment attached
-// We just validate the intent here.
+// Schema for buy request — must match CreditsBuyRequestSchema in schemas.ts
 const buyCreditsSchema = z.object({
-    amount: z.string().regex(/^\$\d+(\.\d{2})?$/, "Amount must be in USD format, e.g., $10.00"),
+    amount: z.number().min(5).max(1000),
 });
 
 /**
@@ -94,8 +92,8 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
             );
         }
 
-        const amountStr = parsed.data.amount;
-        const amountUsd = parseFloat(amountStr.replace("$", ""));
+        const amountUsd = parsed.data.amount;
+        const amountStr = `$${amountUsd.toFixed(2)}`;
 
         // Currently we rely on the x402 middleware to have enforced payment.
         // Since we don't have a dynamic price middleware yet, this is a placeholder.

@@ -19,7 +19,7 @@
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import axios from "axios";
-import type { Hex } from "viem";
+import type { Hex, LocalAccount } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 async function sleep(ms: number): Promise<void> {
@@ -108,22 +108,43 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
         ttl: 1, // 1 hour minimum
     },
 
-    // Intel endpoints — use "param" field (IntelRequestSchema)
-    "/intel/company":    { param: "coinbase.com", depth: "basic" },
-    "/intel/market":     { param: "web3 payments", depth: "basic" },
-    "/intel/competitive":{ param: "stripe.com", depth: "basic" },
-    "/intel/site-audit": { param: "https://example.com", depth: "basic" },
+    // Intel endpoints — each handler has its own schema (not IntelRequestSchema)
+    "/intel/company":    { target: "coinbase.com" },
+    "/intel/market":     { topic: "web3 payments", depth: "standard" },
+    "/intel/competitive":{ company: "stripe.com" },
+    "/intel/site-audit": { url: "https://example.com" },
 
-    // Credits — amount must be a number (USD)
+    // Credits — amount must be a number (USD), matches CreditsBuyRequestSchema
     "/credits/buy": { amount: 5 },
 };
+
+// ============================================
+// Wallet Auth (EIP-191 signature for credits endpoints)
+// ============================================
+
+/**
+ * Build the three headers required by /credits/balance and /credits/history.
+ * Message format: "WebLens Authentication\nWallet: <addr>\nTimestamp: <ts>"
+ */
+async function buildCreditAuthHeaders(
+    account: LocalAccount
+): Promise<Record<string, string>> {
+    const timestamp = String(Date.now());
+    const message = `WebLens Authentication\nWallet: ${account.address}\nTimestamp: ${timestamp}`;
+    const signature = await account.signMessage({ message });
+    return {
+        "X-CREDIT-WALLET": account.address,
+        "X-CREDIT-SIGNATURE": signature,
+        "X-CREDIT-TIMESTAMP": timestamp,
+    };
+}
 
 // ============================================
 // Test Runner
 // ============================================
 
 async function testEndpoint(
-    client: ReturnType<typeof wrapAxiosWithPayment>  ,
+    client: ReturnType<typeof wrapAxiosWithPayment>,
     endpoint: ITestEndpoint,
     baseAxios: ReturnType<typeof axios.create>
 ): Promise<{ success: boolean; data?: IWebLensResponseData }> {
@@ -229,8 +250,7 @@ async function run(): Promise<void> {
         { name: "MCP Info",         method: "GET",  path: "/mcp/info",  price: "FREE", free: true },
         { name: "Free Fetch",       method: "POST", path: "/free/fetch",  price: "FREE", free: true, body: { url: "https://example.com" } },
         { name: "Free Search",      method: "POST", path: "/free/search", price: "FREE", free: true, body: { query: "x402 protocol", limit: 3 } },
-        { name: "Credits Balance",  method: "GET",  path: "/credits/balance", price: "FREE", free: true },
-        { name: "Credits History",  method: "GET",  path: "/credits/history", price: "FREE", free: true },
+        // Credits balance/history are tested separately (require wallet signature headers)
         { name: "Memory List",      method: "GET",  path: "/memory/list", price: "FREE", free: true },
     ];
 
@@ -329,6 +349,45 @@ async function run(): Promise<void> {
     console.log("\n" + "=".repeat(50));
     console.log("🔗 CHAINED / STATEFUL TESTS");
     console.log("=".repeat(50));
+
+    // Credits: balance + history — require EIP-191 wallet signature
+    console.log("\n--- Testing Credits Balance (signed) (FREE) ---");
+    console.log("GET /credits/balance [FREE]");
+    try {
+        const authHeaders = await buildCreditAuthHeaders(account);
+        const balanceResp = await baseAxios.get<IWebLensResponseData>("/credits/balance", { headers: authHeaders });
+        console.log("✅ Success! Status:", balanceResp.status);
+        if (balanceResp.data.balance !== undefined) { console.log("  Balance:", balanceResp.data.balance); }
+        if (balanceResp.data.tier) { console.log("  Tier:", balanceResp.data.tier); }
+        results.push({ name: "Credits Balance", success: true, path: "/credits/balance" });
+    } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+            console.log("❌ Error:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
+        } else {
+            console.error("❌ Error:", err instanceof Error ? err.message : String(err));
+        }
+        results.push({ name: "Credits Balance", success: false, path: "/credits/balance" });
+    }
+    await sleep(300);
+
+    console.log("\n--- Testing Credits History (signed) (FREE) ---");
+    console.log("GET /credits/history [FREE]");
+    try {
+        const authHeaders = await buildCreditAuthHeaders(account);
+        const historyResp = await baseAxios.get<IWebLensResponseData>("/credits/history", { headers: authHeaders });
+        console.log("✅ Success! Status:", historyResp.status);
+        const history = historyResp.data.history;
+        if (Array.isArray(history)) { console.log("  Transactions:", history.length); }
+        results.push({ name: "Credits History", success: true, path: "/credits/history" });
+    } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+            console.log("❌ Error:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
+        } else {
+            console.error("❌ Error:", err instanceof Error ? err.message : String(err));
+        }
+        results.push({ name: "Credits History", success: false, path: "/credits/history" });
+    }
+    await sleep(300);
 
     // Memory: get → delete (key was set in paid endpoints above)
     const memoryGetEp: ITestEndpoint = {
