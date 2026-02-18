@@ -112,7 +112,7 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     // then each handler re-parses with its own schema (target/topic/company/url).
     // Both must be satisfied, so we include all fields.
     "/intel/company":    { param: "coinbase.com", target: "coinbase.com" },
-    "/intel/market":     { param: "web3 payments", depth: "basic", topic: "web3 payments" },
+    "/intel/market":     { param: "web3 payments", topic: "web3 payments" },
     "/intel/competitive":{ param: "stripe.com", company: "stripe.com" },
     "/intel/site-audit": { param: "https://example.com", url: "https://example.com" },
 

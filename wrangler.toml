@@ -23,7 +23,7 @@ custom_domain = true
 # ============================================
 
 [vars]
-NETWORK = "base-sepolia"
+NETWORK = "base"
 # Public wallet address for receiving payments
 PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
