@@ -25,18 +25,23 @@ const BLOCKED_HOST_PATTERNS = [
 ];
 
 // Private IP ranges (RFC 1918 and others) including Hex/Octal/Decimal formats
-// This is hard to catch with regex alone for all exotic formats, but these cover standards.
 const PRIVATE_IP_PATTERNS = [
-  /^10\./,                             // 10.0.0.0/8
-  /^172\.(1[6-9]|2\d|3[0-1])\./,       // 172.16.0.0/12
-  /^192\.168\./,                       // 192.168.0.0/16
-  /^169\.254\./,                       // Link-local
-  /^127\./,                            // Loopback
-  /^0\./,                               // Current network
-  /^fc00:/i,                           // IPv6 Unique Local
-  /^fe80:/i,                           // IPv6 Link Local
-  /^0x/i,                              // Hexadecimal IP attempts (simple block)
-  /^0[0-9]/,                           // Octal attempts (simple block)
+  /^10\./,                                        // 10.0.0.0/8
+  /^172\.(1[6-9]|2\d|3[0-1])\./,                  // 172.16.0.0/12
+  /^192\.168\./,                                  // 192.168.0.0/16
+  /^169\.254\./,                                  // 169.254.0.0/16 Link-local
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,     // 100.64.0.0/10 CGNAT (RFC 6598)
+  /^198\.1[89]\./,                                // 198.18.0.0/15 Benchmark (RFC 2544)
+  /^127\./,                                       // 127.0.0.0/8 Loopback
+  /^0\./,                                          // 0.0.0.0/8 Current network
+  /^::ffff:/i,                                    // IPv4-mapped IPv6 (::ffff:127.0.0.1)
+  /^0{0,4}:0{0,4}:0{0,4}:0{0,4}:0{0,4}:ffff:/i, // IPv4-mapped long form
+  /^f[cd][0-9a-f]{2}:/i,                          // IPv6 ULA fc00::/7 (fc00 + fd00)
+  /^fe80:/i,                                      // IPv6 Link Local
+  /^2001:db8:/i,                                  // IPv6 Documentation (RFC 3849)
+  /^2002:/i,                                      // 6to4 relay (can map to private v4)
+  /^0x/i,                                         // Hexadecimal IP attempts
+  /^0[0-9]/,                                      // Octal attempts
 ];
 
 // Allowed protocols

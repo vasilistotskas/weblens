@@ -122,9 +122,9 @@ export async function readerHandler(c: Context<{ Bindings: Env }>) {
             },
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
+        const rawMessage = error instanceof Error ? error.message : "Unknown error";
 
-        if (message.includes("timeout") || message.includes("aborted")) {
+        if (rawMessage.includes("timeout") || rawMessage.includes("aborted")) {
             if (format === "text") {
                 return c.text("Error: Target URL timed out\n", 502);
             }
@@ -136,13 +136,26 @@ export async function readerHandler(c: Context<{ Bindings: Env }>) {
             }, 502);
         }
 
+        if (rawMessage.includes("redirect")) {
+            if (format === "text") {
+                return c.text("Error: Target URL returned a redirect. Use the final URL directly.\n", 502);
+            }
+            return c.json({
+                error: "REDIRECT_BLOCKED",
+                code: "REDIRECT_BLOCKED",
+                message: "Target URL returned a redirect. Use the final URL directly.",
+                requestId,
+            }, 502);
+        }
+
+        console.error(`[Reader] Error fetching URL: ${rawMessage}`);
         if (format === "text") {
-            return c.text(`Error: ${message}\n`, 500);
+            return c.text("Error: Failed to fetch the requested URL\n", 500);
         }
         return c.json({
             error: "INTERNAL_ERROR",
             code: "INTERNAL_ERROR",
-            message,
+            message: "Failed to fetch the requested URL",
             requestId,
         }, 500);
     }

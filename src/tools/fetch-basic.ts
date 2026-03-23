@@ -55,6 +55,7 @@ export async function fetchBasicPage(
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.5",
     },
+    redirect: "error",
     signal: AbortSignal.timeout(timeout),
   });
 

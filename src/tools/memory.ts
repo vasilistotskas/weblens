@@ -46,7 +46,7 @@ interface PaymentPayload {
   };
 }
 
-function getWalletAddress(c: Context<{ Bindings: Env }>): string {
+function getWalletAddress(c: Context<{ Bindings: Env }>): string | null {
   // Try to get from x402 payment context
   const paymentHeader = c.req.header("X-PAYMENT");
   if (paymentHeader) {
@@ -56,12 +56,17 @@ function getWalletAddress(c: Context<{ Bindings: Env }>): string {
         return decoded.payload.authorization.from;
       }
     } catch {
-      // Fall through to default
+      // Fall through
     }
   }
-  
-  // Fallback to a default for testing (in production, this should fail)
-  return "0x0000000000000000000000000000000000000000";
+
+  // Try credit wallet header
+  const creditWallet = c.req.header("X-CREDIT-WALLET");
+  if (creditWallet?.startsWith("0x")) {
+    return creditWallet;
+  }
+
+  return null;
 }
 
 /**
@@ -133,6 +138,9 @@ export async function memorySetHandler(c: Context<{ Bindings: Env }>) {
     }
 
     const walletAddress = getWalletAddress(c);
+    if (!walletAddress) {
+      return c.json({ error: "UNAUTHORIZED", code: "UNAUTHORIZED", message: "Valid payment or credit wallet header required for memory operations", requestId }, 401);
+    }
 
     const result = await setMemory(
       { kv: c.env.MEMORY, walletAddress },
@@ -200,6 +208,9 @@ export async function memoryGetHandler(c: Context<{ Bindings: Env }>) {
     }
 
     const walletAddress = getWalletAddress(c);
+    if (!walletAddress) {
+      return c.json({ error: "UNAUTHORIZED", code: "UNAUTHORIZED", message: "Valid payment or credit wallet header required for memory operations", requestId }, 401);
+    }
 
     const stored = await getMemory(
       { kv: c.env.MEMORY, walletAddress },
@@ -277,6 +288,9 @@ export async function memoryDeleteHandler(c: Context<{ Bindings: Env }>) {
     }
 
     const walletAddress = getWalletAddress(c);
+    if (!walletAddress) {
+      return c.json({ error: "UNAUTHORIZED", code: "UNAUTHORIZED", message: "Valid payment or credit wallet header required for memory operations", requestId }, 401);
+    }
 
     const deleted = await deleteMemory(
       { kv: c.env.MEMORY, walletAddress },
@@ -337,6 +351,9 @@ export async function memoryListHandler(c: Context<{ Bindings: Env }>) {
     }
 
     const walletAddress = getWalletAddress(c);
+    if (!walletAddress) {
+      return c.json({ error: "UNAUTHORIZED", code: "UNAUTHORIZED", message: "Valid payment or credit wallet header required for memory operations", requestId }, 401);
+    }
 
     const keys = await listMemoryKeys({ kv: c.env.MEMORY, walletAddress });
 

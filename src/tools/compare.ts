@@ -12,6 +12,7 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
 import { compare as aiCompare, isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
+import { validateURL } from "../services/validator";
 import type { Env, CompareRequest, CompareResponse, CompareSource } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { fetchBasicPage } from "./fetch-basic";
@@ -90,10 +91,19 @@ export async function compareHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Fetch all URLs in parallel
+    // Validate all URLs before fetching
+    for (const url of urls) {
+      const urlValidation = validateURL(url);
+      if (!urlValidation.valid) {
+        return c.json({ error: "INVALID_URL", code: "INVALID_URL", message: `Invalid URL: ${url} — ${urlValidation.error ?? "blocked"}`, requestId }, 400);
+      }
+    }
+
     const fetchResults = await Promise.all(
       urls.map(async (url) => {
         try {
-          const result = await fetchBasicPage(url, 10000);
+          const validated = validateURL(url);
+          const result = await fetchBasicPage(validated.normalized ?? url, 10000);
           return {
             url,
             title: result.title,

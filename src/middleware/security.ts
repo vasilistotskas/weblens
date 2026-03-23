@@ -47,6 +47,20 @@ const DOCS_SECURITY_HEADERS = {
 };
 
 /**
+ * Relaxed security headers for landing page (inline tryFetch script)
+ */
+const LANDING_SECURITY_HEADERS = {
+  ...SECURITY_HEADERS,
+  "Content-Security-Policy":
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "connect-src 'self'; " +
+    "img-src 'self' data:; " +
+    "frame-ancestors 'none'",
+};
+
+/**
  * Headers to remove (information disclosure)
  */
 const BLOCKED_HEADERS = ["X-Powered-By", "Server"];
@@ -77,12 +91,15 @@ export async function securityMiddleware(c: Context, next: Next) {
   const path = c.req.path;
   const isDocsPage = path === "/docs" || path.startsWith("/docs/");
   const isDashboardPage = path === "/dashboard";
+  const isLandingPage = path === "/" && c.req.header("Accept")?.includes("text/html");
 
   let headers = SECURITY_HEADERS;
   if (isDocsPage) {
     headers = DOCS_SECURITY_HEADERS;
   } else if (isDashboardPage) {
     headers = DASHBOARD_SECURITY_HEADERS;
+  } else if (isLandingPage) {
+    headers = LANDING_SECURITY_HEADERS;
   }
 
   // Add security headers

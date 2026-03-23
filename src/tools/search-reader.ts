@@ -108,15 +108,16 @@ export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
             },
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
+        const rawMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error(`[SearchReader] Error: ${rawMessage}`);
 
         if (format === "text") {
-            return c.text(`Error: ${message}\n`, 500);
+            return c.text("Error: Search request failed\n", 500);
         }
         return c.json({
             error: "INTERNAL_ERROR",
             code: "INTERNAL_ERROR",
-            message,
+            message: "Search request failed",
             requestId,
         }, 500);
     }

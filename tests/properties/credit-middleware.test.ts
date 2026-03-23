@@ -41,6 +41,7 @@ describe("Credit Middleware", () => {
             get: vi.fn(),
             set: vi.fn(),
             json: vi.fn(),
+            header: vi.fn(),
         } as unknown as IMockContext;
         mockNext = vi.fn() as unknown as Next;
     });

@@ -8,6 +8,7 @@
  */
 
 import type { PdfPage } from "../types";
+import { validateURL } from "./validator";
 
 export interface PdfMetadata {
   title?: string;
@@ -61,7 +62,7 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
       Accept: "application/pdf,*/*",
     },
     signal: AbortSignal.timeout(30000),
-    redirect: 'follow',
+    redirect: "error",
   });
 
   // Handle non-standard redirects (300 Multiple Choices)
@@ -70,9 +71,13 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
     const location = response.headers.get("location");
 
     if (location) {
-      // Follow the first Location header
       const resolvedUrl = new URL(location, url).href;
-      return downloadPdf(resolvedUrl, attemptedUrls);
+      // Validate redirect target to prevent SSRF
+      const redirectValidation = validateURL(resolvedUrl);
+      if (!redirectValidation.valid) {
+        throw new InvalidPdfError(`PDF redirect target blocked: ${redirectValidation.error ?? "internal URL"}`);
+      }
+      return downloadPdf(redirectValidation.normalized ?? resolvedUrl, attemptedUrls);
     }
 
     // Try to parse response body for links
@@ -84,9 +89,15 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
 
       if (linkMatch) {
         const resolvedUrl = new URL(linkMatch[1], url).href;
-        return await downloadPdf(resolvedUrl, attemptedUrls);
+        // Validate redirect target to prevent SSRF
+        const redirectValidation = validateURL(resolvedUrl);
+        if (!redirectValidation.valid) {
+          throw new InvalidPdfError(`PDF redirect target blocked: ${redirectValidation.error ?? "internal URL"}`);
+        }
+        return await downloadPdf(redirectValidation.normalized ?? resolvedUrl, attemptedUrls);
       }
-    } catch {
+    } catch (e) {
+      if (e instanceof InvalidPdfError) { throw e; }
       // Failed to parse body, fall through to error
     }
 

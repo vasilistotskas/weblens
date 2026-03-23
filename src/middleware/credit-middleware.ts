@@ -52,6 +52,7 @@ export function createCreditMiddleware(
         const costStr = typeof cost === "function" ? cost(c) : cost;
         const amountUsd = parseFloat(costStr.replace("$", ""));
 
+        let debited = false;
         try {
             // Attempt to debit credits
             await deductCredits(
@@ -61,6 +62,8 @@ export function createCreditMiddleware(
                 description,
                 requestId,
             );
+
+            debited = true;
 
             // Mark as paid
             c.set("paidWithCredits", true);
@@ -75,9 +78,12 @@ export function createCreditMiddleware(
             c.header("X-Credit-Cost", costStr);
 
         } catch (error) {
-            // Insufficient funds or error
+            if (debited) {
+                // Debit succeeded but handler failed — do not call next() again
+                throw error;
+            }
+            // Insufficient funds or debit error — fall through to standard payment (x402)
             console.warn(`[Credits] Failed to debit: ${error instanceof Error ? error.message : "Unknown"}`);
-            // Fall through to standard payment (x402)
             await next();
         }
     };
