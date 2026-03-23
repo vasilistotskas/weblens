@@ -65,11 +65,19 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
             },
             freeTier: {
                 description: "Try WebLens free — no wallet or payment needed",
+                reader: {
+                    path: "/r/{url}",
+                    method: "GET",
+                    description: "Zero-friction: just GET /r/ + any URL → markdown",
+                    example: "GET /r/https://example.com",
+                    limit: "10 requests/hour, 2000 char content limit",
+                },
                 endpoints: [
+                    { path: "/r/{url}", method: "GET", description: "Zero-friction reader — just append any URL", limit: "10 requests/hour" },
                     { path: "/free/fetch", method: "POST", description: "Fetch any webpage (truncated to 2000 chars)", limit: "10 requests/hour" },
                     { path: "/free/search", method: "POST", description: "Web search (max 3 results)", limit: "10 requests/hour" },
                 ],
-                rateLimit: "10 requests/hour per IP",
+                rateLimit: "10 requests/hour per IP (shared across all free endpoints)",
                 upgrade: "Use paid endpoints for full content and unlimited access",
             },
         });

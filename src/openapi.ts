@@ -32,6 +32,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { url: "http://localhost:8787", description: "Local Development" },
     ],
     tags: [
+      { name: "Free", description: "Free tier endpoints — no payment required" },
       { name: "Core", description: "Core web fetching and screenshot endpoints" },
       { name: "Search", description: "Web search capabilities" },
       { name: "Extraction", description: "Data extraction endpoints" },
@@ -60,6 +61,24 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           description: "Standard x402 discovery endpoint. Returns x402-compatible service information for Bazaar indexing.",
           responses: { "200": { description: "x402 service information" } }
         }
+      },
+      "/r/{url}": {
+        get: {
+          tags: ["Free"],
+          summary: "Reader Mode (Zero-Friction)",
+          operationId: "readerFetch",
+          description: "Fetch any webpage as markdown with a single GET request. No auth, no payment, no POST body. Just append a URL. Rate limited to 10/hour, content truncated to 2000 chars. Inspired by Jina Reader.",
+          parameters: [
+            { name: "url", in: "path", required: true, schema: { type: "string" }, description: "Full URL to fetch (e.g. https://example.com/article)", example: "https://example.com" },
+            { name: "format", in: "query", required: false, schema: { type: "string", enum: ["json", "text"] }, description: "Response format: json (default) or text (plain markdown)" },
+          ],
+          responses: {
+            "200": { description: "Page content as markdown (JSON or plain text)" },
+            "400": { description: "Invalid or missing URL" },
+            "429": { description: "Rate limit exceeded (10/hour)" },
+            "502": { description: "Target URL timeout" },
+          },
+        },
       },
       "/screenshot": {
         post: {
@@ -408,16 +427,27 @@ WebLens provides AI-powered web scraping, research, and data extraction services
 - **No fees**: x402 protocol has 0 platform fees
 - **Bazaar listed**: Discoverable via Coinbase Bazaar for AI agents
 
+## Try It Now (Zero-Friction Reader)
+
+Fetch any webpage as markdown with a single GET request — no auth, no payment, no setup:
+
+  GET https://api.weblens.dev/r/https://example.com
+
+Add ?format=text for plain markdown. Rate limited to 10/hour, content truncated to 2000 chars.
+Upgrade to paid endpoints for full content, JS rendering, and more.
+
 ## Quick Start for AI Agents
 
-1. Call any endpoint (e.g., POST /fetch/basic with {"url": "https://example.com"})
-2. Receive 402 Payment Required with payment details
-3. Sign USDC payment using your wallet (Base network)
-4. Retry with X-PAYMENT header containing signed payload
-5. Receive data with X-PAYMENT-RESPONSE settlement proof
+1. Try the free reader: GET /r/https://example.com (no wallet needed!)
+2. For full access, call any paid endpoint (e.g., POST /fetch/basic with {"url": "https://example.com"})
+3. Receive 402 Payment Required with payment details
+4. Sign USDC payment using your wallet (Base network)
+5. Retry with X-PAYMENT header containing signed payload
+6. Receive data with X-PAYMENT-RESPONSE settlement proof
 
 ## Discovery Endpoints
 
+- GET /r/{url} - Zero-friction reader (free, no auth needed)
 - GET /discovery - Full service catalog with all endpoints, pricing, and capabilities
 - GET /.well-known/x402 - Standard x402 discovery for Bazaar indexing
 - GET /mcp/info - MCP server information for AI agent integration

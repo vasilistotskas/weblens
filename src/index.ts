@@ -21,6 +21,7 @@ import { registerCoreRoutes } from "./routes/core";
 import { registerCreditsRoutes } from "./routes/credits";
 import { registerFreeRoutes } from "./routes/free";
 import { registerIntelRoutes } from "./routes/intel";
+import { registerReaderRoutes } from "./routes/reader";
 import { registerSystemRoutes } from "./routes/system";
 import type { Env, Variables } from "./types";
 
@@ -90,6 +91,9 @@ app.use("*", async (c, next) => {
 
 // 1. System & Metadata (Health, Docs, Discovery)
 registerSystemRoutes(app);
+
+// 1.5 Reader (Zero-friction GET — Jina-style /r/url)
+registerReaderRoutes(app);
 
 // 2. Free Tier (Rate-limited)
 registerFreeRoutes(app);

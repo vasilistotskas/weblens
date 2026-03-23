@@ -259,7 +259,7 @@ export const SERVICE_CATALOG = {
         },
     },
     agentQuickStart: {
-        step0: "Try it free first! POST /free/fetch with {url: 'https://example.com'} — no wallet needed",
+        step0: "Try it instantly! GET /r/https://example.com — zero friction, no wallet, no POST body needed",
         step1: "Call any paid endpoint (e.g., POST /fetch/basic with {url: 'https://example.com'})",
         step2: "Receive 402 Payment Required with payment details in JSON body",
         step3: "Sign USDC payment using your wallet (Base network)",
@@ -269,6 +269,15 @@ export const SERVICE_CATALOG = {
     freeTier: {
         description: "Try WebLens free — no wallet or payment needed",
         endpoints: [
+            {
+                endpoint: "/r/{url}",
+                method: "GET",
+                name: "Reader Mode",
+                description: "Zero-friction: just GET /r/ + any URL → markdown. No auth, no POST body.",
+                price: "FREE",
+                rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
+                tags: ["free", "reader", "zero-friction", "viral"],
+            },
             {
                 endpoint: "/free/fetch",
                 method: "POST",
@@ -367,6 +376,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         discovery: `${baseUrl}/discovery`,
         freeTier: {
             description: "Try WebLens free — no wallet needed",
+            reader: `${baseUrl}/r/https://example.com`,
             fetch: `${baseUrl}/free/fetch`,
             search: `${baseUrl}/free/search`,
             rateLimit: `${FREE_TIER.maxRequestsPerHour} requests/hour`,

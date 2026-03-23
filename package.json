@@ -1,8 +1,23 @@
 {
   "name": "weblens",
   "version": "1.0.0",
-  "description": "Premium Web Intelligence API with x402 payments",
+  "description": "Premium Web Intelligence API with x402 micropayments — web scraping, screenshots, data extraction, AI research for autonomous agents",
   "type": "module",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "web-scraping",
+    "x402",
+    "micropayments",
+    "ai-agent",
+    "web-intelligence",
+    "data-extraction",
+    "cloudflare-workers",
+    "usdc",
+    "hono"
+  ],
+  "homepage": "https://api.weblens.dev",
+  "license": "MIT",
   "scripts": {
     "dev": "wrangler dev",
     "build": "tsc --noEmit",
