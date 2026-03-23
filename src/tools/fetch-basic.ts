@@ -16,6 +16,34 @@ import type { Env, FetchRequest, FetchResponse, ProofOfContext } from "../types"
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
 
+const MAX_REDIRECTS = 5;
+
+/**
+ * Fetch with safe redirect following — validates each redirect target
+ * against validateURL() to prevent redirect-based SSRF.
+ */
+async function safeFetch(url: string, init: RequestInit, redirectCount = 0): Promise<Response> {
+  const response = await fetch(url, { ...init, redirect: "manual" });
+
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    if (redirectCount >= MAX_REDIRECTS) {
+      throw new Error("Too many redirects");
+    }
+    const location = response.headers.get("Location");
+    if (!location) {
+      throw new Error("Redirect with no Location header");
+    }
+    const resolved = new URL(location, url).href;
+    const validation = validateURL(resolved);
+    if (!validation.valid) {
+      throw new Error(`Redirect to blocked URL: ${validation.error ?? "internal"}`);
+    }
+    return safeFetch(validation.normalized ?? resolved, init, redirectCount + 1);
+  }
+
+  return response;
+}
+
 const fetchBasicSchema = z.object({
   url: z.url(),
   timeout: z.number().min(1000).max(30000).default(10000),
@@ -48,14 +76,13 @@ export async function fetchBasicPage(
   timeout: number = 10000,
   env?: Env
 ): Promise<FetchBasicResult & { proof?: ProofOfContext }> {
-  const response = await fetch(url, {
+  const response = await safeFetch(url, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.5",
     },
-    redirect: "error",
     signal: AbortSignal.timeout(timeout),
   });
 
