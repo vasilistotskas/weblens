@@ -80,6 +80,24 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           },
         },
       },
+      "/s/{query}": {
+        get: {
+          tags: ["Free"],
+          summary: "Search Reader (Zero-Friction)",
+          operationId: "searchReader",
+          description: "Search the web with a single GET request. No auth, no payment, no POST body. Just append a query. Rate limited to 10/hour, max 3 results. Upgrade to POST /search for up to 20 results.",
+          parameters: [
+            { name: "query", in: "path", required: true, schema: { type: "string" }, description: "Search query (use + for spaces)", example: "cloudflare+workers" },
+            { name: "format", in: "query", required: false, schema: { type: "string", enum: ["json", "text"] }, description: "Response format: json (default) or text" },
+          ],
+          responses: {
+            "200": { description: "Search results (JSON or plain text)" },
+            "400": { description: "Missing or invalid query" },
+            "429": { description: "Rate limit exceeded (10/hour)" },
+            "502": { description: "Search provider failure" },
+          },
+        },
+      },
       "/screenshot": {
         post: {
           tags: ["Core"], summary: "Capture Screenshot", operationId: "captureScreenshot",
@@ -432,9 +450,11 @@ WebLens provides AI-powered web scraping, research, and data extraction services
 Fetch any webpage as markdown with a single GET request — no auth, no payment, no setup:
 
   GET https://api.weblens.dev/r/https://example.com
+  GET https://api.weblens.dev/s/your+search+query
 
-Add ?format=text for plain markdown. Rate limited to 10/hour, content truncated to 2000 chars.
-Upgrade to paid endpoints for full content, JS rendering, and more.
+Add ?format=text for plain output. Rate limited to 10/hour.
+Reader: content truncated to 2000 chars. Search: max 3 results.
+Upgrade to paid endpoints for full content and more results.
 
 ## Quick Start for AI Agents
 
@@ -448,6 +468,7 @@ Upgrade to paid endpoints for full content, JS rendering, and more.
 ## Discovery Endpoints
 
 - GET /r/{url} - Zero-friction reader (free, no auth needed)
+- GET /s/{query} - Zero-friction search (free, no auth needed)
 - GET /discovery - Full service catalog with all endpoints, pricing, and capabilities
 - GET /.well-known/x402 - Standard x402 discovery for Bazaar indexing
 - GET /mcp/info - MCP server information for AI agent integration

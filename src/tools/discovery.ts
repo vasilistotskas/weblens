@@ -279,6 +279,15 @@ export const SERVICE_CATALOG = {
                 tags: ["free", "reader", "zero-friction", "viral"],
             },
             {
+                endpoint: "/s/{query}",
+                method: "GET",
+                name: "Search Reader",
+                description: "Zero-friction: just GET /s/ + query → search results. No auth, no POST body.",
+                price: "FREE",
+                rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
+                tags: ["free", "search", "zero-friction", "viral"],
+            },
+            {
                 endpoint: "/free/fetch",
                 method: "POST",
                 name: "Free Fetch",
@@ -377,6 +386,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         freeTier: {
             description: "Try WebLens free — no wallet needed",
             reader: `${baseUrl}/r/https://example.com`,
+            searchReader: `${baseUrl}/s/cloudflare+workers`,
             fetch: `${baseUrl}/free/fetch`,
             search: `${baseUrl}/free/search`,
             rateLimit: `${FREE_TIER.maxRequestsPerHour} requests/hour`,

@@ -230,7 +230,7 @@ interface FreeSearchResult {
     position: number;
 }
 
-function parseDuckDuckGoResultsFree(
+export function parseDuckDuckGoResultsFree(
     html: string,
     limit: number
 ): FreeSearchResult[] {
@@ -256,7 +256,7 @@ function parseDuckDuckGoResultsFree(
     return results;
 }
 
-function decodeEntities(text: string): string {
+export function decodeEntities(text: string): string {
     return text
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")

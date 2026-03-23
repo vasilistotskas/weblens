@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { SUPPORTED_NETWORKS, PRICING  } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
+import { getLandingPageHTML } from "../tools/landing";
 import {
     validateRequest,
 } from "../middleware/validation";
@@ -36,8 +37,44 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     app.get("/health", health);
     app.get("/dashboard", dashboardHandler);
 
-    // Root metadata
+    // SEO: robots.txt + sitemap.xml
+    app.get("/robots.txt", (c) => {
+        const baseUrl = new URL(c.req.url).origin;
+        return c.text(`User-agent: *\nAllow: /\nAllow: /docs\nAllow: /r/\nAllow: /s/\nAllow: /llms.txt\nAllow: /openapi.json\nAllow: /discovery\nDisallow: /mcp\nDisallow: /free/\nDisallow: /fetch/\nDisallow: /credits/\n\nSitemap: ${baseUrl}/sitemap.xml\n`);
+    });
+
+    app.get("/sitemap.xml", (c) => {
+        const baseUrl = new URL(c.req.url).origin;
+        const today = new Date().toISOString().split("T")[0];
+        const urls = [
+            { loc: "/", priority: "1.0", changefreq: "weekly" },
+            { loc: "/docs", priority: "0.9", changefreq: "weekly" },
+            { loc: "/llms.txt", priority: "0.8", changefreq: "weekly" },
+            { loc: "/openapi.json", priority: "0.7", changefreq: "weekly" },
+            { loc: "/discovery", priority: "0.8", changefreq: "weekly" },
+            { loc: "/.well-known/x402", priority: "0.6", changefreq: "monthly" },
+            { loc: "/mcp/info", priority: "0.7", changefreq: "weekly" },
+            { loc: "/r/https://example.com", priority: "0.5", changefreq: "monthly" },
+            { loc: "/s/web+scraping+api", priority: "0.5", changefreq: "monthly" },
+        ];
+        const entries = urls.map(u =>
+            `  <url>\n    <loc>${baseUrl}${u.loc}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+        ).join("\n");
+        return c.body(
+            `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>`,
+            200,
+            { "Content-Type": "application/xml" }
+        );
+    });
+
+    // Root — HTML for browsers, JSON for agents/API clients
     app.get("/", (c) => {
+        const accept = c.req.header("Accept") ?? "";
+        if (accept.includes("text/html")) {
+            const baseUrl = new URL(c.req.url).origin;
+            return c.html(getLandingPageHTML(baseUrl));
+        }
+
         return c.json({
             name: "WebLens",
             version: "2.0.0",
@@ -72,8 +109,16 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
                     example: "GET /r/https://example.com",
                     limit: "10 requests/hour, 2000 char content limit",
                 },
+                search: {
+                    path: "/s/{query}",
+                    method: "GET",
+                    description: "Zero-friction: just GET /s/ + query → search results",
+                    example: "GET /s/cloudflare+workers",
+                    limit: "10 requests/hour, 3 results max",
+                },
                 endpoints: [
                     { path: "/r/{url}", method: "GET", description: "Zero-friction reader — just append any URL", limit: "10 requests/hour" },
+                    { path: "/s/{query}", method: "GET", description: "Zero-friction search — just append a query", limit: "10 requests/hour" },
                     { path: "/free/fetch", method: "POST", description: "Fetch any webpage (truncated to 2000 chars)", limit: "10 requests/hour" },
                     { path: "/free/search", method: "POST", description: "Web search (max 3 results)", limit: "10 requests/hour" },
                 ],

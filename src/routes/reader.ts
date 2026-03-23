@@ -1,9 +1,8 @@
 import type { Hono } from "hono";
 import { rateLimitMiddleware } from "../middleware/rate-limit";
 import { readerHandler } from "../tools/reader";
+import { searchReaderHandler } from "../tools/search-reader";
 import type { Env, Variables } from "../types";
-
-// Tool Handlers
 
 export function registerReaderRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
 
@@ -13,4 +12,11 @@ export function registerReaderRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     // ============================================
     app.use("/r/*", rateLimitMiddleware);
     app.get("/r/*", readerHandler);
+
+    // ============================================
+    // /s/* — Zero-friction search
+    // GET /s/cloudflare+workers → search results
+    // ============================================
+    app.use("/s/*", rateLimitMiddleware);
+    app.get("/s/*", searchReaderHandler);
 }
