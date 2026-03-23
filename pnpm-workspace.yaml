@@ -1,3 +1,0 @@
-onlyBuiltDependencies:
-  - '@coinbase/x402'
-  - workerd
