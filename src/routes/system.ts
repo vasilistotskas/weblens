@@ -2,7 +2,6 @@ import type { Hono } from "hono";
 import { SUPPORTED_NETWORKS, PRICING  } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
-import { getLandingPageHTML } from "../tools/landing";
 import {
     validateRequest,
 } from "../middleware/validation";
@@ -16,6 +15,7 @@ import {
 import { dashboardHandler } from "../tools/dashboard";
 import { discoveryHandler, wellKnownX402Handler } from "../tools/discovery";
 import { health } from "../tools/health";
+import { getLandingPageHTML } from "../tools/landing";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "../tools/mcp";
 import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHandler } from "../tools/memory";
 import { monitorCreateHandler, monitorGetHandler, monitorDeleteHandler } from "../tools/monitor";
