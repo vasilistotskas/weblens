@@ -37,9 +37,11 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { name: "Search", description: "Web search capabilities" },
       { name: "Extraction", description: "Data extraction endpoints" },
       { name: "Research", description: "AI-powered research tools" },
+      { name: "Intelligence", description: "Premium AI-powered intelligence products" },
       { name: "Monitoring", description: "URL change monitoring" },
       { name: "Memory", description: "Persistent key-value storage for agents" },
       { name: "System", description: "Health and documentation endpoints" },
+      { name: "Credits", description: "Prepaid credit system" },
     ],
     paths: {
       "/": { get: { tags: ["System"], summary: "API Info", operationId: "getApiInfo", responses: { "200": { description: "API info" } } } },
@@ -243,6 +245,54 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           tags: ["Monitoring"], summary: "Delete Monitor", operationId: "deleteMonitor",
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Deleted" }, "404": { description: "Not found" } },
+        },
+      },
+      "/free/fetch": {
+        post: {
+          tags: ["Free"], summary: "Free Fetch", operationId: "freeFetch",
+          description: "Fetch any webpage (content truncated to 2000 chars). Rate limited to 10/hour. No payment required.",
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" }, timeout: { type: "integer" } } } } } },
+          responses: { "200": { description: "Page content (truncated)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
+        },
+      },
+      "/free/search": {
+        post: {
+          tags: ["Free"], summary: "Free Search", operationId: "freeSearch",
+          description: "Web search (max 3 results). Rate limited to 10/hour. No payment required.",
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["query"], properties: { query: { type: "string" } } } } } },
+          responses: { "200": { description: "Search results (max 3)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
+        },
+      },
+      "/intel/company": {
+        post: {
+          tags: ["Intelligence"], summary: "Company Intelligence", operationId: "intelCompany",
+          description: `Comprehensive company deep dive: tech stack, funding, team size, competitors, news. Chains search + batch fetch + AI extraction. Price: ${PRICING.intel.company}`,
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["target"], properties: { target: { type: "string", description: "Company name or domain" } } } } } },
+          responses: { "200": { description: "Company profile" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
+        },
+      },
+      "/intel/market": {
+        post: {
+          tags: ["Intelligence"], summary: "Market Research", operationId: "intelMarket",
+          description: `AI-powered market research report with executive summary, key findings, trends, and data points. Price: ${PRICING.intel.market}`,
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, depth: { type: "string", enum: ["quick", "standard", "comprehensive"] }, focus: { type: "string" } } } } } },
+          responses: { "200": { description: "Market research report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
+        },
+      },
+      "/intel/competitive": {
+        post: {
+          tags: ["Intelligence"], summary: "Competitive Analysis", operationId: "intelCompetitive",
+          description: `Full competitive analysis: feature matrix, pricing comparison, SWOT analysis, positioning summary. Price: ${PRICING.intel.competitive}`,
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["company"], properties: { company: { type: "string" }, maxCompetitors: { type: "integer", minimum: 1, maximum: 10 }, focus: { type: "string" } } } } } },
+          responses: { "200": { description: "Competitive analysis report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
+        },
+      },
+      "/intel/site-audit": {
+        post: {
+          tags: ["Intelligence"], summary: "Site Audit", operationId: "intelSiteAudit",
+          description: `Comprehensive SEO, performance, and security audit with scoring and recommendations. Price: ${PRICING.intel.siteAudit}`,
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" } } } } } },
+          responses: { "200": { description: "Site audit report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
       "/memory/set": {

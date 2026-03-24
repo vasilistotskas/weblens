@@ -354,7 +354,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         tagline: "Give your AI agents web superpowers with verified data",
         description: "Premium Web Intelligence API with x402 micropayments. Features Autonomous Context Verification (ACV), Dynamic Pricing, and Truth-as-a-Service for AI agents.",
         baseUrl,
-        facilitator: "cdp",
+        facilitator: "CDP",
         network: "base",
         token: "USDC",
         bazaarListed: true,

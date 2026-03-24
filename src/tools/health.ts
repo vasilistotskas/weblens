@@ -147,7 +147,7 @@ export async function health(c: Context<{ Bindings: Env }>): Promise<Response> {
 
   const response: HealthResponse = {
     status: getOverallStatus(services),
-    version: "1.0.0",
+    version: "2.0.0",
     timestamp: new Date().toISOString(),
     services,
   };

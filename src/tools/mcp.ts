@@ -68,14 +68,15 @@ const TOOLS = [
   },
   {
     name: "extract_data",
-    description: "Extract structured data from a webpage using CSS selectors. Price: $0.03",
+    description: "Extract structured data from a webpage using a JSON schema. AI-powered extraction. Price: $0.03",
     inputSchema: {
       type: "object",
       properties: {
         url: { type: "string", description: "The URL to extract from" },
-        selectors: { type: "object", description: "Map of field names to CSS selectors" },
+        schema: { type: "object", description: "JSON schema defining the data structure to extract" },
+        instructions: { type: "string", description: "Natural language instructions to guide extraction" },
       },
-      required: ["url", "selectors"],
+      required: ["url", "schema"],
     },
   },
   {
@@ -335,7 +336,7 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
     research: { endpoint: "/research", method: "POST", price: PRICING.research },
     extract_pdf: { endpoint: "/pdf", method: "POST", price: PRICING.pdf },
     compare_urls: { endpoint: "/compare", method: "POST", price: PRICING.compare },
-    batch_fetch: { endpoint: "/batch/fetch", method: "POST", price: "$0.006" },
+    batch_fetch: { endpoint: "/batch/fetch", method: "POST", price: PRICING.batchFetch.perUrl },
     fetch_resilient: { endpoint: "/fetch/resilient", method: "POST", price: PRICING.fetch.resilient },
     intel_company: { endpoint: "/intel/company", method: "POST", price: PRICING.intel.company },
     intel_market: { endpoint: "/intel/market", method: "POST", price: PRICING.intel.market },
@@ -490,6 +491,10 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       "ai-powered-analysis",
       "pdf-extraction",
       "batch-operations",
+      "url-monitoring",
+      "persistent-memory",
+      "url-comparison",
+      "web-intelligence",
     ],
     tools: TOOLS.map(t => ({ 
       name: t.name, 
@@ -500,7 +505,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       currency: "USDC",
       network: "base",
       protocol: "x402",
-      range: "$0.003 - $0.08 per request",
+      range: "$0.001 - $3.00 per request",
       noFees: true,
       instantSettlement: true,
     },
