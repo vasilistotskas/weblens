@@ -9,6 +9,8 @@
 import { fetchBasicPage } from "../tools/fetch-basic";
 import type { AIServiceConfig } from "./ai";
 import { callClaude } from "./ai";
+import type { SearchResult as SearchServiceResult } from "./search";
+import { searchWeb as searchWebService } from "./search";
 
 // ============================================
 // Types
@@ -61,61 +63,13 @@ export interface SiteAudit {
 }
 
 // ============================================
-// Search helper (reused from research service pattern)
+// Search helper — delegates to shared search service
 // ============================================
 
-interface SearchHit {
-    title: string;
-    url: string;
-    snippet: string;
-}
+type SearchHit = SearchServiceResult;
 
-async function searchWeb(query: string, limit: number): Promise<SearchHit[]> {
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-
-    const response = await fetch(searchUrl, {
-        headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            Accept: "text/html",
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Search failed: ${String(response.status)}`);
-    }
-
-    const html = await response.text();
-    return parseDuckDuckGoResults(html, limit);
-}
-
-function parseDuckDuckGoResults(html: string, limit: number): SearchHit[] {
-    const results: SearchHit[] = [];
-    const resultRegex =
-        /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([^<]*)<\/a>/gi;
-
-    let match;
-    while ((match = resultRegex.exec(html)) !== null && results.length < limit) {
-        const [, url, title, snippet] = match;
-        if (url && title) {
-            results.push({
-                title: decodeEntities(title.trim()),
-                url: decodeURIComponent(url),
-                snippet: decodeEntities(snippet.trim()),
-            });
-        }
-    }
-
-    return results;
-}
-
-function decodeEntities(text: string): string {
-    return text
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ");
+async function intelSearch(query: string, limit: number, serpApiKey?: string): Promise<SearchHit[]> {
+    return searchWebService({ query, limit, serpApiKey });
 }
 
 async function fetchPage(url: string): Promise<{ title: string; content: string; url: string }> {
@@ -134,16 +88,17 @@ async function fetchPage(url: string): Promise<{ title: string; content: string;
 export interface CompanyIntelOptions {
     target: string;
     aiConfig: AIServiceConfig;
+    serpApiKey?: string;
 }
 
 export async function companyIntel(options: CompanyIntelOptions): Promise<CompanyProfile> {
-    const { target, aiConfig } = options;
+    const { target, aiConfig, serpApiKey } = options;
 
     // Step 1: Search for company info across multiple queries
     const [mainResults, techResults, newsResults] = await Promise.all([
-        searchWeb(`${target} company about`, 5),
-        searchWeb(`${target} technology stack engineering`, 3),
-        searchWeb(`${target} news funding recent`, 3),
+        intelSearch(`${target} company about`, 5, serpApiKey),
+        intelSearch(`${target} technology stack engineering`, 3, serpApiKey),
+        intelSearch(`${target} news funding recent`, 3, serpApiKey),
     ]);
 
     // Step 2: Fetch top pages in parallel
@@ -214,10 +169,11 @@ export interface MarketResearchOptions {
     depth: "quick" | "standard" | "comprehensive";
     focus?: string;
     aiConfig: AIServiceConfig;
+    serpApiKey?: string;
 }
 
 export async function marketResearch(options: MarketResearchOptions): Promise<MarketReport> {
-    const { topic, depth, focus, aiConfig } = options;
+    const { topic, depth, focus, aiConfig, serpApiKey } = options;
 
     const searchCount = depth === "comprehensive" ? 10 : depth === "standard" ? 7 : 4;
     const fetchCount = depth === "comprehensive" ? 8 : depth === "standard" ? 5 : 3;
@@ -233,7 +189,7 @@ export async function marketResearch(options: MarketResearchOptions): Promise<Ma
     }
 
     const allResults: SearchHit[] = [];
-    const searchPromises = queries.map((q) => searchWeb(q, searchCount));
+    const searchPromises = queries.map((q) => intelSearch(q, searchCount, serpApiKey));
     const searchBatches = await Promise.all(searchPromises);
     for (const batch of searchBatches) {
         for (const result of batch) {
@@ -304,18 +260,19 @@ export interface CompetitiveAnalysisOptions {
     maxCompetitors: number;
     focus?: string;
     aiConfig: AIServiceConfig;
+    serpApiKey?: string;
 }
 
 export async function competitiveAnalysis(options: CompetitiveAnalysisOptions): Promise<CompetitiveReport> {
-    const { company, maxCompetitors, focus, aiConfig } = options;
+    const { company, maxCompetitors, focus, aiConfig, serpApiKey } = options;
 
     // Step 1: Find competitors
-    const competitorResults = await searchWeb(`${company} competitors alternatives`, 8);
+    const competitorResults = await intelSearch(`${company} competitors alternatives`, 8, serpApiKey);
 
     // Also search for the company itself
     const [companyResults, pricingResults] = await Promise.all([
-        searchWeb(`${company} features pricing`, 5),
-        searchWeb(`${company} vs alternative comparison`, 5),
+        intelSearch(`${company} features pricing`, 5, serpApiKey),
+        intelSearch(`${company} vs alternative comparison`, 5, serpApiKey),
     ]);
 
     // Step 2: Fetch pages
@@ -378,6 +335,7 @@ Respond ONLY with valid JSON.`;
 export interface SiteAuditOptions {
     url: string;
     aiConfig: AIServiceConfig;
+    serpApiKey?: string;
 }
 
 export async function siteAudit(options: SiteAuditOptions): Promise<SiteAudit> {

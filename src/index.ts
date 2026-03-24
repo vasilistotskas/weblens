@@ -57,9 +57,9 @@ app.use("*", errorHandlerMiddleware);
 // POST-only enforcement for paid endpoints
 // Must run BEFORE payment middleware to prevent 402 on GET requests
 const PAID_ENDPOINTS = [
-    "/fetch/basic", "/fetch/pro", "/screenshot", "/search", "/extract",
+    "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
     "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
-    "/monitor/create", "/memory/set",
+    "/monitor/create", "/memory/set", "/credits/buy",
     "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit"
 ];
 
@@ -109,6 +109,16 @@ registerAdvancedRoutes(app);
 
 // 6. Intelligence Tools (Company, Market, etc.)
 registerIntelRoutes(app);
+
+// Custom 404 handler — consistent JSON error envelope
+app.notFound((c) => {
+    return c.json({
+        error: "Not Found",
+        code: "NOT_FOUND",
+        message: `Route ${c.req.method} ${c.req.path} not found`,
+        requestId: c.get("requestId"),
+    }, 404);
+});
 
 // Export for Cloudflare Workers
 export default app;

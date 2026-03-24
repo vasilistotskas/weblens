@@ -8,9 +8,9 @@
 
 import type { Context } from "hono";
 import { FREE_TIER } from "../config";
+import { searchWeb } from "../services/search";
 import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
-import { parseDuckDuckGoResultsFree } from "./free";
 
 /**
  * GET /s/*
@@ -57,30 +57,12 @@ export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
 
     try {
         const maxResults = FREE_TIER.searchMaxResults;
-        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
 
-        const response = await fetch(searchUrl, {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                Accept: "text/html",
-            },
+        const results = await searchWeb({
+            query,
+            limit: maxResults,
+            serpApiKey: c.env.SERP_API_KEY,
         });
-
-        if (!response.ok) {
-            if (format === "text") {
-                return c.text("Error: Search provider failed\n", 502);
-            }
-            return c.json({
-                error: "SERVICE_UNAVAILABLE",
-                code: "SERVICE_UNAVAILABLE",
-                message: "Search provider failed",
-                requestId,
-            }, 502);
-        }
-
-        const html = await response.text();
-        const results = parseDuckDuckGoResultsFree(html, maxResults);
 
         // Plain text response
         if (format === "text") {
@@ -111,14 +93,23 @@ export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
         const rawMessage = error instanceof Error ? error.message : "Unknown error";
         console.error(`[SearchReader] Error: ${rawMessage}`);
 
+        const isProviderError = rawMessage.includes("bot detection") || rawMessage.includes("challenge");
+
         if (format === "text") {
-            return c.text("Error: Search request failed\n", 500);
+            return c.text(
+                isProviderError
+                    ? "Error: Search provider temporarily unavailable\n"
+                    : "Error: Search request failed\n",
+                502
+            );
         }
         return c.json({
-            error: "INTERNAL_ERROR",
-            code: "INTERNAL_ERROR",
-            message: "Search request failed",
+            error: isProviderError ? "SERVICE_UNAVAILABLE" : "INTERNAL_ERROR",
+            code: isProviderError ? "SERVICE_UNAVAILABLE" : "INTERNAL_ERROR",
+            message: isProviderError
+                ? "Search provider temporarily unavailable"
+                : "Search request failed",
             requestId,
-        }, 500);
+        }, isProviderError ? 502 : 500);
     }
 }

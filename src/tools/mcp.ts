@@ -136,6 +136,91 @@ const TOOLS = [
       required: ["urls"],
     },
   },
+  {
+    name: "fetch_resilient",
+    description: "Resilient multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte). Price: $0.025",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The URL to fetch" },
+        timeout: { type: "number", description: "Timeout in ms (default: 10000)" },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "intel_company",
+    description: "Company intelligence deep dive: tech stack, funding, team, competitors, news. Price: $0.50",
+    inputSchema: {
+      type: "object",
+      properties: {
+        target: { type: "string", description: "Company name or domain to research" },
+      },
+      required: ["target"],
+    },
+  },
+  {
+    name: "intel_market",
+    description: "AI-powered market research report with trends, key players, and data points. Price: $2.00",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topic: { type: "string", description: "Market or industry topic to research" },
+        depth: { type: "string", description: "Research depth: quick, standard, or comprehensive (default: standard)" },
+        focus: { type: "string", description: "Optional focus area" },
+      },
+      required: ["topic"],
+    },
+  },
+  {
+    name: "intel_competitive",
+    description: "Competitive analysis: feature matrix, pricing, SWOT analysis. Price: $3.00",
+    inputSchema: {
+      type: "object",
+      properties: {
+        company: { type: "string", description: "Company to analyze" },
+        maxCompetitors: { type: "number", description: "Max competitors to include (default: 5)" },
+        focus: { type: "string", description: "Optional focus area" },
+      },
+      required: ["company"],
+    },
+  },
+  {
+    name: "intel_site_audit",
+    description: "Comprehensive SEO, performance, and security audit with scoring. Price: $0.30",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "URL to audit" },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "monitor_create",
+    description: "Create a URL change detection monitor with webhook notifications. Price: $0.01",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "URL to monitor for changes" },
+        webhookUrl: { type: "string", description: "Webhook URL for change notifications" },
+      },
+      required: ["url", "webhookUrl"],
+    },
+  },
+  {
+    name: "memory_set",
+    description: "Store key-value data in persistent agent memory. Price: $0.001",
+    inputSchema: {
+      type: "object",
+      properties: {
+        key: { type: "string", description: "Storage key (max 256 chars)" },
+        value: { description: "Value to store (any JSON)" },
+        ttl: { type: "number", description: "Time to live in hours (1-720, default: 168)" },
+      },
+      required: ["key", "value"],
+    },
+  },
 ];
 
 // Server info
@@ -251,6 +336,13 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
     extract_pdf: { endpoint: "/pdf", method: "POST", price: PRICING.pdf },
     compare_urls: { endpoint: "/compare", method: "POST", price: PRICING.compare },
     batch_fetch: { endpoint: "/batch/fetch", method: "POST", price: "$0.006" },
+    fetch_resilient: { endpoint: "/fetch/resilient", method: "POST", price: PRICING.fetch.resilient },
+    intel_company: { endpoint: "/intel/company", method: "POST", price: PRICING.intel.company },
+    intel_market: { endpoint: "/intel/market", method: "POST", price: PRICING.intel.market },
+    intel_competitive: { endpoint: "/intel/competitive", method: "POST", price: PRICING.intel.competitive },
+    intel_site_audit: { endpoint: "/intel/site-audit", method: "POST", price: PRICING.intel.siteAudit },
+    monitor_create: { endpoint: "/monitor/create", method: "POST", price: PRICING.monitor.setup },
+    memory_set: { endpoint: "/memory/set", method: "POST", price: PRICING.memory.write },
   };
 
   const toolConfig = toolEndpoints[name];

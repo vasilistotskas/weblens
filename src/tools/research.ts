@@ -65,6 +65,7 @@ export async function researchHandler(c: Context<{ Bindings: Env }>) {
       query,
       resultCount,
       includeRawContent,
+      serpApiKey: c.env.SERP_API_KEY,
       aiConfig: {
         apiKey: c.env.ANTHROPIC_API_KEY,
       },

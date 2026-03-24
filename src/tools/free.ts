@@ -9,6 +9,7 @@ import type { Context } from "hono";
 import { z } from "zod/v4";
 import { FREE_TIER } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
+import { searchWeb } from "../services/search";
 import { validateURL } from "../services/validator";
 import type { Env, FreeTierMetadata } from "../types";
 import { generateRequestId } from "../utils/requestId";
@@ -185,23 +186,11 @@ export async function freeSearch(c: Context<{ Bindings: Env }>) {
         const { query } = parsed.data;
         const maxResults = FREE_TIER.searchMaxResults;
 
-        // Use DuckDuckGo HTML search (same as paid search)
-        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-
-        const response = await fetch(searchUrl, {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                Accept: "text/html",
-            },
+        const allResults = await searchWeb({
+            query,
+            limit: maxResults,
+            serpApiKey: c.env.SERP_API_KEY,
         });
-
-        if (!response.ok) {
-            return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Search provider failed", requestId), 502);
-        }
-
-        const html = await response.text();
-        const allResults = parseDuckDuckGoResultsFree(html, maxResults);
 
         return c.json({
             query,
@@ -215,53 +204,11 @@ export async function freeSearch(c: Context<{ Bindings: Env }>) {
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
+
+        if (message.includes("bot detection") || message.includes("challenge")) {
+            return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Search provider temporarily unavailable", requestId), 502);
+        }
+
         return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
     }
-}
-
-// ============================================
-// DuckDuckGo Parser (inline to avoid coupling)
-// ============================================
-
-interface FreeSearchResult {
-    title: string;
-    url: string;
-    snippet: string;
-    position: number;
-}
-
-export function parseDuckDuckGoResultsFree(
-    html: string,
-    limit: number
-): FreeSearchResult[] {
-    const results: FreeSearchResult[] = [];
-    const resultRegex =
-        /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([^<]*)<\/a>/gi;
-
-    let match;
-    let position = 1;
-
-    while ((match = resultRegex.exec(html)) !== null && results.length < limit) {
-        const [, url, title, snippet] = match;
-        if (url && title) {
-            results.push({
-                title: decodeEntities(title.trim()),
-                url: decodeURIComponent(url),
-                snippet: decodeEntities(snippet.trim()),
-                position: position++,
-            });
-        }
-    }
-
-    return results;
-}
-
-export function decodeEntities(text: string): string {
-    return text
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ");
 }

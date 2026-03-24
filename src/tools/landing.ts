@@ -166,7 +166,9 @@ r.textContent="Fetching...";
 try{
 var res=await fetch("/r/"+u);
 var d=await res.json();
-r.textContent=d.content||d.message||JSON.stringify(d,null,2);
+if(res.status===429){r.textContent="Rate limit reached (10 free requests/hour).\\nTry again later or use the paid /fetch/basic endpoint for unlimited access.";return}
+if(d.error){r.textContent="Error: "+(d.message||d.error);return}
+r.textContent=d.content||JSON.stringify(d,null,2);
 }catch(e){r.textContent="Error: "+e.message}
 }
 document.getElementById("url-input").addEventListener("keydown",function(e){if(e.key==="Enter")tryFetch()});

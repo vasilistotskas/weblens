@@ -19,7 +19,7 @@ import { fetchBasic } from "../tools/fetch-basic";
 import { fetchPro } from "../tools/fetch-pro";
 import { resilientFetchHandler } from "../tools/resilient-fetch";
 import { screenshot } from "../tools/screenshot";
-import { searchWeb } from "../tools/search-web";
+import { searchWebHandler } from "../tools/search-web";
 import { smartExtractHandler } from "../tools/smart-extract";
 import type { Env, Variables } from "../types";
 
@@ -243,7 +243,7 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
             }
         )
     );
-    app.post("/search", searchWeb);
+    app.post("/search", searchWebHandler);
 
     // ============================================
     // /extract

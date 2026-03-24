@@ -111,7 +111,7 @@ export const SERVICE_CATALOG = {
             endpoint: "/search",
             method: "POST",
             name: "Web Search",
-            description: "Real-time Google-powered web search with ranked results",
+            description: "Real-time web search with ranked results via SerpAPI",
             price: PRICING.search,
             tags: ["search", "google", "real-time", "information-retrieval"],
             latency: "1-2 seconds",
@@ -375,7 +375,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         })),
         pricing: {
             currency: "USDC",
-            range: "$0.0005 - $0.08",
+            range: "$0.001 - $3.00",
             cacheDiscount: "70%",
         },
         documentation: `${baseUrl}/docs`,

@@ -12,23 +12,21 @@ import { fetchBasicPage } from "../tools/fetch-basic";
 import type { ResearchSource } from "../types";
 import {
   summarize,
-  
+
   AIUnavailableError
 } from "./ai";
 import type {AIServiceConfig} from "./ai";
+import type { SearchResult } from "./search";
+import { searchWeb } from "./search";
 
-export interface SearchResult {
-  title: string;
-  url: string;
-  snippet: string;
-  position: number;
-}
+export type { SearchResult };
 
 export interface ResearchOptions {
   query: string;
   resultCount: number;
   includeRawContent: boolean;
   aiConfig: AIServiceConfig;
+  serpApiKey?: string;
 }
 
 export interface ResearchResult {
@@ -36,67 +34,6 @@ export interface ResearchResult {
   sources: ResearchSource[];
   summary: string;
   keyFindings: string[];
-}
-
-/**
- * Search DuckDuckGo and return results
- */
-async function searchWeb(
-  query: string,
-  limit: number
-): Promise<SearchResult[]> {
-  const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-
-  const response = await fetch(searchUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Accept: "text/html",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Search failed: ${String(response.status)}`);
-  }
-
-  const html = await response.text();
-  return parseDuckDuckGoResults(html, limit);
-}
-
-/**
- * Parse DuckDuckGo HTML results
- */
-function parseDuckDuckGoResults(html: string, limit: number): SearchResult[] {
-  const results: SearchResult[] = [];
-  const resultRegex =
-    /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([^<]*)<\/a>/gi;
-
-  let match;
-  let position = 1;
-
-  while ((match = resultRegex.exec(html)) !== null && results.length < limit) {
-    const [, url, title, snippet] = match;
-    if (url && title) {
-      results.push({
-        title: decodeHtmlEntities(title.trim()),
-        url: decodeURIComponent(url),
-        snippet: decodeHtmlEntities(snippet.trim()),
-        position: position++,
-      });
-    }
-  }
-
-  return results;
-}
-
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ");
 }
 
 /**
@@ -133,10 +70,10 @@ async function fetchForResearch(
 export async function research(
   options: ResearchOptions
 ): Promise<ResearchResult> {
-  const { query, resultCount, includeRawContent, aiConfig } = options;
+  const { query, resultCount, includeRawContent, aiConfig, serpApiKey } = options;
 
   // Step 1: Search the web
-  const searchResults = await searchWeb(query, resultCount);
+  const searchResults = await searchWeb({ query, limit: resultCount, serpApiKey });
 
   if (searchResults.length === 0) {
     return {

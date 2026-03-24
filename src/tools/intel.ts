@@ -132,6 +132,7 @@ export async function intelCompanyHandler(c: Context<{ Bindings: Env }>) {
         const profile = await companyIntel({
             target: parsed.data.target,
             aiConfig: { apiKey: apiKeyOrError },
+            serpApiKey: c.env.SERP_API_KEY,
         });
 
         return c.json({
@@ -178,6 +179,7 @@ export async function intelMarketHandler(c: Context<{ Bindings: Env }>) {
             depth: parsed.data.depth,
             focus: parsed.data.focus,
             aiConfig: { apiKey: apiKeyOrError },
+            serpApiKey: c.env.SERP_API_KEY,
         });
 
         return c.json({
@@ -225,6 +227,7 @@ export async function intelCompetitiveHandler(c: Context<{ Bindings: Env }>) {
             maxCompetitors: parsed.data.maxCompetitors,
             focus: parsed.data.focus,
             aiConfig: { apiKey: apiKeyOrError },
+            serpApiKey: c.env.SERP_API_KEY,
         });
 
         return c.json({
@@ -269,6 +272,7 @@ export async function intelSiteAuditHandler(c: Context<{ Bindings: Env }>) {
         const audit = await siteAudit({
             url: parsed.data.url,
             aiConfig: { apiKey: apiKeyOrError },
+            serpApiKey: c.env.SERP_API_KEY,
         });
 
         return c.json({

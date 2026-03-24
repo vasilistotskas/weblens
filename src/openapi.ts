@@ -253,26 +253,27 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Stored", content: { "application/json": { schema: { $ref: "#/components/schemas/MemorySetResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
-      "/memory/get/{key}": {
+      "/memory/get": {
         get: {
           tags: ["Memory"], summary: "Get Value", operationId: "memoryGet",
-          description: `Retrieve stored value. Price: ${PRICING.memory.read}`,
-          parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
-          responses: { "200": { description: "Value retrieved" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "404": { description: "Not found" } },
+          description: `Retrieve stored value. Requires wallet auth (X-PAYMENT or X-CREDIT-WALLET header). Price: ${PRICING.memory.read}`,
+          parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "Value retrieved" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
         },
       },
-      "/memory/{key}": {
+      "/memory/delete": {
         delete: {
           tags: ["Memory"], summary: "Delete Value", operationId: "memoryDelete",
-          parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
-          responses: { "200": { description: "Deleted" }, "404": { description: "Not found" } },
+          description: "Delete a stored value. Requires wallet auth (X-PAYMENT or X-CREDIT-WALLET header).",
+          parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "Deleted" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
         },
       },
       "/memory/list": {
         get: {
           tags: ["Memory"], summary: "List Keys", operationId: "memoryList",
-          description: `List all keys. Price: ${PRICING.memory.read}`,
-          responses: { "200": { description: "Keys list" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+          description: `List all keys for the authenticated wallet. Requires wallet auth (X-PAYMENT or X-CREDIT-WALLET header).`,
+          responses: { "200": { description: "Keys list" }, "401": { description: "Unauthorized — wallet auth required" } },
         },
       },
       "/mcp": {
