@@ -129,6 +129,11 @@ enabled = true
 [env.testnet]
 name = "weblens-testnet"
 workers_dev = true
+# CRITICAL: explicitly clear inherited routes so the testnet worker does NOT
+# bind api.weblens.dev. Without this, the top-level [[routes]] block is
+# inherited and the testnet deploy steals the production custom domain,
+# silently switching api.weblens.dev to Base Sepolia challenges.
+routes = []
 
 # Testnet KV namespaces (create with: wrangler kv:namespace create "CACHE" --env testnet)
 [[env.testnet.kv_namespaces]]
