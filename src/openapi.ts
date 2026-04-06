@@ -306,7 +306,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       "/memory/get": {
         get: {
           tags: ["Memory"], summary: "Get Value", operationId: "memoryGet",
-          description: `Retrieve stored value. Requires wallet auth (X-PAYMENT or X-CREDIT-WALLET header). Price: ${PRICING.memory.read}`,
+          description: `Retrieve stored value. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header). Price: ${PRICING.memory.read}`,
           parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Value retrieved" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
         },
@@ -314,7 +314,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       "/memory/delete": {
         delete: {
           tags: ["Memory"], summary: "Delete Value", operationId: "memoryDelete",
-          description: "Delete a stored value. Requires wallet auth (X-PAYMENT or X-CREDIT-WALLET header).",
+          description: "Delete a stored value. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header).",
           parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Deleted" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
         },
@@ -322,7 +322,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       "/memory/list": {
         get: {
           tags: ["Memory"], summary: "List Keys", operationId: "memoryList",
-          description: `List all keys for the authenticated wallet. Requires wallet auth (X-PAYMENT or X-CREDIT-WALLET header).`,
+          description: `List all keys for the authenticated wallet. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header).`,
           responses: { "200": { description: "Keys list" }, "401": { description: "Unauthorized — wallet auth required" } },
         },
       },
@@ -410,38 +410,22 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       },
       responses: {
         PaymentRequired: {
-          description: "Payment required - use x402 protocol. Parse the accepts array, sign payment with your wallet, retry with X-PAYMENT header.",
+          description: "Payment required — x402 v2 protocol. Parse the PAYMENT-REQUIRED response header (base64-encoded JSON), sign the payment with your wallet, then retry the request with the Payment-Signature request header.",
           content: {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["accepts", "x402Version"],
-                properties: {
-                  error: { type: "string", description: "Error message" },
-                  accepts: {
-                    type: "array",
-                    description: "Array of payment options",
-                    items: {
-                      type: "object",
-                      properties: {
-                        scheme: { type: "string", description: "Payment scheme (e.g., 'exact')" },
-                        network: { type: "string", description: "Blockchain network (e.g., 'base')" },
-                        maxAmountRequired: { type: "string", description: "Maximum payment amount in atomic units (USDC has 6 decimals)" },
-                        resource: { type: "string", description: "Resource URL" },
-                        payTo: { type: "string", description: "Wallet address to receive payment" },
-                        asset: { type: "string", description: "Token contract address (USDC on Base)" },
-                        maxTimeoutSeconds: { type: "integer", description: "Payment timeout in seconds" },
-                      },
-                    },
-                  },
-                  x402Version: { type: "integer", description: "x402 protocol version (1)" },
-                },
+                description: "Body is empty {} on a 402 — payment requirements are in the PAYMENT-REQUIRED response header.",
               },
             },
           },
           headers: {
-            "X-PAYMENT-RESPONSE": {
-              description: "Base64-encoded JSON with settlement details (txHash, networkId) - returned on successful payment",
+            "PAYMENT-REQUIRED": {
+              description: "Base64-encoded JSON with the x402 v2 payment requirements: { x402Version: 2, error, resource, accepts: [{ scheme, network, amount, asset, payTo, maxTimeoutSeconds, extra }] }",
+              schema: { type: "string" },
+            },
+            "PAYMENT-RESPONSE": {
+              description: "Base64-encoded settlement receipt (txHash, network) — returned on a successful response that delivers a paid resource.",
               schema: { type: "string" },
             },
           },
@@ -451,8 +435,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         x402Payment: {
           type: "apiKey",
           in: "header",
-          name: "X-PAYMENT",
-          description: "x402 payment payload (base64-encoded signed payment)",
+          name: "Payment-Signature",
+          description: "x402 v2 payment payload (base64-encoded signed payment)",
         },
       },
     },
@@ -511,10 +495,10 @@ Upgrade to paid endpoints for full content and more results.
 
 1. Try the free reader: GET /r/https://example.com (no wallet needed!)
 2. For full access, call any paid endpoint (e.g., POST /fetch/basic with {"url": "https://example.com"})
-3. Receive 402 Payment Required with payment details
+3. Receive 402 Payment Required — read the PAYMENT-REQUIRED response header (base64-encoded JSON) for amount, asset, payTo and accepts
 4. Sign USDC payment using your wallet (Base network)
-5. Retry with X-PAYMENT header containing signed payload
-6. Receive data with X-PAYMENT-RESPONSE settlement proof
+5. Retry with the Payment-Signature header containing the signed payload
+6. Receive data; settlement receipt is in the PAYMENT-RESPONSE response header
 
 ## Discovery Endpoints
 
@@ -533,12 +517,12 @@ Upgrade to paid endpoints for full content and more results.
 
 ## Payment Protocol
 
-All paid endpoints use [x402](https://x402.org) micropayments:
-1. Make request to any endpoint
-2. Receive \`402 Payment Required\` with payment details in JSON body
-3. Sign USDC payment with your wallet (Base network)
-4. Retry request with \`X-PAYMENT\` header containing signed payload
-5. Receive response with \`X-PAYMENT-RESPONSE\` header (settlement proof)
+All paid endpoints use [x402 v2](https://x402.org) micropayments:
+1. Make a request to any endpoint
+2. Receive \`402 Payment Required\` — payment details are in the \`PAYMENT-REQUIRED\` response header (base64-encoded JSON; body is empty)
+3. Sign a USDC payment with your wallet (Base network)
+4. Retry the request with the \`Payment-Signature\` header containing the signed payload
+5. Receive the response with a \`PAYMENT-RESPONSE\` header (settlement proof)
 
 Supported networks: Base (mainnet), Base Sepolia (testnet)
 Token: USDC
@@ -746,7 +730,7 @@ Human-friendly UI to manage credits and view history.
 All responses include:
 - \`X-Request-Id\` - Unique request identifier
 - \`X-Processing-Time\` - Processing time in milliseconds
-- \`X-PAYMENT-RESPONSE\` - Settlement proof (on successful payment)
+- \`PAYMENT-RESPONSE\` - Settlement proof (on a successful paid response)
 
 ## Error Handling
 

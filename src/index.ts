@@ -34,8 +34,44 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // Logging
 app.use("*", logger());
 
-// CORS
-app.use("*", cors());
+// CORS — explicit allow/expose for x402 v2 payment headers.
+//
+// Browsers do not include `Payment-Signature` in the safelisted CORS request
+// headers, so a preflight is required. Without `allowHeaders` containing
+// `Payment-Signature` the preflight fails and the actual request never goes
+// out — every browser-based x402 client would silently fail.
+//
+// Likewise, browsers will not let JS read response headers that aren't in
+// `Access-Control-Expose-Headers`. Without `PAYMENT-REQUIRED` exposed, a
+// browser-based x402 client cannot parse the 402 challenge and cannot sign
+// a payment. Without `PAYMENT-RESPONSE` exposed, it cannot read the
+// settlement receipt after a successful payment.
+app.use("*", cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowHeaders: [
+        "Content-Type",
+        "Accept",
+        // x402 v2 payment header
+        "Payment-Signature",
+        // Credit-account auth headers
+        "X-CREDIT-WALLET",
+        "X-CREDIT-SIGNATURE",
+        "X-CREDIT-TIMESTAMP",
+    ],
+    exposeHeaders: [
+        // x402 v2 — required for browser clients to read payment challenge & receipt
+        "PAYMENT-REQUIRED",
+        "PAYMENT-RESPONSE",
+        // WebLens diagnostics
+        "X-Request-Id",
+        "X-Processing-Time",
+        // Credit-account response indicators
+        "Payment-Method",
+        "Credit-Cost",
+    ],
+    maxAge: 600,
+}));
 
 // Authentication / Payment Debugging
 app.use("*", paymentDebugMiddleware);
@@ -120,7 +156,11 @@ app.notFound((c) => {
     }, 404);
 });
 
-// Export for Cloudflare Workers
+// Named export of the underlying Hono app — used by integration tests that
+// want to call `app.request(...)` directly.
+export { app };
+
+// Worker entry — x402 v2 only.
 export default app;
 
 // Export Durable Objects

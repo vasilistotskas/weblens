@@ -6,26 +6,24 @@
 import type { Context, Next } from "hono";
 
 /**
- * Security headers for API responses
+ * Security headers for API (JSON) responses.
+ *
+ * Cross-Origin-Resource-Policy is `cross-origin` for API responses so browser
+ * clients on other origins (paywall widgets, dashboards, x402 SDKs embedded
+ * in third-party sites) can fetch us. HTML pages have their own header set
+ * below where same-origin is appropriate.
  */
 const SECURITY_HEADERS = {
-  // Enforce HTTPS for 2 years
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-  // Prevent MIME-sniffing
   "X-Content-Type-Options": "nosniff",
-  // Prevent clickjacking
   "X-Frame-Options": "DENY",
-  // Disable XSS filter (modern browsers don't need it, can cause issues)
   "X-XSS-Protection": "0",
-  // Control referrer information
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  // Disable browser features we don't need
   "Permissions-Policy": "interest-cohort=(), geolocation=(), microphone=(), camera=()",
-  // Content Security Policy for API (JSON responses)
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
-  // Cross-origin policies
-  "Cross-Origin-Opener-Policy": "same-origin",
-  "Cross-Origin-Resource-Policy": "same-origin",
+  // Allow JSON API responses to be embedded by third-party origins.
+  // This is required for browser-based x402 clients to call us cross-origin.
+  "Cross-Origin-Resource-Policy": "cross-origin",
 };
 
 /**

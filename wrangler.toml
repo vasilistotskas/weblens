@@ -74,9 +74,19 @@ id = "75fa410e8ee54698b1bcd83b0dce8621"
 name = "MONITOR_SCHEDULER"
 class_name = "MonitorScheduler"
 
+[[durable_objects.bindings]]
+name = "CREDIT_MANAGER"
+class_name = "CreditAccountDO"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MonitorScheduler"]
+
+# v2 migration: introduce CreditAccountDO as a SQLite-backed Durable Object.
+# Migration entries are append-only — never edit v1, always add a new tag.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CreditAccountDO"]
 
 # ============================================
 # Browser Rendering
@@ -140,6 +150,14 @@ id = "9e0b1010e004441eb1d242a355235ed1"
 [[env.testnet.durable_objects.bindings]]
 name = "MONITOR_SCHEDULER"
 class_name = "MonitorScheduler"
+
+[[env.testnet.durable_objects.bindings]]
+name = "CREDIT_MANAGER"
+class_name = "CreditAccountDO"
+
+# Note: migrations are worker-global and live at the top level — do NOT
+# duplicate them here. The testnet worker (weblens-testnet) tracks its own
+# applied-migrations cursor independently of weblens-production.
 
 [env.testnet.vars]
 # Use Base Sepolia testnet

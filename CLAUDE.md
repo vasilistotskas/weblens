@@ -83,11 +83,11 @@ The order matters: credit check → validation → payment → handler. Free end
 
 ### Payment System (x402 Protocol)
 - Client sends POST without payment → gets 402 with price/network/address
-- Client signs USDC transfer, retries with `X-PAYMENT` header
+- Client signs USDC transfer, retries with `Payment-Signature` header (x402 v2)
 - `@x402/hono` middleware verifies on-chain, request proceeds
 - Payment middleware uses **lazy initialization** — `getResourceServer()` creates a singleton on first request, cached at module scope in `src/middleware/payment.ts`
 - Static pricing middleware is also cached; dynamic pricing (for extract/fetch-pro) re-evaluates per request via callback
-- Networks: Base mainnet (production, PayAI facilitator), Base Sepolia (testnet, x402.org facilitator). Solana/Polygon configured but `SUPPORTED_NETWORKS` currently only includes `["base"]`
+- Facilitator selection happens at runtime in `getResourceServer()` (`src/middleware/payment.ts`) based on env: `NETWORK=base-sepolia` → x402.org testnet facilitator; else if `CDP_API_KEY_ID`/`CDP_API_KEY_SECRET` are set → **CDP facilitator** via `@coinbase/x402` `createFacilitatorConfig()` (production default); else → PayAI fallback. The branch taken is logged at init (`wrangler tail` shows `Facilitator: cdp | payai | testnet`). `SUPPORTED_NETWORKS` in `config.ts` currently only contains `["base"]`.
 - `payment-debug.ts` middleware logs EIP-3009 authorization structure for diagnosing CDP facilitator failures
 
 ### Credit System (Alternative to Per-Request Payment)

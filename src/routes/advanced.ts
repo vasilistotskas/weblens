@@ -23,16 +23,29 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     // ============================================
     // /batch/fetch
     // ============================================
+    //
+    // Pricing is dynamic — N URLs × $0.003 per URL. validateRequest runs
+    // before both credit and payment middleware, so by the time pricing is
+    // calculated `validatedBody` is guaranteed to be a parsed BatchFetchRequest
+    // with `urls` populated.
+    const batchFetchPriceCalc = (
+        c: { get: (k: "validatedBody") => unknown }
+    ): string => {
+        const body = c.get("validatedBody") as { urls?: unknown[] } | undefined;
+        const n = Array.isArray(body?.urls) ? body.urls.length : PRICING.batchFetch.minUrls;
+        return getBatchFetchPrice(n);
+    };
     app.use(
         "/batch/fetch",
-        createCreditMiddleware(
-            () => getBatchFetchPrice(2), // Minimum price for check
-            "Batch URL Fetching (Minimum)"
-        ),
         validateRequest(BatchFetchRequestSchema),
+        createCreditMiddleware(
+            (c) => batchFetchPriceCalc(c),
+            "Batch URL Fetching"
+        ),
         createLazyPaymentMiddleware(
             "/batch/fetch",
-            "$0.006", // Minimum price for 2 URLs
+            // Dynamic price — re-evaluated per request from the parsed body.
+            (c) => Promise.resolve(batchFetchPriceCalc(c)),
             "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
             { urls: ["https://example.com/1", "https://example.com/2"], timeout: 10000, tier: "basic" },
             {

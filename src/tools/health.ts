@@ -7,8 +7,13 @@
  */
 
 import type { Context } from "hono";
-import { FACILITATORS } from "../config";
 import type { Env, HealthResponse, ServiceStatus } from "../types";
+
+// Facilitator endpoints used for reachability probes. Kept local to this file
+// because they are only relevant to the health probe, not payment routing.
+const PAYAI_FACILITATOR_URL = "https://facilitator.payai.network";
+const CDP_FACILITATOR_URL = "https://api.cdp.coinbase.com";
+const TESTNET_FACILITATOR_URL = "https://x402.org/facilitator";
 
 /**
  * Check cache service health
@@ -59,7 +64,10 @@ function checkBrowserHealth(browser: Fetcher | undefined): ServiceStatus {
 }
 
 /**
- * Check facilitator connectivity
+ * Check facilitator connectivity. Treats 401/403/404 as "reachable" since an
+ * unauthenticated GET against a real facilitator endpoint will often return
+ * one of those — the server is up, we just don't hold credentials for a bare
+ * probe.
  */
 async function checkFacilitatorHealth(url: string): Promise<ServiceStatus> {
   const startTime = Date.now();
@@ -70,8 +78,7 @@ async function checkFacilitatorHealth(url: string): Promise<ServiceStatus> {
     });
     const latency = Date.now() - startTime;
 
-    if (response.ok || response.status === 404) {
-      // 404 is acceptable - facilitator is reachable but endpoint doesn't exist
+    if (response.ok || [401, 403, 404].includes(response.status)) {
       return {
         status: "healthy",
         latency,
@@ -90,6 +97,21 @@ async function checkFacilitatorHealth(url: string): Promise<ServiceStatus> {
       error: error instanceof Error ? error.message : "Connection failed",
     };
   }
+}
+
+/**
+ * Select the facilitator URL the running worker will actually use for x402
+ * settlement. Mirrors the branch logic in src/middleware/payment.ts so /health
+ * reflects reality.
+ */
+function getActiveFacilitatorUrl(env: Env): string {
+  if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
+    return env.FACILITATOR_URL ?? TESTNET_FACILITATOR_URL;
+  }
+  if (env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET) {
+    return CDP_FACILITATOR_URL;
+  }
+  return env.PAYAI_FACILITATOR_URL ?? PAYAI_FACILITATOR_URL;
 }
 
 /**
@@ -126,14 +148,19 @@ function getOverallStatus(services: HealthResponse["services"]): HealthResponse[
  * GET /health
  */
 export async function health(c: Context<{ Bindings: Env }>): Promise<Response> {
-  // Check all services in parallel
-  // Note: CDP facilitator uses the object from @coinbase/x402, not a URL
-  // We check PayAI for both since it handles Base mainnet payments
+  // Check all services in parallel.
+  //
+  // The "cdp" field reports the facilitator the worker is actually using:
+  // - CDP API endpoint when CDP_API_KEY_ID/SECRET are set (production default)
+  // - x402.org testnet facilitator when NETWORK=base-sepolia
+  // - PayAI fallback otherwise
+  // The "payai" field is always probed as a secondary reachability signal.
   const browserStatus = checkBrowserHealth(c.env.BROWSER);
+  const activeFacilitatorUrl = getActiveFacilitatorUrl(c.env);
   const [cacheStatus, cdpStatus, payaiStatus] = await Promise.all([
     checkCacheHealth(c.env.CACHE),
-    checkFacilitatorHealth(FACILITATORS.payai), // CDP uses SDK object, check PayAI instead
-    checkFacilitatorHealth(FACILITATORS.payai),
+    checkFacilitatorHealth(activeFacilitatorUrl),
+    checkFacilitatorHealth(PAYAI_FACILITATOR_URL),
   ]);
 
   const services: HealthResponse["services"] = {

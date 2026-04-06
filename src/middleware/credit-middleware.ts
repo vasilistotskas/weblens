@@ -27,17 +27,25 @@ export function createCreditMiddleware(
         const signature = c.req.header("X-CREDIT-SIGNATURE");
         const timestamp = c.req.header("X-CREDIT-TIMESTAMP");
 
-        // If no credit wallet provided, proceed to next middleware (standard x402)
+        // No credit wallet → not a credit-paid request, fall through to x402.
         if (!creditWallet || !c.env.CREDIT_MANAGER) {
             await next(); return;
         }
 
-        // Security: Enforce signature verification
-        // creditWallet is string | undefined from c.req.header
-        if (!creditWallet || !signature || !timestamp) {
-            return c.json({ error: "MISSING_AUTH", message: "Missing authentication headers" }, 401);
+        // Half-configured credit headers (wallet present but signature or
+        // timestamp missing) are NOT a hard error — fall through to x402 so
+        // the buyer still has a path to pay. A buggy client that sets the
+        // wallet header without the signature pair should not be permanently
+        // locked out of the API.
+        if (!signature || !timestamp) {
+            await next(); return;
         }
 
+        // Wallet + signature + timestamp all present → verify the signature.
+        // If verification FAILS we return 401 because at this point the
+        // client is intentionally claiming to be a credit user with a
+        // forged/expired signature, which is an auth failure, not a missing
+        // header.
         const verification = await verifyWalletSignature(creditWallet, signature, timestamp);
 
         if (!verification.isValid) {
@@ -73,9 +81,10 @@ export function createCreditMiddleware(
 
             await next();
 
-            // Add a header to response indicating credit payment
-            c.header("X-Payment-Method", "Credits");
-            c.header("X-Credit-Cost", costStr);
+            // Custom response headers indicating that the request was paid
+            // via a prepaid credit account rather than per-request x402.
+            c.header("Payment-Method", "Credits");
+            c.header("Credit-Cost", costStr);
 
         } catch (error) {
             if (debited) {

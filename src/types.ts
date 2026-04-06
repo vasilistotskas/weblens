@@ -249,27 +249,6 @@ export interface HealthResponse {
 }
 
 // ============================================
-// Payment Types (Requirement 4)
-// ============================================
-
-export type SupportedNetwork = "base" | "base-sepolia" | "solana" | "polygon";
-
-export interface PaymentOption {
-  scheme: string;
-  network: SupportedNetwork;
-  maxAmountRequired: string;
-  resource: string;
-  payTo: string;
-  asset: string;
-}
-
-export interface PaymentRequiredResponse {
-  error: string;
-  accepts: PaymentOption[];
-  x402Version: number;
-}
-
-// ============================================
 // URL Validation Types
 // ============================================
 

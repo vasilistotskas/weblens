@@ -52,7 +52,7 @@ interface BazaarItem {
     resource?: string;
     payTo?: string;
     network?: string;
-    maxAmountRequired?: string;
+    amount?: string;
     asset?: string;
     description?: string;
     outputSchema?: unknown;

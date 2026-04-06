@@ -15,15 +15,18 @@ let app: any;
 
 beforeAll(async () => {
     const module = await import('../../src/index');
-    app = module.default;
+    // Use the named `app` export (Hono instance) so tests can call
+    // `app.request(...)`. The default export is a Worker fetch wrapper that
+    // adds the x402 v1↔v2 header compatibility shim.
+    app = module.app;
 });
 
-// Mock the dependencies that cause side effects or require network
+// Mock the dependencies that cause side effects or require network.
+// x402 v2: clients send the payment in the `Payment-Signature` request header.
 vi.mock('@x402/hono', () => {
     return {
         paymentMiddleware: () => async (c: any, next: any) => {
-            // Mock middleware: if no payment header, return 402
-            if (!c.req.header('X-Payment')) {
+            if (!c.req.header('Payment-Signature')) {
                 return c.json({ error: 'Payment Required', price: '$0.005' }, 402);
             }
             return next();
@@ -32,6 +35,8 @@ vi.mock('@x402/hono', () => {
             static init() { return new this(); }
             register() { }
             registerExtension() { }
+            onVerifyFailure() { return this; }
+            onSettleFailure() { return this; }
         },
         HTTPFacilitatorClient: class { },
         ExactEvmScheme: class { },

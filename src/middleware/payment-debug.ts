@@ -1,40 +1,35 @@
 /**
- * Payment Debugging Middleware
- * Logs detailed information about payment verification failures
- * 
- * Enhanced for CDP facilitator debugging - captures full payload structure
- * to help diagnose "invalid_payload" errors from CDP's stricter validation
- * 
- * Key CDP Facilitator Requirements (from x402 docs):
- * 1. EIP-712 domain must match: name="USD Coin", version="2", chainId=8453
- * 2. authorization.to must match payTo from requirements
- * 3. authorization.value must be >= maxAmountRequired
- * 4. nonce must be unique 32-byte hex (0x + 64 chars)
- * 5. validAfter <= current time <= validBefore
- * 6. Signature must be valid EIP-712 signature (65 bytes)
+ * Payment Debugging Middleware (x402 v2)
+ *
+ * Logs structured information about every payment attempt so failures are
+ * visible in `wrangler tail`. v2 wire format only:
+ *
+ *  - Payment payloads arrive in the `Payment-Signature` request header.
+ *  - 402 payment requirements are returned in the `PAYMENT-REQUIRED`
+ *    *response* header (base64-JSON encoded). The 402 response body is `{}`.
+ *  - Settlement receipts come back in `PAYMENT-RESPONSE`.
  */
 
 import type { Context, Next } from "hono";
 import type { Env } from "../types";
 
-interface PaymentAccept {
+// ---- Types ----
+
+interface V2PaymentAccept {
   scheme: string;
   network: string;
-  maxAmountRequired: string;
-  resource: string;
-  payTo: string;
-  asset: string;
+  amount?: string;
+  asset?: string;
+  payTo?: string;
   maxTimeoutSeconds?: number;
-  extra?: {
-    name?: string;
-    version?: string;
-  };
+  extra?: { name?: string; version?: string };
 }
 
-interface Payment402Response {
-  error: string;
-  accepts?: PaymentAccept[];
+interface V2PaymentRequiredResponse {
   x402Version?: number;
+  error?: string;
+  resource?: { url?: string; description?: string; mimeType?: string };
+  accepts?: V2PaymentAccept[];
 }
 
 interface PaymentPayload {
@@ -54,252 +49,201 @@ interface PaymentPayload {
   };
 }
 
-/**
- * Decode and parse the X-PAYMENT header
- */
-function decodePaymentHeader(header: string): PaymentPayload | null {
+// ---- Helpers ----
+
+function safeBase64Decode(value: string): string | null {
   try {
-    const decoded = Buffer.from(header, "base64").toString("utf-8");
-    return JSON.parse(decoded) as PaymentPayload;
-  } catch (e) {
-    console.error("  Failed to decode X-PAYMENT header:", e);
+    return Buffer.from(value, "base64").toString("utf-8");
+  } catch {
     return null;
   }
 }
 
-/**
- * Validate EIP-3009 authorization structure
- * CDP facilitator requires specific fields for transferWithAuthorization
- */
-function validateEIP3009Authorization(auth: PaymentPayload["payload"]): string[] {
+function decodePaymentSignature(header: string): PaymentPayload | null {
+  const json = safeBase64Decode(header);
+  if (!json) {return null;}
+  try {
+    return JSON.parse(json) as PaymentPayload;
+  } catch {
+    return null;
+  }
+}
+
+function decodePaymentRequired(header: string): V2PaymentRequiredResponse | null {
+  const json = safeBase64Decode(header);
+  if (!json) {return null;}
+  try {
+    return JSON.parse(json) as V2PaymentRequiredResponse;
+  } catch {
+    return null;
+  }
+}
+
+function validateEIP3009(payload: PaymentPayload["payload"]): string[] {
   const issues: string[] = [];
-  
-  if (!auth) {
+  if (!payload) {
     issues.push("Missing payload object");
     return issues;
   }
 
-  if (!auth.signature) {
+  if (!payload.signature) {
     issues.push("Missing signature");
-  } else if (!auth.signature.startsWith("0x")) {
+  } else if (!payload.signature.startsWith("0x")) {
     issues.push("Signature should start with 0x");
-  } else if (auth.signature.length !== 132) {
-    issues.push(`Signature length ${String(auth.signature.length)} (expected 132 for 65-byte signature)`);
+  } else if (payload.signature.length !== 132) {
+    issues.push(
+      `Signature length ${String(payload.signature.length)} (expected 132 for 65-byte signature)`
+    );
   }
 
-  if (!auth.authorization) {
+  if (!payload.authorization) {
     issues.push("Missing authorization object");
     return issues;
   }
+  const auth = payload.authorization;
 
-  const { authorization } = auth;
+  if (!auth.from) {issues.push("Missing authorization.from");}
+  if (!auth.to) {issues.push("Missing authorization.to");}
+  if (!auth.value) {issues.push("Missing authorization.value");}
+  if (!auth.validAfter) {issues.push("Missing authorization.validAfter");}
+  if (!auth.validBefore) {issues.push("Missing authorization.validBefore");}
+  if (!auth.nonce) {issues.push("Missing authorization.nonce");}
 
-  // Check required EIP-3009 fields
-  if (!authorization.from) {issues.push("Missing authorization.from");}
-  if (!authorization.to) {issues.push("Missing authorization.to");}
-  if (!authorization.value) {issues.push("Missing authorization.value");}
-  if (!authorization.validAfter) {issues.push("Missing authorization.validAfter");}
-  if (!authorization.validBefore) {issues.push("Missing authorization.validBefore");}
-  if (!authorization.nonce) {issues.push("Missing authorization.nonce");}
+  if (auth.from && !auth.from.startsWith("0x")) {issues.push("authorization.from should start with 0x");}
+  if (auth.to && !auth.to.startsWith("0x")) {issues.push("authorization.to should start with 0x");}
 
-  // Validate address formats
-  if (authorization.from && !authorization.from.startsWith("0x")) {
-    issues.push("authorization.from should start with 0x");
-  }
-  if (authorization.to && !authorization.to.startsWith("0x")) {
-    issues.push("authorization.to should start with 0x");
-  }
-
-  // Validate nonce format (should be 32-byte hex)
-  if (authorization.nonce) {
-    if (!authorization.nonce.startsWith("0x")) {
+  if (auth.nonce) {
+    if (!auth.nonce.startsWith("0x")) {
       issues.push("authorization.nonce should start with 0x");
-    } else if (authorization.nonce.length !== 66) {
-      issues.push(`authorization.nonce length ${String(authorization.nonce.length)} (expected 66 for 32-byte hex)`);
+    } else if (auth.nonce.length !== 66) {
+      issues.push(
+        `authorization.nonce length ${String(auth.nonce.length)} (expected 66 for 32-byte hex)`
+      );
     }
   }
 
-  // Validate timestamps
   const now = Math.floor(Date.now() / 1000);
-  if (authorization.validAfter) {
-    const validAfter = parseInt(authorization.validAfter, 10);
+  if (auth.validAfter) {
+    const validAfter = parseInt(auth.validAfter, 10);
     if (validAfter > now) {
-      issues.push(`authorization.validAfter (${String(validAfter)}) is in the future (now: ${String(now)})`);
+      issues.push(
+        `authorization.validAfter (${String(validAfter)}) is in the future (now: ${String(now)})`
+      );
     }
   }
-  if (authorization.validBefore) {
-    const validBefore = parseInt(authorization.validBefore, 10);
+  if (auth.validBefore) {
+    const validBefore = parseInt(auth.validBefore, 10);
     if (validBefore < now) {
-      issues.push(`authorization.validBefore (${String(validBefore)}) is in the past (now: ${String(now)})`);
+      issues.push(
+        `authorization.validBefore (${String(validBefore)}) is in the past (now: ${String(now)})`
+      );
     }
   }
 
   return issues;
 }
 
+// ---- Middleware ----
+
 export async function paymentDebugMiddleware(
   c: Context<{ Bindings: Env }>,
   next: Next
 ) {
   const startTime = Date.now();
-
-  // Log request details
-  const method = c.req.method;
   const path = c.req.path;
-  const hasPayment = c.req.header("X-PAYMENT");
+  const method = c.req.method;
 
-  console.log(`\n🔍 [Payment Debug] ${method} ${path}`);
-  console.log(`  Timestamp: ${new Date().toISOString()}`);
-  console.log(`  Has X-PAYMENT header: ${String(!!hasPayment)}`);
+  const paymentSignature = c.req.header("payment-signature");
+  const isPaidAttempt = !!paymentSignature;
 
-  let paymentPayload: PaymentPayload | null = null;
+  if (isPaidAttempt) {
+    console.log(`\n🔍 [Payment Debug] ${method} ${path}`);
+    console.log(`  Timestamp: ${new Date().toISOString()}`);
 
-  if (hasPayment) {
-    console.log(`  Payment header length: ${String(hasPayment.length)} chars`);
-    
-    // Decode and analyze the payment payload
-    paymentPayload = decodePaymentHeader(hasPayment);
-    
-    if (paymentPayload) {
-      console.log(`  📦 Payment Payload Structure:`);
-      console.log(`    x402Version: ${String(paymentPayload.x402Version ?? "undefined")}`);
-      console.log(`    scheme: ${paymentPayload.scheme ?? "undefined"}`);
-      console.log(`    network: ${paymentPayload.network ?? "undefined"}`);
-      
-      if (paymentPayload.payload) {
-        console.log(`    payload.signature: ${paymentPayload.payload.signature?.substring(0, 20) ?? "undefined"}...`);
-        
-        if (paymentPayload.payload.authorization) {
-          const auth = paymentPayload.payload.authorization;
-          console.log(`    payload.authorization:`);
-          console.log(`      from: ${auth.from ?? "undefined"}`);
-          console.log(`      to: ${auth.to ?? "undefined"}`);
-          console.log(`      value: ${auth.value ?? "undefined"}`);
-          console.log(`      validAfter: ${auth.validAfter ?? "undefined"}`);
-          console.log(`      validBefore: ${auth.validBefore ?? "undefined"}`);
-          console.log(`      nonce: ${auth.nonce?.substring(0, 20) ?? "undefined"}...`);
-        }
-        
-        // Validate EIP-3009 structure
-        const validationIssues = validateEIP3009Authorization(paymentPayload.payload);
-        if (validationIssues.length > 0) {
-          console.log(`  ⚠️ EIP-3009 Validation Issues:`);
-          validationIssues.forEach(issue => { console.log(`    - ${issue}`); });
-        } else {
-          console.log(`  ✅ EIP-3009 structure looks valid`);
-        }
+    const payload = decodePaymentSignature(paymentSignature);
+    if (!payload) {
+      console.error(
+        `  ❌ Failed to base64/JSON-decode Payment-Signature header (${String(paymentSignature.length)} chars)`
+      );
+    } else {
+      console.log(`  📦 Payment Payload:`);
+      console.log(`    x402Version: ${String(payload.x402Version ?? "undefined")}`);
+      console.log(`    scheme: ${payload.scheme ?? "undefined"}`);
+      console.log(`    network: ${payload.network ?? "undefined"}`);
+
+      if (payload.payload?.authorization) {
+        const auth = payload.payload.authorization;
+        console.log(`    authorization.from: ${auth.from ?? "undefined"}`);
+        console.log(`    authorization.to: ${auth.to ?? "undefined"}`);
+        console.log(`    authorization.value: ${auth.value ?? "undefined"}`);
+        console.log(`    authorization.validBefore: ${auth.validBefore ?? "undefined"}`);
+      }
+      if (payload.payload?.signature) {
+        console.log(
+          `    payload.signature: ${payload.payload.signature.substring(0, 22)}... (${String(payload.payload.signature.length)} chars)`
+        );
+      }
+
+      const issues = validateEIP3009(payload.payload);
+      if (issues.length > 0) {
+        console.log(`  ⚠️  EIP-3009 structure issues:`);
+        issues.forEach((issue) => { console.log(`    - ${issue}`); });
       }
     }
   }
 
   await next();
 
-  const endTime = Date.now();
   const status = c.res.status;
+  const elapsedMs = Date.now() - startTime;
 
-  console.log(`  Response status: ${String(status)}`);
-  console.log(`  Processing time: ${String(endTime - startTime)}ms`);
+  if (isPaidAttempt) {
+    console.log(`  ← Response status: ${String(status)} (${String(elapsedMs)}ms)`);
+  }
 
-  // If 402 response, log the error details
-  if (status === 402) {
-    try {
-      const responseClone = c.res.clone();
-      const body: Payment402Response = await responseClone.json();
-
-      if (body.error) {
-        console.error(`❌ [Payment Error] ${body.error}`);
-
-        // Provide specific guidance based on error type
-        if (body.error.includes("invalid_payload")) {
-          console.log(`  💡 CDP Facilitator Debugging Tips:`);
-          console.log(`    1. Check EIP-712 domain matches USDC contract (name: "USD Coin", version: "2")`);
-          console.log(`    2. Verify signature is for correct chainId (8453 for Base mainnet)`);
-          console.log(`    3. Ensure authorization.to matches payTo address`);
-          console.log(`    4. Check authorization.value >= maxAmountRequired`);
-          console.log(`    5. Verify nonce is unique 32-byte hex`);
-          
-          if (paymentPayload?.payload?.authorization) {
-            const auth = paymentPayload.payload.authorization;
-            const accept = body.accepts?.[0];
-            
-            if (accept) {
-              // Compare payload vs requirements
-              console.log(`  🔄 Payload vs Requirements Comparison:`);
-              console.log(`    to (payload): ${auth.to ?? "undefined"}`);
-              console.log(`    payTo (required): ${accept.payTo}`);
-              const toMatch = auth.to?.toLowerCase() === accept.payTo.toLowerCase();
-              console.log(`    Match: ${String(toMatch)}`);
-              
-              console.log(`    value (payload): ${auth.value ?? "undefined"}`);
-              console.log(`    maxAmountRequired: ${accept.maxAmountRequired}`);
-              const valueBigInt = BigInt(auth.value ?? "0");
-              const requiredBigInt = BigInt(accept.maxAmountRequired);
-              const sufficient = valueBigInt >= requiredBigInt;
-              console.log(`    Sufficient: ${String(sufficient)}`);
-              
-              console.log(`    network (payload): ${paymentPayload.network ?? "undefined"}`);
-              console.log(`    network (required): ${accept.network}`);
-              const networkMatch = paymentPayload.network === accept.network;
-              console.log(`    Match: ${String(networkMatch)}`);
-            }
-          }
+  // 402 with payment attempted = the @x402 middleware rejected somewhere.
+  // Decode the PAYMENT-REQUIRED response header for the actual reason.
+  if (status === 402 && isPaidAttempt) {
+    const paymentRequired =
+      c.res.headers.get("payment-required") ?? c.res.headers.get("PAYMENT-REQUIRED");
+    if (paymentRequired) {
+      const decoded = decodePaymentRequired(paymentRequired);
+      if (decoded) {
+        console.error(`  ❌ [Payment Rejected] error=${decoded.error ?? "unknown"}`);
+        const accept = decoded.accepts?.[0];
+        if (accept) {
+          console.log(`     Expected: scheme=${accept.scheme} network=${accept.network} amount=${accept.amount ?? "?"} payTo=${accept.payTo ?? "?"}`);
         }
-
-        // Log payment acceptance requirements
-        if (body.accepts?.[0]) {
-          const accept: PaymentAccept = body.accepts[0];
-          console.log(`  📋 Expected Payment Requirements:`);
-          console.log(`    scheme: ${accept.scheme}`);
-          console.log(`    network: ${accept.network}`);
-          console.log(`    maxAmountRequired: ${accept.maxAmountRequired}`);
-          console.log(`    asset: ${accept.asset}`);
-          console.log(`    payTo: ${accept.payTo}`);
-          console.log(`    resource: ${accept.resource}`);
-          if (accept.extra) {
-            console.log(`    extra.name: ${accept.extra.name ?? "undefined"}`);
-            console.log(`    extra.version: ${accept.extra.version ?? "undefined"}`);
-          }
-        }
+      } else {
+        console.error(`  ❌ Could not decode PAYMENT-REQUIRED header`);
       }
-    } catch (err) {
-      console.error(`  Failed to parse 402 response:`, err);
+    } else {
+      console.error(
+        `  ❌ 402 returned with Payment-Signature present but no PAYMENT-REQUIRED response header — likely a settlement failure (silent path). Check x402 Verify/Settle Failure logs above.`
+      );
     }
   }
 
-  // Log successful payment response
-  if (status === 200 && hasPayment) {
-    const paymentResponse = c.res.headers.get("X-PAYMENT-RESPONSE");
-    if (paymentResponse) {
-      try {
-        const decoded = JSON.parse(Buffer.from(paymentResponse, "base64").toString()) as {
-          transaction?: string;
-          network?: string;
-          payer?: string;
-        };
-        console.log(`  ✅ Payment settled successfully`);
-        console.log(`    Transaction: ${decoded.transaction?.substring(0, 20) ?? "unknown"}...`);
-        console.log(`    Network: ${decoded.network ?? "unknown"}`);
-        console.log(`    Payer: ${decoded.payer ?? "unknown"}`);
-      } catch {
-        console.log(`  Payment response header present but couldn't decode`);
+  // Successful settlement: log the receipt.
+  if (status >= 200 && status < 300 && isPaidAttempt) {
+    const receipt = c.res.headers.get("payment-response");
+    if (receipt) {
+      const json = safeBase64Decode(receipt);
+      if (json) {
+        try {
+          const parsed = JSON.parse(json) as {
+            transaction?: string;
+            network?: string;
+            payer?: string;
+          };
+          console.log(`  ✅ Payment settled`);
+          console.log(`     tx: ${parsed.transaction ?? "?"}`);
+          console.log(`     network: ${parsed.network ?? "?"}`);
+          console.log(`     payer: ${parsed.payer ?? "?"}`);
+        } catch {
+          console.log(`  ✅ Payment settled (receipt header present but unparseable)`);
+        }
       }
     }
-  }
-
-  // Log verification failure details if available in response
-  if (status === 402 && hasPayment) {
-    console.log(`\n  🔬 CDP Facilitator Verification Analysis:`);
-    console.log(`  The payment was submitted but rejected by the facilitator.`);
-    console.log(`  Common causes for 'invalid_payload' with CDP facilitator:`);
-    console.log(`    1. EIP-712 signature mismatch (wrong chainId or domain)`);
-    console.log(`    2. Insufficient USDC balance in payer wallet`);
-    console.log(`    3. Nonce already used (replay attack prevention)`);
-    console.log(`    4. validBefore timestamp expired during verification`);
-    console.log(`    5. KYT/OFAC compliance check failed`);
-    console.log(`  `);
-    console.log(`  To debug further:`);
-    console.log(`    - Check payer wallet USDC balance on Base mainnet`);
-    console.log(`    - Verify the signature was created with chainId 8453`);
-    console.log(`    - Ensure validBefore has sufficient buffer (60+ seconds)`);
   }
 }

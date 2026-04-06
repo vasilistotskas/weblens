@@ -16,7 +16,7 @@ export const SERVICE_CATALOG = {
     baseUrl: "https://api.weblens.dev",
     protocol: {
         name: "x402",
-        version: 1,
+        version: 2,
         network: "base",
         token: "USDC",
         facilitator: "CDP",
@@ -255,16 +255,16 @@ export const SERVICE_CATALOG = {
         },
         http: {
             baseUrl: "https://api.weblens.dev",
-            auth: "x402 payment via X-PAYMENT header",
+            auth: "x402 v2 payment via Payment-Signature header",
         },
     },
     agentQuickStart: {
         step0: "Try it instantly! GET /r/https://example.com — zero friction, no wallet, no POST body needed",
         step1: "Call any paid endpoint (e.g., POST /fetch/basic with {url: 'https://example.com'})",
-        step2: "Receive 402 Payment Required with payment details in JSON body",
+        step2: "Receive 402 Payment Required — read the PAYMENT-REQUIRED response header (base64-encoded JSON) for amount, asset, payTo, accepts",
         step3: "Sign USDC payment using your wallet (Base network)",
-        step4: "Retry with X-PAYMENT header containing signed payload",
-        step5: "Receive data with X-PAYMENT-RESPONSE settlement proof",
+        step4: "Retry with the Payment-Signature header containing the signed payload",
+        step5: "Receive data; settlement receipt is in the PAYMENT-RESPONSE response header",
     },
     freeTier: {
         description: "Try WebLens free — no wallet or payment needed",
@@ -349,7 +349,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
     const baseUrl = new URL(c.req.url).origin;
 
     return c.json({
-        x402Version: 1,
+        x402Version: 2,
         name: "WebLens",
         tagline: "Give your AI agents web superpowers with verified data",
         description: "Premium Web Intelligence API with x402 micropayments. Features Autonomous Context Verification (ACV), Dynamic Pricing, and Truth-as-a-Service for AI agents.",

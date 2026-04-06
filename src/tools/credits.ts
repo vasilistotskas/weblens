@@ -46,10 +46,11 @@ const buyCreditsSchema = z.object({
 export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
     const requestId = generateRequestId();
 
-    // 1. Get wallet address from authenticated context (x402)
-    // For now, we extract it from the payment header passed by client
-    // In a full implementation, the middleware attaches the verified wallet to c.var
-    const paymentHeader = c.req.header("X-PAYMENT");
+    // 1. Get wallet address from authenticated context (x402 v2)
+    // We extract it from the Payment-Signature header passed by the client.
+    // In a full implementation the middleware would attach the verified
+    // wallet to c.var so we wouldn't need to re-decode the payload here.
+    const paymentHeader = c.req.header("Payment-Signature");
     let walletAddress = "0x0000000000000000000000000000000000000000"; // Fallback/Test
 
     if (paymentHeader) {

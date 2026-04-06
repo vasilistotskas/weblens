@@ -35,7 +35,7 @@ claude mcp add --transport http weblens https://api.weblens.dev/mcp
 }
 ```
 
-> Note: With HTTP transport, you'll need to provide payment via the `X-PAYMENT` header when calling paid tools.
+> Note: With HTTP transport, you'll need to provide payment via the `Payment-Signature` header (x402 v2) when calling paid tools.
 
 ### Option 2: Local Server with Auto-Payment
 

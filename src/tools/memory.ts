@@ -47,8 +47,8 @@ interface PaymentPayload {
 }
 
 function getWalletAddress(c: Context<{ Bindings: Env }>): string | null {
-  // Try to get from x402 payment context
-  const paymentHeader = c.req.header("X-PAYMENT");
+  // Try to get from x402 v2 payment context.
+  const paymentHeader = c.req.header("Payment-Signature");
   if (paymentHeader) {
     try {
       const decoded = JSON.parse(atob(paymentHeader)) as PaymentPayload;

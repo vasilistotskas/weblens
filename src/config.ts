@@ -90,44 +90,11 @@ export const FREE_TIER = {
   endpoints: ["/free/fetch", "/free/search"] as readonly string[],
 } as const;
 
-// Facilitator URLs for payment verification
-// Note: x402.org/facilitator is TESTNET ONLY
-// For production, use the CDP facilitator object from @coinbase/x402 or PayAI URL
-export const FACILITATORS = {
-  // PayAI supports Base mainnet, Solana, Polygon, and more
-  payai: "https://facilitator.payai.network",
-  // Testnet facilitator (for development only)
-  testnet: "https://x402.org/facilitator",
-} as const;
-
-// Supported networks and their facilitator mappings
-// Requirement 4.1: Multi-chain payment support for Base, Solana, Polygon
-// Note: For Base networks, use the CDP facilitator object from @coinbase/x402 in code
-export const NETWORKS = {
-  "base-sepolia": {
-    facilitator: "testnet" as const,
-    facilitatorUrl: FACILITATORS.testnet,
-    isTestnet: true,
-  },
-  base: {
-    facilitator: "payai" as const,
-    facilitatorUrl: FACILITATORS.payai,
-    isTestnet: false,
-  },
-  solana: {
-    facilitator: "payai" as const,
-    facilitatorUrl: FACILITATORS.payai,
-    isTestnet: false,
-  },
-  polygon: {
-    facilitator: "payai" as const,
-    facilitatorUrl: FACILITATORS.payai,
-    isTestnet: false,
-  },
-} as const;
-
-// List of all supported networks for 402 responses
-// Requirement 4.1: 402 response SHALL include payment options for Base, Solana, and Polygon
+// List of all supported networks for 402 responses.
+// Facilitator selection is NOT configured here — it happens at runtime in
+// src/middleware/payment.ts based on env vars (NETWORK, CDP_API_KEY_ID,
+// CDP_API_KEY_SECRET, FACILITATOR_URL, PAYAI_FACILITATOR_URL). See
+// getResourceServer() in payment.ts for the full branch logic.
 export const SUPPORTED_NETWORKS = ["base"] as const;
 
 // Cache configuration
@@ -152,8 +119,6 @@ export const TIMEOUT_CONFIG = {
 } as const;
 
 // Type exports for configuration
-export type NetworkName = keyof typeof NETWORKS;
-export type FacilitatorName = keyof typeof FACILITATORS;
 export type EndpointName =
   | "screenshot"
   | "fetch-basic"

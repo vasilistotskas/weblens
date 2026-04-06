@@ -94,7 +94,7 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
             },
             supportedNetworks: SUPPORTED_NETWORKS,
             x402: {
-                version: 1,
+                version: 2,
                 protocol: "https://x402.org",
                 facilitator: "CDP (Coinbase)",
                 description: "HTTP-native micropayments using 402 Payment Required",

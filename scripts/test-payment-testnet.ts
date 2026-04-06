@@ -182,7 +182,7 @@ async function testEndpoint(
         if (Array.isArray(data.results)) { console.log("  Results:", data.results.length, "items"); }
         if (Array.isArray(data.services)) { console.log("  Services:", data.services.length, "items"); }
 
-        const paymentResponse = response.headers["x-payment-response"] as string | undefined;
+        const paymentResponse = response.headers["payment-response"] as string | undefined;
         if (paymentResponse) {
             try {
                 const decoded = JSON.parse(Buffer.from(paymentResponse, "base64").toString()) as { transaction?: string };

@@ -324,7 +324,7 @@ interface ToolCallParams {
 
 async function handleToolCall(params: ToolCallParams, id: string | number | undefined, c: Context<{ Bindings: Env }>): Promise<JsonRpcResponse> {
   const { name, arguments: args } = params;
-  const xPaymentHeader = c.req.header("X-PAYMENT");
+  const paymentSignature = c.req.header("Payment-Signature");
 
   const toolEndpoints: Partial<Record<string, { endpoint: string; method: string; price: string }>> = {
     fetch_webpage: { endpoint: "/fetch/basic", method: "POST", price: PRICING.fetch.basic },
@@ -361,7 +361,7 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
   const baseUrl = new URL(c.req.url).origin;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(xPaymentHeader && { "X-PAYMENT": xPaymentHeader }),
+    ...(paymentSignature && { "Payment-Signature": paymentSignature }),
   };
 
   try {
@@ -397,7 +397,7 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
     }
 
     const result: unknown = await response.json();
-    const xPaymentResponse = response.headers.get("X-PAYMENT-RESPONSE");
+    const paymentResponse = response.headers.get("PAYMENT-RESPONSE");
 
     return {
       jsonrpc: "2.0",
@@ -409,7 +409,7 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
             text: JSON.stringify(result, null, 2),
           },
         ],
-        ...(xPaymentResponse && { _meta: { "x402/payment-response": xPaymentResponse } }),
+        ...(paymentResponse && { _meta: { "x402/payment-response": paymentResponse } }),
       },
     };
   } catch (error) {
@@ -520,7 +520,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       discovery: `${baseUrl}/discovery`,
     },
     x402: {
-      version: 1,
+      version: 2,
       facilitator: "CDP",
       bazaarListed: true,
     },
