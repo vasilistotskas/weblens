@@ -55,6 +55,10 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
   }
   attemptedUrls.add(url);
 
+  // `redirect: "manual"` returns 3xx responses as-is so we can SSRF-validate
+  // each Location target before following. Cloudflare Workers does NOT
+  // support `redirect: "error"` — it throws "Invalid redirect value" at the
+  // edge.
   const response = await fetch(url, {
     headers: {
       "User-Agent":
@@ -62,17 +66,17 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
       Accept: "application/pdf,*/*",
     },
     signal: AbortSignal.timeout(30000),
-    redirect: "error",
+    redirect: "manual",
   });
 
-  // Handle non-standard redirects (300 Multiple Choices)
-  if (response.status === 300) {
-    // Try to extract Location header or find first available URL
+  // Handle redirects manually so we can SSRF-validate each hop.
+  // 301, 302, 303, 307, 308 use the Location header.
+  // 300 (Multiple Choices) may use Location OR embed links in the body.
+  if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get("location");
 
     if (location) {
       const resolvedUrl = new URL(location, url).href;
-      // Validate redirect target to prevent SSRF
       const redirectValidation = validateURL(resolvedUrl);
       if (!redirectValidation.valid) {
         throw new InvalidPdfError(`PDF redirect target blocked: ${redirectValidation.error ?? "internal URL"}`);
@@ -80,29 +84,30 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
       return downloadPdf(redirectValidation.normalized ?? resolvedUrl, attemptedUrls);
     }
 
-    // Try to parse response body for links
-    try {
-      const text = await response.text();
-      const linkMatch = /<a\s+href=["']([^"']+)["']/i.exec(text) ??
-                        /href=["']([^"']+\.pdf)["']/i.exec(text) ??
-                        /(https?:\/\/[^\s<>"]+\.pdf)/i.exec(text);
+    // 300 with no Location: try to find a link in the response body.
+    if (response.status === 300) {
+      try {
+        const text = await response.text();
+        const linkMatch = /<a\s+href=["']([^"']+)["']/i.exec(text) ??
+                          /href=["']([^"']+\.pdf)["']/i.exec(text) ??
+                          /(https?:\/\/[^\s<>"]+\.pdf)/i.exec(text);
 
-      if (linkMatch) {
-        const resolvedUrl = new URL(linkMatch[1], url).href;
-        // Validate redirect target to prevent SSRF
-        const redirectValidation = validateURL(resolvedUrl);
-        if (!redirectValidation.valid) {
-          throw new InvalidPdfError(`PDF redirect target blocked: ${redirectValidation.error ?? "internal URL"}`);
+        if (linkMatch) {
+          const resolvedUrl = new URL(linkMatch[1], url).href;
+          const redirectValidation = validateURL(resolvedUrl);
+          if (!redirectValidation.valid) {
+            throw new InvalidPdfError(`PDF redirect target blocked: ${redirectValidation.error ?? "internal URL"}`);
+          }
+          return await downloadPdf(redirectValidation.normalized ?? resolvedUrl, attemptedUrls);
         }
-        return await downloadPdf(redirectValidation.normalized ?? resolvedUrl, attemptedUrls);
+      } catch (e) {
+        if (e instanceof InvalidPdfError) { throw e; }
+        // Failed to parse body, fall through to error
       }
-    } catch (e) {
-      if (e instanceof InvalidPdfError) { throw e; }
-      // Failed to parse body, fall through to error
     }
 
     throw new InvalidPdfError(
-      `PDF URL returned multiple choices (300) and no clear redirect was found. Please use a direct link to the PDF file.`
+      `PDF URL returned ${String(response.status)} redirect with no usable Location. Use a direct link to the PDF file.`
     );
   }
 

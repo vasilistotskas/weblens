@@ -245,6 +245,10 @@ async function run(): Promise<void> {
     // ============================================
     // 1. Free & System Endpoints (no payment)
     // ============================================
+    // Note: /memory/list, /memory/get, /memory/delete and /credits/balance,
+    // /credits/history are NOT in this list — they require wallet auth (the
+    // wallet is the namespace key) and are tested in the chained section
+    // below using buildCreditAuthHeaders().
     const freeEndpoints: ITestEndpoint[] = [
         { name: "Health Check",     method: "GET",  path: "/health",    price: "FREE", free: true },
         { name: "Root Info",        method: "GET",  path: "/",          price: "FREE", free: true },
@@ -252,8 +256,6 @@ async function run(): Promise<void> {
         { name: "MCP Info",         method: "GET",  path: "/mcp/info",  price: "FREE", free: true },
         { name: "Free Fetch",       method: "POST", path: "/free/fetch",  price: "FREE", free: true, body: { url: "https://example.com" } },
         { name: "Free Search",      method: "POST", path: "/free/search", price: "FREE", free: true, body: { query: "x402 protocol", limit: 3 } },
-        // Credits balance/history are tested separately (require wallet signature headers)
-        { name: "Memory List",      method: "GET",  path: "/memory/list", price: "FREE", free: true },
     ];
 
     // ============================================
@@ -389,30 +391,35 @@ async function run(): Promise<void> {
         await sleep(300);
     }
 
-    // Memory: get → delete (key was set in paid endpoints above)
-    const memoryGetEp: ITestEndpoint = {
-        name: "Memory Get (by key param)",
-        method: "GET",
-        path: `/memory/get`,
-        query: `?key=${encodeURIComponent(MEMORY_TEST_KEY)}`,
-        price: "FREE",
-        free: true,
-    };
-    const { success: memGetOk } = await testEndpoint(paidClient, memoryGetEp, baseAxios);
-    results.push({ name: memoryGetEp.name, success: memGetOk, path: memoryGetEp.path + (memoryGetEp.query ?? "") });
-    await sleep(300);
-
-    const memoryDeleteEp: ITestEndpoint = {
-        name: "Memory Delete (by key param)",
-        method: "DELETE",
-        path: `/memory/delete`,
-        query: `?key=${encodeURIComponent(MEMORY_TEST_KEY)}`,
-        price: "FREE",
-        free: true,
-    };
-    const { success: memDelOk } = await testEndpoint(paidClient, memoryDeleteEp, baseAxios);
-    results.push({ name: memoryDeleteEp.name, success: memDelOk, path: memoryDeleteEp.path + (memoryDeleteEp.query ?? "") });
-    await sleep(300);
+    // Memory: list → get → delete (key was set in paid endpoints above).
+    // All memory operations are namespaced per wallet, so they require the
+    // same EIP-191 credit-wallet auth headers as /credits/balance.
+    for (const memEp of [
+        { name: "Memory List",   method: "GET" as const,    path: "/memory/list" },
+        { name: "Memory Get",    method: "GET" as const,    path: `/memory/get?key=${encodeURIComponent(MEMORY_TEST_KEY)}` },
+        { name: "Memory Delete", method: "DELETE" as const, path: `/memory/delete?key=${encodeURIComponent(MEMORY_TEST_KEY)}` },
+    ]) {
+        console.log(`\n--- Testing ${memEp.name} (signed) (FREE) ---`);
+        console.log(`${memEp.method} ${memEp.path} [FREE]`);
+        try {
+            const authHeaders = await buildCreditAuthHeaders(account);
+            const resp = memEp.method === "DELETE"
+                ? await baseAxios.delete<IWebLensResponseData>(memEp.path, { headers: authHeaders })
+                : await baseAxios.get<IWebLensResponseData>(memEp.path, { headers: authHeaders });
+            console.log("✅ Success! Status:", resp.status);
+            if (resp.data.keys) { console.log("  Keys:", resp.data.keys); }
+            if (resp.data.deleted !== undefined) { console.log("  Deleted:", resp.data.deleted); }
+            results.push({ name: memEp.name, success: true, path: memEp.path });
+        } catch (err) {
+            if (axios.isAxiosError(err) && err.response) {
+                console.log("❌ Error:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
+            } else {
+                console.error("❌ Error:", err instanceof Error ? err.message : String(err));
+            }
+            results.push({ name: memEp.name, success: false, path: memEp.path });
+        }
+        await sleep(300);
+    }
 
     // Monitor: get → delete (requires capturedMonitorId from /monitor/create)
     if (capturedMonitorId) {
