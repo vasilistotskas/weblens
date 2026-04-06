@@ -611,6 +611,34 @@ Get monitor status and history. (Free)
 Delete a monitor. (Free)
 - Returns: \`{"monitorId", "deleted", "requestId"}\`
 
+### Intelligence (AI-powered, premium)
+
+These endpoints chain multiple tools and AI synthesis. They're the highest-value services on the platform.
+
+#### POST /intel/company
+Comprehensive company deep dive: tech stack, funding, team, competitors, recent news. Chains search + batch fetch + Claude.
+- Price: $0.50
+- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Returns: \`{"name", "domain", "funding", "summary", "requestId"}\`
+
+#### POST /intel/market
+Market research report: executive summary, market size, growth, key trends, key players, recommendations.
+- Price: $2.00
+- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Returns: \`{"topic", "executiveSummary", "marketSize", "growthRate", "keyTrends", "keyPlayers", "recommendations", "requestId"}\`
+
+#### POST /intel/competitive
+Competitive analysis: feature matrix, pricing comparison, SWOT, positioning.
+- Price: $3.00
+- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Returns: \`{"company", "competitors", "featureMatrix", "pricing", "swot", "positioning", "requestId"}\`
+
+#### POST /intel/site-audit
+Full site audit: SEO, performance, security, accessibility scoring with actionable recommendations.
+- Price: $0.30
+- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Returns: \`{"url", "scores": {"seo", "performance", "security", "accessibility"}, "issues", "recommendations", "requestId"}\`
+
 ### Memory (Key-Value Storage)
 
 #### POST /memory/set
@@ -687,17 +715,23 @@ For AI agents using Model Context Protocol:
 
 ## Available MCP Tools
 
-- \`fetch_webpage\` - Fetch webpage as markdown (basic)
-- \`fetch_webpage_pro\` - Fetch with JS rendering
-- \`screenshot\` - Capture webpage screenshot
-- \`search_web\` - Real-time web search
-- \`extract_data\` - Extract structured data with selectors
-- \`smart_extract\` - AI-powered extraction with natural language
-- \`research\` - Search + fetch + summarize
-- \`extract_pdf\` - Extract text from PDFs
-- \`compare_urls\` - Compare 2-3 webpages
-- \`batch_fetch\` - Fetch multiple URLs in parallel
-- \`fetch_resilient\` - Resilient fetch with fallback (Agent Prime)
+- \`fetch_webpage\` - Fetch webpage as markdown (basic) — $0.005
+- \`fetch_webpage_pro\` - Fetch with JS rendering — $0.015
+- \`fetch_resilient\` - Resilient fetch with provider fallback — $0.025
+- \`screenshot\` - Capture webpage screenshot — $0.02
+- \`search_web\` - Real-time web search — $0.005
+- \`extract_data\` - Extract structured data with JSON schema — $0.03
+- \`smart_extract\` - AI-powered natural-language extraction — $0.035
+- \`research\` - Search + fetch + AI summary — $0.08
+- \`batch_fetch\` - Fetch multiple URLs in parallel — $0.003/URL
+- \`extract_pdf\` - Extract text from PDFs — $0.01
+- \`compare_urls\` - Compare 2-3 webpages — $0.05
+- \`monitor_create\` - Create URL change monitor — $0.01
+- \`memory_set\` - Persistent key-value storage — $0.001
+- \`intel_company\` - Company deep dive (AI-powered) — $0.50
+- \`intel_market\` - Market research report — $2.00
+- \`intel_competitive\` - Competitive analysis — $3.00
+- \`intel_site_audit\` - SEO/performance/security audit — $0.30
 
 ## Endpoints
 
