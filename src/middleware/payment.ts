@@ -60,28 +60,37 @@ export function getResourceServer(env: Env): x402ResourceServer {
     const NETWORK_CAIP2 = env.NETWORK === "base-sepolia" ? "eip155:84532" : "eip155:8453";
 
     // Facilitator selection (runtime, not config-driven):
-    //   - testnet env or explicit x402.org URL → x402.org facilitator
-    //   - CDP keys present → CDP facilitator via @coinbase/x402
-    //   - otherwise → PayAI public facilitator
-    let facilitatorClient: HTTPFacilitatorClient;
+    //   - testnet env or explicit x402.org URL → x402.org facilitator (single)
+    //   - CDP keys present → [PayAI primary, CDP secondary] for redundancy
+    //     CDP facilitator has known gas-estimation bugs on Base mainnet
+    //     (coinbase/x402#1065) with ~40% failure rate. PayAI is more reliable
+    //     for the "exact" scheme. CDP is kept as fallback for any schemes
+    //     PayAI doesn't advertise via /supported.
+    //   - otherwise → PayAI only
+    let facilitatorClients: HTTPFacilitatorClient[];
     let facilitatorLabel: string;
 
     if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
         const url = env.FACILITATOR_URL ?? "https://x402.org/facilitator";
-        facilitatorClient = new HTTPFacilitatorClient({ url });
+        facilitatorClients = [new HTTPFacilitatorClient({ url })];
         facilitatorLabel = `testnet (${url})`;
     } else if (env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET) {
-        facilitatorClient = new HTTPFacilitatorClient(
+        const payaiUrl = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
+        const payaiClient = new HTTPFacilitatorClient({ url: payaiUrl });
+        const cdpClient = new HTTPFacilitatorClient(
             createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)
         );
-        facilitatorLabel = "cdp (@coinbase/x402)";
+        // PayAI first = gets precedence for shared scheme/network combos.
+        // x402ResourceServer uses "earlier facilitator wins" during initialize().
+        facilitatorClients = [payaiClient, cdpClient];
+        facilitatorLabel = `payai (primary) + cdp (fallback)`;
     } else {
         const url = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
-        facilitatorClient = new HTTPFacilitatorClient({ url });
+        facilitatorClients = [new HTTPFacilitatorClient({ url })];
         facilitatorLabel = `payai (${url})`;
     }
 
-    const server = new x402ResourceServer(facilitatorClient);
+    const server = new x402ResourceServer(facilitatorClients);
     server.register(NETWORK_CAIP2, new ExactEvmScheme());
     server.registerExtension(bazaarResourceServerExtension);
 

@@ -72,15 +72,23 @@ export class MonitorScheduler extends DurableObject<Env> {
     const now = Date.now();
     let nextAlarmTime = Infinity;
 
-    for (const [, value] of monitors) {
+    for (const [key, value] of monitors) {
       const monitor = value as { monitorId: string; intervalHours: number; scheduledAt: number };
 
       // If it's time to check (or past time)
       if (monitor.scheduledAt <= now) {
         console.log(`Processing monitor: ${monitor.monitorId}`);
 
-        // Execute the check logic
-        await this.processCheck(monitor.monitorId);
+        // Execute the check logic — returns false if billing failed
+        const shouldContinue = await this.processCheck(monitor.monitorId);
+
+        if (!shouldContinue) {
+          // Billing failed (insufficient credits) — remove from scheduler
+          // to stop the alarm loop. Monitor remains in KV as "paused".
+          console.warn(`Pausing monitor ${monitor.monitorId} — billing failed, removing from scheduler`);
+          await this.ctx.storage.delete(key);
+          continue;
+        }
 
         // Reschedule
         const nextCheck = now + monitor.intervalHours * 60 * 60 * 1000;
@@ -106,22 +114,21 @@ export class MonitorScheduler extends DurableObject<Env> {
   }
 
   /**
-   * Process a single monitor check
+   * Process a single monitor check.
+   * Returns true if the monitor should be rescheduled, false if billing
+   * failed and the monitor should be paused to stop the alarm loop.
    */
-  async processCheck(monitorId: string): Promise<void> {
+  async processCheck(monitorId: string): Promise<boolean> {
     try {
-      // Dynamic import to avoid circular dependencies if possible, 
-      // or just import at top level if build system permits.
-      // For now assuming we can import service functions.
       const { checkMonitor } = await import("../services/monitor");
       const { deductCredits } = await import("../services/credits");
-      const { getMonitor } = await import("../services/monitor");
+      const { getMonitor, updateMonitorStatus } = await import("../services/monitor");
       const { PRICING } = await import("../config");
 
       // 1. Get monitor to find owner
       if (!this.env.MONITOR || !this.env.CREDIT_MANAGER) {
         console.error("Monitor or Credits service not configured");
-        return;
+        return false;
       }
 
       const config = { kv: this.env.MONITOR };
@@ -129,7 +136,7 @@ export class MonitorScheduler extends DurableObject<Env> {
 
       if (!monitor?.ownerId) {
         console.error(`Monitor ${monitorId} not found or has no owner`);
-        return;
+        return false;
       }
 
       // 2. Billing (Prevent check if insufficient funds)
@@ -144,12 +151,14 @@ export class MonitorScheduler extends DurableObject<Env> {
         );
       } catch (error) {
         console.error(`Billing failed for ${monitorId}:`, error);
-        // Optionally disable monitor here
-        return;
+        // Mark monitor as paused in KV so the owner can see why it stopped
+        try {
+          await updateMonitorStatus(config, monitorId, "paused");
+        } catch { /* best-effort */ }
+        return false;
       }
 
       // 3. Perform Check
-      // Use a standard fetch for now, or resilientFetch if needed
       const fetcher = async (url: string) => {
         const res = await fetch(url);
         return await res.text();
@@ -157,9 +166,11 @@ export class MonitorScheduler extends DurableObject<Env> {
 
       const result = await checkMonitor(config, monitorId, fetcher);
       console.log(`Check complete for ${monitorId}. Changed: ${result.changed}`);
+      return true;
 
     } catch (error) {
       console.error(`Failed to process check for ${monitorId}:`, error);
+      return true; // reschedule — transient errors should retry
     }
   }
 }

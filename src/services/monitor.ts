@@ -120,6 +120,20 @@ export async function getMonitor(
 }
 
 /**
+ * Update a monitor's status (e.g., pause when billing fails)
+ */
+export async function updateMonitorStatus(
+  config: MonitorServiceConfig,
+  monitorId: string,
+  status: "active" | "paused" | "error"
+): Promise<void> {
+  const monitor = await getMonitor(config, monitorId);
+  if (!monitor) {return;}
+  monitor.status = status;
+  await config.kv.put(getMonitorKey(monitorId), JSON.stringify(monitor));
+}
+
+/**
  * Delete a monitor
  * Requirement 4.6: DELETE /monitor/:id stops and removes monitor
  */
