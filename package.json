@@ -35,15 +35,15 @@
     "@hono/eslint-config": "^2.1.0",
     "@scalar/hono-api-reference": "^0.10.7",
     "@types/node": "^25.6.0",
-    "@x402/axios": "^2.9.0",
-    "@x402/core": "^2.9.0",
-    "@x402/evm": "^2.9.0",
-    "@x402/extensions": "^2.9.0",
-    "@x402/hono": "^2.9.0",
+    "@x402/axios": "^2.10.0",
+    "@x402/core": "^2.10.0",
+    "@x402/evm": "^2.10.0",
+    "@x402/extensions": "^2.10.0",
+    "@x402/hono": "^2.10.0",
     "@solana/sysvars": "^6.8.0",
     "commander": "14.0.3",
     "hono": "^4.12.12",
-    "typescript-eslint": "^8.58.1",
+    "typescript-eslint": "^8.58.2",
     "zod": "^4.3.6"
   },
   "pnpm": {
@@ -53,14 +53,14 @@
     ]
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260413.1",
+    "@cloudflare/workers-types": "^4.20260414.1",
     "@coinbase/agentkit": "^0.10.4",
     "axios": "^1.15.0",
     "eslint": "10.2.0",
     "fast-check": "^4.6.0",
     "typescript": "^6.0.2",
-    "viem": "^2.47.16",
+    "viem": "^2.47.17",
     "vitest": "^4.1.4",
-    "wrangler": "^4.82.0"
+    "wrangler": "^4.82.2"
   }
 }
