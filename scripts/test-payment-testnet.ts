@@ -250,12 +250,21 @@ async function run(): Promise<void> {
     // wallet is the namespace key) and are tested in the chained section
     // below using buildCreditAuthHeaders().
     const freeEndpoints: ITestEndpoint[] = [
-        { name: "Health Check",     method: "GET",  path: "/health",    price: "FREE", free: true },
-        { name: "Root Info",        method: "GET",  path: "/",          price: "FREE", free: true },
-        { name: "Discovery",        method: "GET",  path: "/discovery", price: "FREE", free: true },
-        { name: "MCP Info",         method: "GET",  path: "/mcp/info",  price: "FREE", free: true },
-        { name: "Free Fetch",       method: "POST", path: "/free/fetch",  price: "FREE", free: true, body: { url: "https://example.com" } },
-        { name: "Free Search",      method: "POST", path: "/free/search", price: "FREE", free: true, body: { query: "x402 protocol", limit: 3 } },
+        { name: "Health Check",       method: "GET",  path: "/health",                         price: "FREE", free: true },
+        { name: "Root Info",          method: "GET",  path: "/",                               price: "FREE", free: true },
+        { name: "Discovery",          method: "GET",  path: "/discovery",                      price: "FREE", free: true },
+        { name: "Well-Known x402",    method: "GET",  path: "/.well-known/x402",               price: "FREE", free: true },
+        { name: "MCP Info",           method: "GET",  path: "/mcp/info",                       price: "FREE", free: true },
+        { name: "OpenAPI Spec",       method: "GET",  path: "/openapi.json",                   price: "FREE", free: true },
+        { name: "LLMs Text",          method: "GET",  path: "/llms.txt",                       price: "FREE", free: true },
+        { name: "Robots",             method: "GET",  path: "/robots.txt",                     price: "FREE", free: true },
+        { name: "Sitemap",            method: "GET",  path: "/sitemap.xml",                    price: "FREE", free: true },
+        { name: "Reader (/r/)",       method: "GET",  path: "/r/https://example.com",          price: "FREE", free: true },
+        // Note: /s/ search reader omitted from automated tests — it depends on
+        // SERP_API_KEY upstream or DuckDuckGo (which often serves CAPTCHAs to
+        // datacenter IPs), making the result non-deterministic across envs.
+        { name: "Free Fetch",         method: "POST", path: "/free/fetch",                     price: "FREE", free: true, body: { url: "https://example.com" } },
+        { name: "Free Search",        method: "POST", path: "/free/search",                    price: "FREE", free: true, body: { query: "x402 protocol", limit: 3 } },
     ];
 
     // ============================================
@@ -419,6 +428,135 @@ async function run(): Promise<void> {
             results.push({ name: memEp.name, success: false, path: memEp.path });
         }
         await sleep(300);
+    }
+
+    // ============================================
+    // Fiat Onramp health check — new endpoints shipped with the Stripe
+    // integration. Without STRIPE_SECRET_KEY these should return 503
+    // gracefully (never crash, never leak stack traces). With Stripe
+    // configured, /credits/deposit/fiat returns 200 + checkoutUrl.
+    // ============================================
+    console.log("\n" + "=".repeat(50));
+    console.log("💳 FIAT ONRAMP (expect 503 when Stripe unset, 200 when set)");
+    console.log("=".repeat(50));
+
+    const fiatWallet = account.address;
+    const fiatTests = [
+        {
+            name: "Fiat Deposit (POST)",
+            method: "POST" as const,
+            path: "/credits/deposit/fiat",
+            body: { amount: 2, wallet: fiatWallet },
+        },
+    ];
+    for (const ep of fiatTests) {
+        console.log(`\n--- Testing ${ep.name} ---`);
+        console.log(`${ep.method} ${ep.path}`);
+        try {
+            const resp = await baseAxios.post<IWebLensResponseData & { checkoutUrl?: string }>(
+                ep.path,
+                ep.body
+            );
+            console.log("✅ Success! Status:", resp.status);
+            if (resp.data.checkoutUrl) {
+                console.log("  checkoutUrl:", resp.data.checkoutUrl.slice(0, 80) + "...");
+            }
+            results.push({ name: ep.name, success: true, path: ep.path });
+        } catch (err) {
+            if (axios.isAxiosError(err) && err.response) {
+                if (err.response.status === 503) {
+                    console.log("⏩ 503 (Stripe not configured — expected without STRIPE_SECRET_KEY)");
+                    results.push({ name: ep.name, success: true, path: ep.path });
+                } else {
+                    console.log("❌ Error:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
+                    results.push({ name: ep.name, success: false, path: ep.path });
+                }
+            } else {
+                console.error("❌ Error:", err instanceof Error ? err.message : String(err));
+                results.push({ name: ep.name, success: false, path: ep.path });
+            }
+        }
+        await sleep(300);
+    }
+
+    // Webhook endpoint: must reject unsigned requests with 400 or 503. Any
+    // other status (especially 200) would indicate the signature check
+    // was bypassed — a critical security regression.
+    console.log(`\n--- Testing Stripe Webhook (unsigned, expect 400 or 503) ---`);
+    try {
+        const resp = await baseAxios.post<IWebLensResponseData>(
+            "/credits/webhook/stripe",
+            { id: "evt_unsigned", type: "checkout.session.completed", data: { object: {} } }
+        );
+        console.log("❌ Unexpected 2xx — signature verification is not enforced:", resp.status);
+        results.push({ name: "Stripe Webhook", success: false, path: "/credits/webhook/stripe" });
+    } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+            const status = err.response.status;
+            if (status === 400 || status === 503) {
+                console.log(`⏩ ${String(status)} (expected — webhook correctly rejects unsigned requests)`);
+                results.push({ name: "Stripe Webhook", success: true, path: "/credits/webhook/stripe" });
+            } else {
+                console.log("❌ Unexpected status:", status, JSON.stringify(err.response.data).slice(0, 200));
+                results.push({ name: "Stripe Webhook", success: false, path: "/credits/webhook/stripe" });
+            }
+        }
+    }
+    await sleep(300);
+
+    // Fiat landing pages (HTML) — must return 200 with text/html content type.
+    for (const landing of [
+        { name: "Fiat Success Landing", path: "/credits/fiat/success?session_id=cs_test_abc" },
+        { name: "Fiat Cancel Landing",  path: "/credits/fiat/cancel" },
+    ]) {
+        console.log(`\n--- Testing ${landing.name} ---`);
+        console.log(`GET ${landing.path}`);
+        try {
+            const resp = await baseAxios.get<string>(landing.path, { responseType: "text" });
+            const ct = resp.headers["content-type"] as string | undefined;
+            console.log("✅ Success! Status:", resp.status, "| Content-Type:", ct);
+            const ok = resp.status === 200 && ct?.includes("text/html") === true;
+            results.push({ name: landing.name, success: ok, path: landing.path });
+        } catch (err) {
+            if (axios.isAxiosError(err) && err.response) {
+                console.log("❌ Error:", err.response.status);
+                results.push({ name: landing.name, success: false, path: landing.path });
+            }
+        }
+        await sleep(200);
+    }
+
+    // ============================================
+    // SSRF defense — free endpoints must reject internal IPs + userinfo
+    // ============================================
+    console.log("\n" + "=".repeat(50));
+    console.log("🛡️  SSRF DEFENSE");
+    console.log("=".repeat(50));
+
+    const ssrfCases: { name: string; url: string }[] = [
+        { name: "SSRF (internal IP 169.254)", url: "http://169.254.169.254/latest/meta-data/" },
+        { name: "SSRF (userinfo bypass)",     url: "https://admin@169.254.169.254/" },
+        { name: "SSRF (localhost)",           url: "http://127.0.0.1:8080/" },
+    ];
+    for (const c of ssrfCases) {
+        console.log(`\n--- Testing ${c.name} on /free/fetch ---`);
+        try {
+            const resp = await baseAxios.post<IWebLensResponseData>("/free/fetch", { url: c.url });
+            console.log("❌ SSRF NOT BLOCKED — response:", resp.status, JSON.stringify(resp.data).slice(0, 200));
+            results.push({ name: c.name, success: false, path: "/free/fetch" });
+        } catch (err) {
+            if (axios.isAxiosError(err) && err.response) {
+                const data = err.response.data as { code?: string };
+                if (err.response.status === 400 && data.code === "INVALID_URL") {
+                    console.log(`⏩ Correctly rejected with 400 INVALID_URL`);
+                    results.push({ name: c.name, success: true, path: "/free/fetch" });
+                } else {
+                    console.log("❌ Unexpected:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
+                    results.push({ name: c.name, success: false, path: "/free/fetch" });
+                }
+            }
+        }
+        await sleep(200);
     }
 
     // Monitor: get → delete (requires capturedMonitorId from /monitor/create)
