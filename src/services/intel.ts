@@ -7,6 +7,7 @@
  */
 
 import { fetchBasicPage } from "../tools/fetch-basic";
+import { safeFetch } from "../utils/safe-fetch";
 import type { AIServiceConfig } from "./ai";
 import { callClaude } from "./ai";
 import type { SearchResult as SearchServiceResult } from "./search";
@@ -347,14 +348,16 @@ export async function siteAudit(options: SiteAuditOptions): Promise<SiteAudit> {
         throw new Error(`Failed to fetch content from ${url}`);
     }
 
-    // Step 2: Also fetch the raw HTML for technical analysis
+    // Step 2: Also fetch the raw HTML for technical analysis. Use safeFetch
+    // so redirect chains are re-validated against the SSRF allow-list.
     let rawHtml = "";
     try {
-        const htmlResponse = await fetch(url, {
+        const htmlResponse = await safeFetch(url, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 Accept: "text/html",
             },
+            signal: AbortSignal.timeout(10000),
         });
         if (htmlResponse.ok) {
             rawHtml = (await htmlResponse.text()).slice(0, 15000);

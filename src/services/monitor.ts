@@ -10,6 +10,7 @@
 
 import { PRICING } from "../config";
 import type { StoredMonitor, MonitorStatus } from "../types";
+import { validateURL } from "./validator";
 
 export interface MonitorServiceConfig {
   kv: KVNamespace;
@@ -279,18 +280,16 @@ export function toMonitorStatus(monitor: StoredMonitor): MonitorStatus {
 }
 
 /**
- * Validate webhook URL
+ * Validate webhook URL — delegates to the full SSRF-blocking validator so a
+ * monitor cannot be used to POST attacker-controlled payloads at internal
+ * IPs (RFC 1918, link-local metadata endpoints, .onion, etc.).
  */
 export function validateWebhookUrl(url: string): { valid: boolean; error?: string } {
-  try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return { valid: false, error: "Webhook URL must use HTTP or HTTPS" };
-    }
-    return { valid: true };
-  } catch {
-    return { valid: false, error: "Invalid webhook URL format" };
+  const result = validateURL(url);
+  if (!result.valid) {
+    return { valid: false, error: result.error ?? "Webhook URL not allowed" };
   }
+  return { valid: true };
 }
 
 /**
@@ -321,6 +320,14 @@ export async function sendWebhookNotification(
     checkedAt: string;
   }
 ): Promise<boolean> {
+  // Re-validate before every webhook POST. Defence in depth: even if a
+  // monitor slipped through creation validation, we won't POST to an
+  // internal IP once a DNS record flips or a redirect chain rewrites.
+  const validation = validateURL(webhookUrl);
+  if (!validation.valid) {
+    console.warn(`[monitor] blocked webhook URL at send time: ${validation.error ?? "invalid"}`);
+    return false;
+  }
   try {
     const response = await fetch(webhookUrl, {
       method: "POST",
@@ -329,6 +336,7 @@ export async function sendWebhookNotification(
         "User-Agent": "WebLens-Monitor/1.0",
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
     });
 
     return response.ok;

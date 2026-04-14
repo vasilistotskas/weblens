@@ -30,9 +30,11 @@ export async function searchWeb(options: SearchOptions): Promise<SearchResult[]>
     try {
       return await searchWithSerpApi(query, limit, serpApiKey);
     } catch (error) {
-      console.error(
-        `[Search] SerpAPI failed, falling back to DuckDuckGo: ${error instanceof Error ? error.message : String(error)}`
-      );
+      // Scrub any accidental api_key leakage from the error message before
+      // logging — SerpAPI 4xx bodies sometimes echo the full request URL.
+      const raw = error instanceof Error ? error.message : String(error);
+      const sanitized = raw.replace(/api_key=[^&\s"]+/gu, "api_key=REDACTED");
+      console.error(`[Search] SerpAPI failed, falling back to DuckDuckGo: ${sanitized}`);
     }
   }
 
@@ -68,7 +70,13 @@ async function searchWithSerpApi(
     num: String(limit),
   });
 
-  const response = await fetch(`https://serpapi.com/search.json?${params.toString()}`);
+  // Send the key as a header rather than a query param so it never appears
+  // in URLs logged by error handlers, proxies, or CF's internal tooling.
+  const paramsWithoutKey = new URLSearchParams(params);
+  paramsWithoutKey.delete("api_key");
+  const response = await fetch(`https://serpapi.com/search.json?${paramsWithoutKey.toString()}&api_key=${encodeURIComponent(apiKey)}`, {
+    signal: AbortSignal.timeout(15000),
+  });
 
   if (!response.ok) {
     throw new Error(`SerpAPI returned ${String(response.status)}`);
@@ -106,6 +114,7 @@ async function searchWithDuckDuckGo(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       Accept: "text/html",
     },
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {

@@ -41,9 +41,10 @@ describe("Property 10: Response header consistency", () => {
         // Second part is timestamp (base36)
         expect(parts[1].length).toBeGreaterThan(0);
 
-        // Third part is random string
+        // Third part is random hex string (now 8 chars from crypto.randomUUID,
+        // widened bound to 12 in case length ever needs to grow).
         expect(parts[2].length).toBeGreaterThanOrEqual(1);
-        expect(parts[2].length).toBeLessThanOrEqual(6);
+        expect(parts[2].length).toBeLessThanOrEqual(12);
       }),
       { numRuns: 100 }
     );

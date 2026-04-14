@@ -7,6 +7,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "../types";
+import { safeFetch } from "../utils/safe-fetch";
 
 export class MonitorScheduler extends DurableObject<Env> {
 
@@ -158,9 +159,11 @@ export class MonitorScheduler extends DurableObject<Env> {
         return false;
       }
 
-      // 3. Perform Check
+      // 3. Perform Check — use safeFetch so any redirect chain is revalidated
+      // (a monitored page could redirect to an internal IP between creation
+      // and the next scheduled check).
       const fetcher = async (url: string) => {
-        const res = await fetch(url);
+        const res = await safeFetch(url, { signal: AbortSignal.timeout(15000) });
         return await res.text();
       };
 

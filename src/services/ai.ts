@@ -90,6 +90,9 @@ export async function callClaude(
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
     }),
+    // Anthropic can take up to ~60s for long extractions; cap at 90s so a
+    // hung TCP connection cannot tie up the Worker isolate indefinitely.
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!response.ok) {

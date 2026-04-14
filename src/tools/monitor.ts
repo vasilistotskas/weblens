@@ -17,6 +17,7 @@ import {
   toMonitorStatus,
   validateWebhookUrl,
 } from "../services/monitor";
+import { validateURL } from "../services/validator";
 import type {
   Env,
   MonitorCreateRequest,
@@ -97,7 +98,22 @@ export async function monitorCreateHandler(c: Context<{ Bindings: Env }>) {
 
     const { url, webhookUrl, checkInterval, notifyOn } = parsed.data;
 
-    // Validate webhook URL
+    // Validate target URL (SSRF — same checks applied to all scraping endpoints).
+    const targetValidation = validateURL(url);
+    if (!targetValidation.valid) {
+      return c.json(
+        {
+          error: "INVALID_URL",
+          code: "INVALID_URL",
+          message: targetValidation.error,
+          requestId,
+        },
+        400
+      );
+    }
+
+    // Validate webhook URL — same SSRF gate, so a monitor cannot be used to
+    // POST payloads at internal IPs (cloud metadata, RFC 1918).
     const webhookValidation = validateWebhookUrl(webhookUrl);
     if (!webhookValidation.valid) {
       return c.json(

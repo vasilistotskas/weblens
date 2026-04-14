@@ -15,7 +15,10 @@
  */
 export function generateRequestId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
+  // Use WebCrypto UUID rather than Math.random so IDs can never collide
+  // across concurrent requests — collisions would confuse dedup keys used
+  // by the credit DO and x402 retries.
+  const random = crypto.randomUUID().replace(/-/gu, "").slice(0, 8);
   return `wl_${timestamp}_${random}`;
 }
 
@@ -26,8 +29,8 @@ export function generateRequestId(): string {
  * @returns true if the string matches the request ID format
  */
 export function isValidRequestId(id: string): boolean {
-  // Pattern: wl_{base36 timestamp}_{6 char random}
-  const pattern = /^wl_[a-z0-9]+_[a-z0-9]{1,6}$/;
+  // Pattern: wl_{base36 timestamp}_{1..12 hex/base36 random}
+  const pattern = /^wl_[a-z0-9]+_[a-z0-9]{1,12}$/u;
   return pattern.test(id);
 }
 

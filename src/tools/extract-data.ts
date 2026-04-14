@@ -6,6 +6,7 @@ import { validateURL } from "../services/validator";
 import type { Env, ExtractRequest, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
 import { generateRequestId } from "../utils/requestId";
+import { safeFetch } from "../utils/safe-fetch";
 
 const extractSchema = z.object({
   url: z.url(),
@@ -31,7 +32,7 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
       return c.json(createErrorResponse("INVALID_URL", urlValidation.error ?? "Invalid URL", requestId), 400);
     }
 
-    const response = await fetch(urlValidation.normalized ?? url, {
+    const response = await safeFetch(urlValidation.normalized ?? url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -124,6 +125,7 @@ Respond ONLY with valid JSON matching the schema. No explanations.`;
       max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     }),
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!response.ok) {

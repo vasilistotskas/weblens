@@ -1,4 +1,4 @@
-import { verifyMessage } from "viem";
+import { getAddress, verifyMessage } from "viem";
 
 /**
  * Security Utility
@@ -55,18 +55,37 @@ export async function verifyWalletSignature(
         return { isValid: false, error: "Request expired or timestamp out of range", code: "EXPIRED_TIMESTAMP" };
     }
 
-    // 3. Reconstruct the message
-    // This exact format must be used by the client when signing!
-    const message = `WebLens Authentication\nWallet: ${walletAddress}\nTimestamp: ${timestamp}`;
+    // 3. Reconstruct the message. Try both the raw form and the checksum
+    // form — different client libs normalize case differently when signing,
+    // and rejecting one form while accepting the other silently breaks auth
+    // for perfectly valid callers.
+    let checksummed: `0x${string}`;
+    try {
+        checksummed = getAddress(walletAddress);
+    } catch {
+        return { isValid: false, error: "Malformed wallet address", code: "INVALID_WALLET" };
+    }
+    const messages = [
+        `WebLens Authentication\nWallet: ${walletAddress}\nTimestamp: ${timestamp}`,
+        `WebLens Authentication\nWallet: ${checksummed}\nTimestamp: ${timestamp}`,
+        `WebLens Authentication\nWallet: ${walletAddress.toLowerCase()}\nTimestamp: ${timestamp}`,
+    ];
 
     try {
-        // 4. Verify signature using viem
-        // verifyMessage handles EIP-191 prefixing automatically
-        const valid = await verifyMessage({
-            address: walletAddress as `0x${string}`,
-            message: message,
-            signature: signature as `0x${string}`,
-        });
+        // 4. Verify signature using viem. Accept any of the three canonical
+        // forms (raw / EIP-55 checksum / lowercase) — the DO lookup later
+        // normalizes via toLowerCase so which one was signed is irrelevant.
+        let valid = false;
+        for (const message of messages) {
+            if (await verifyMessage({
+                address: checksummed,
+                message,
+                signature: signature as `0x${string}`,
+            })) {
+                valid = true;
+                break;
+            }
+        }
 
         if (!valid) {
             return { isValid: false, error: "Invalid signature", code: "INVALID_SIGNATURE" };

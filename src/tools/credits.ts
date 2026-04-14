@@ -40,33 +40,53 @@ import { verifyWalletSignature } from "../utils/security";
 export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
     const requestId = generateRequestId();
 
-    // 1. Get wallet address from authenticated context (x402 v2)
-    // We extract it from the Payment-Signature header passed by the client.
-    // In a full implementation the middleware would attach the verified
-    // wallet to c.var so we wouldn't need to re-decode the payload here.
-    const paymentHeader = c.req.header("Payment-Signature");
-    let walletAddress = "0x0000000000000000000000000000000000000000"; // Fallback/Test
-
-    if (paymentHeader) {
-        try {
-            const decoded = JSON.parse(atob(paymentHeader)) as { payload?: { authorization?: { from?: string } } };
-            if (decoded.payload?.authorization?.from) {
-                walletAddress = decoded.payload.authorization.from;
-            }
-        } catch {
-            // Ignore malformed header
-        }
-    }
-
     if (!c.env.CREDIT_MANAGER) {
         return c.json(
-            {
-                error: "SERVICE_UNAVAILABLE",
-                code: "SERVICE_UNAVAILABLE",
-                message: "Credit service is not configured",
-                requestId,
-            },
+            createErrorResponse(
+                "SERVICE_UNAVAILABLE",
+                "Credit service is not configured",
+                requestId
+            ),
             503,
+        );
+    }
+
+    // Extract wallet + EIP-3009 nonce from the verified x402 payment payload.
+    // The @x402/hono middleware has already validated the signature and
+    // settled the transfer on-chain before this handler runs, so we can
+    // trust `authorization.from` as the payer. The `authorization.nonce` is
+    // unique per EIP-3009 transfer by protocol and makes a stable dedup key.
+    const paymentHeader = c.req.header("Payment-Signature");
+    if (!paymentHeader) {
+        return c.json(
+            createErrorResponse(
+                "PAYMENT_FAILED",
+                "Payment-Signature header required — x402 middleware should have rejected this request",
+                requestId
+            ),
+            402,
+        );
+    }
+
+    let walletAddress: string;
+    let paymentNonce: string | undefined;
+    try {
+        const decoded = JSON.parse(atob(paymentHeader)) as {
+            payload?: { authorization?: { from?: string; nonce?: string } };
+        };
+        const from = decoded.payload?.authorization?.from;
+        if (!from || !/^0x[a-fA-F0-9]{40}$/u.test(from)) {
+            return c.json(
+                createErrorResponse("INVALID_REQUEST", "Malformed payment payload: missing or invalid `from`", requestId),
+                400,
+            );
+        }
+        walletAddress = from;
+        paymentNonce = decoded.payload?.authorization?.nonce;
+    } catch {
+        return c.json(
+            createErrorResponse("INVALID_REQUEST", "Malformed Payment-Signature header", requestId),
+            400,
         );
     }
 
@@ -95,18 +115,23 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
         // For MVP, we assume the user paid the amount they claimed if they passed the
         // payment middleware check (which we will configure partially).
 
-        // Process the deposit
-        const { account, bonusAccrued } = await processDeposit(
+        // Process the deposit — use the EIP-3009 nonce as externalId so any
+        // retry of this exact on-chain transfer is deduped inside the DO.
+        const { account, bonusAccrued, duplicate } = await processDeposit(
             c.env.CREDIT_MANAGER,
             walletAddress,
             amountUsd,
             requestId,
+            { externalId: paymentNonce ?? requestId, source: "x402" },
         );
 
         return c.json({
             success: true,
-            message: `Successfully added ${amountStr} to your account`,
-            added: amountStr,
+            duplicate,
+            message: duplicate
+                ? `Duplicate request — this payment was already applied. Current balance: $${account.balance.toFixed(4)}`
+                : `Successfully added ${amountStr} to your account`,
+            added: duplicate ? "$0.00" : amountStr,
             bonus: `$${bonusAccrued.toFixed(2)}`,
             newBalance: `$${account.balance.toFixed(4)}`,
             tier: account.tier,

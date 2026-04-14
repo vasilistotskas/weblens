@@ -100,6 +100,17 @@ export function validateURL(input: string): URLValidationResult {
       };
     }
 
+    // Block URLs that embed userinfo (https://user:pass@host). Some HTTP
+    // clients normalize these in confusing ways that can smuggle the real
+    // target host past a naïve allow-list; refusing them outright is the
+    // safest SSRF defense.
+    if (url.username || url.password) {
+      return {
+        valid: false,
+        error: "URLs with embedded credentials are not allowed"
+      };
+    }
+
     // Check for blocked hosts
     if (isBlockedHost(url.hostname)) {
       return {

@@ -62,11 +62,16 @@ export async function createCheckoutSession(
             "Content-Type": "application/x-www-form-urlencoded",
         },
         body: form.toString(),
+        signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
+        // Log the full Stripe error server-side for debugging but surface a
+        // generic message to the caller — Stripe error bodies can include
+        // card tail digits, billing metadata, or HTML from upstream proxies.
         const text = await response.text();
-        throw new Error(`Stripe checkout.sessions.create failed (${String(response.status)}): ${text}`);
+        console.error(`[stripe] checkout.sessions.create ${String(response.status)}: ${text.slice(0, 500)}`);
+        throw new Error(`Stripe checkout session creation failed (HTTP ${String(response.status)})`);
     }
 
     const data = await response.json<{ id: string; url: string }>();
