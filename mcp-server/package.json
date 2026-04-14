@@ -4,13 +4,35 @@
   "description": "MCP server for WebLens - Web Intelligence API with x402 payments",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "weblens-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vassilistotskas/weblens.git",
+    "directory": "mcp-server"
+  },
+  "homepage": "https://api.weblens.dev",
+  "bugs": {
+    "url": "https://github.com/vassilistotskas/weblens/issues"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.23.0",
@@ -25,6 +47,6 @@
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
-  "keywords": ["mcp", "weblens", "x402", "ai-agent", "web-scraping"],
+  "keywords": ["mcp", "weblens", "x402", "ai-agent", "web-scraping", "model-context-protocol"],
   "license": "MIT"
 }

@@ -128,12 +128,19 @@ export async function verifyStripeSignature(params: {
     return matched ? { valid: true } : { valid: false, reason: "Signature mismatch" };
 }
 
-/** Constant-time hex-string comparison to defeat timing oracles. */
+/**
+ * Constant-time hex-string comparison. Runs the full loop over the longer
+ * input regardless of length mismatch — an early `a.length !== b.length`
+ * short-circuit leaks "wrong length" vs "right length wrong value" via
+ * observable timing.
+ */
 function timingSafeEqualHex(a: string, b: string): boolean {
-    if (a.length !== b.length) {return false;}
-    let mismatch = 0;
-    for (let i = 0; i < a.length; i++) {
-        mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    const maxLen = a.length > b.length ? a.length : b.length;
+    let mismatch = a.length ^ b.length;
+    for (let i = 0; i < maxLen; i++) {
+        const ca = i < a.length ? a.charCodeAt(i) : 0;
+        const cb = i < b.length ? b.charCodeAt(i) : 0;
+        mismatch |= ca ^ cb;
     }
     return mismatch === 0;
 }

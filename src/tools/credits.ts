@@ -8,7 +8,6 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
 import { PRICING } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import {
@@ -19,11 +18,6 @@ import {
 import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
-
-// Schema for buy request — must match CreditsBuyRequestSchema in schemas.ts
-const buyCreditsSchema = z.object({
-    amount: z.number().min(5).max(1000),
-});
 
 /**
  * POST /credits/buy
@@ -77,23 +71,21 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
     }
 
     try {
-        const body = await c.req.json() as unknown;
-        const parsed = buyCreditsSchema.safeParse(body);
-
-        if (!parsed.success) {
+        // validateRequest middleware already parsed the body against
+        // CreditsBuyRequestSchema and stored it in context. Re-reading
+        // c.req.json() would consume the (already-consumed) stream.
+        const parsed = c.get("validatedBody") as { amount?: number } | undefined;
+        const amountUsd = parsed?.amount;
+        if (typeof amountUsd !== "number" || amountUsd < 2 || amountUsd > 1000) {
             return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid amount format",
-                    details: parsed.error.issues,
-                    requestId,
-                },
+                createErrorResponse(
+                    "INVALID_REQUEST",
+                    "amount must be between $2 and $1000",
+                    requestId
+                ),
                 400,
             );
         }
-
-        const amountUsd = parsed.data.amount;
         const amountStr = `$${amountUsd.toFixed(2)}`;
 
         // Currently we rely on the x402 middleware to have enforced payment.

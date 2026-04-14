@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
+import { rateLimitMiddleware } from "../middleware/rate-limit";
 import { validateRequest } from "../middleware/validation";
 import { CreditsBuyRequestSchema, FiatDepositRequestSchema } from "../schemas";
 
@@ -7,6 +8,16 @@ import { CreditsBuyRequestSchema, FiatDepositRequestSchema } from "../schemas";
 import { buyCreditsHandler, getBalanceHandler, getHistoryHandler } from "../tools/credits";
 import { createFiatCheckoutHandler, stripeWebhookHandler } from "../tools/fiatDeposit";
 import type { Env, Variables } from "../types";
+
+/** HTML-escape untrusted text to prevent XSS when reflecting into HTML. */
+function escapeHtml(s: string): string {
+    return s
+        .replace(/&/gu, "&amp;")
+        .replace(/</gu, "&lt;")
+        .replace(/>/gu, "&gt;")
+        .replace(/"/gu, "&quot;")
+        .replace(/'/gu, "&#39;");
+}
 
 export function registerCreditsRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
 
@@ -70,6 +81,7 @@ export function registerCreditsRoutes(app: Hono<{ Bindings: Env; Variables: Vari
     // ============================================
     app.post(
         "/credits/deposit/fiat",
+        rateLimitMiddleware,
         validateRequest(FiatDepositRequestSchema),
         createFiatCheckoutHandler
     );
@@ -84,7 +96,7 @@ export function registerCreditsRoutes(app: Hono<{ Bindings: Env; Variables: Vari
     // User-facing redirect landings from Stripe Checkout. Plain HTML so the
     // developer lands somewhere friendly after paying with a card.
     app.get("/credits/fiat/success", (c) => {
-        const sessionId = c.req.query("session_id") ?? "";
+        const sessionId = escapeHtml(c.req.query("session_id") ?? "");
         return c.html(
             `<!doctype html><html><head><title>WebLens — Payment received</title>` +
             `<meta name="color-scheme" content="light dark"></head>` +

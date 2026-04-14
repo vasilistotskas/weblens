@@ -97,4 +97,27 @@ describe("verifyStripeSignature", () => {
         const result = await verifyStripeSignature({ secret, payload, header });
         expect(result.valid).toBe(true);
     });
+
+    it("rejects signature of wrong length without leaking via early-exit timing", async () => {
+        // Both valid-length and invalid-length wrong signatures must reject.
+        // The timing-safe contract is that both take the same observable path.
+        const t = Math.floor(Date.now() / 1000);
+
+        const resultShort = await verifyStripeSignature({
+            secret,
+            payload,
+            header: `t=${String(t)},v1=deadbeef`, // only 8 hex chars
+        });
+        expect(resultShort.valid).toBe(false);
+        expect(resultShort.reason).toMatch(/mismatch/u);
+
+        const wrongFullLen = "f".repeat(64); // 64 chars, wrong value
+        const resultFull = await verifyStripeSignature({
+            secret,
+            payload,
+            header: `t=${String(t)},v1=${wrongFullLen}`,
+        });
+        expect(resultFull.valid).toBe(false);
+        expect(resultFull.reason).toMatch(/mismatch/u);
+    });
 });

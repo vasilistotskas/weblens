@@ -1,7 +1,7 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-11-14/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.weblens/weblens",
-  "description": "Premium web intelligence API — 18 paid endpoints for web scraping, search, extraction, research, and intel. Pay-per-request USDC on Base via x402, or prepaid credits (crypto or card).",
+  "description": "Premium web intelligence API — scraping, search, extraction, research, intel. Pay-per-request USDC.",
   "version": "2.0.0",
   "websiteUrl": "https://api.weblens.dev",
   "repository": {

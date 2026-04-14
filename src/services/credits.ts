@@ -55,13 +55,18 @@ export async function getCreditAccount(
 
 /**
  * Process a credit purchase (deposit).
+ *
+ * `externalId` keys idempotency inside the Durable Object — pass the Stripe
+ * event.id for fiat deposits or the x402 tx hash for on-chain deposits so
+ * replays are detected and return `duplicate: true` without double-crediting.
  */
 export async function processDeposit(
     namespace: DurableObjectNamespace,
     wallet: string,
     amountUsd: number,
     txId: string,
-): Promise<{ account: CreditAccount; bonusAccrued: number }> {
+    options: { externalId?: string; source?: string } = {},
+): Promise<{ account: CreditAccount; bonusAccrued: number; duplicate: boolean }> {
     const bonus = calculateBonus(amountUsd);
     const totalAmount = amountUsd + bonus;
 
@@ -70,21 +75,24 @@ export async function processDeposit(
         method: "POST",
         body: JSON.stringify({
             amount: totalAmount,
-            description: "Credit purchase via x402",
-            metadata: { txId, originalAmount: amountUsd, bonus }
+            description: `Credit purchase via ${options.source ?? "x402"}`,
+            metadata: { txId, originalAmount: amountUsd, bonus, source: options.source ?? "x402" },
+            externalId: options.externalId ?? txId,
         })
     });
 
     if (!res.ok) {throw new Error("Deposit failed");}
 
-    // Consume the response body
-    await res.json();
+    const depositResult = await res.json<{ success: boolean; duplicate?: boolean; balance: number }>();
 
-    // We fetch the full account to return it
     const account = await getCreditAccount(namespace, wallet);
     if (!account) {throw new Error("Account missing after deposit");}
 
-    return { account, bonusAccrued: bonus };
+    return {
+        account,
+        bonusAccrued: depositResult.duplicate ? 0 : bonus,
+        duplicate: depositResult.duplicate === true,
+    };
 }
 
 /**

@@ -1,24 +1,7 @@
 {
   "name": "WebLens",
   "description": "Premium web intelligence API for autonomous agents. Pay-per-request USDC micropayments for web scraping (static + JS render), search, structured data extraction, PDF extraction, batch fetch, URL comparison, research, monitoring, and competitive/market intelligence. Also available as an MCP server and Coinbase AgentKit provider.",
-  "websiteUrl": "https://api.weblens.dev",
   "logoUrl": "/logos/weblens.svg",
-  "category": "Services/Endpoints",
-  "tags": [
-    "web-scraping",
-    "search",
-    "data-extraction",
-    "ai-research",
-    "mcp",
-    "agentkit"
-  ],
-  "x402": {
-    "network": "base",
-    "token": "USDC",
-    "version": 2,
-    "facilitator": "payai+cdp",
-    "discovery": "https://api.weblens.dev/.well-known/x402",
-    "openapi": "https://api.weblens.dev/openapi.json",
-    "llmsTxt": "https://api.weblens.dev/llms.txt"
-  }
+  "websiteUrl": "https://api.weblens.dev",
+  "category": "Services/Endpoints"
 }

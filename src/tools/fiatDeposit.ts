@@ -107,9 +107,12 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
 
     if (!verification.valid) {
         console.error("[stripe-webhook] signature verification failed:", verification.reason);
+        // 400 (not 401) — Stripe treats any non-2xx/5xx as permanent failure,
+        // and 400 matches the "malformed webhook" semantics better than 401
+        // (which implies the caller could re-authenticate).
         return c.json(
-            createErrorResponse("PAYMENT_FAILED", `Signature verification failed: ${verification.reason ?? "unknown"}`, requestId),
-            401
+            createErrorResponse("INVALID_REQUEST", `Signature verification failed: ${verification.reason ?? "unknown"}`, requestId),
+            400
         );
     }
 
@@ -118,6 +121,19 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
         event = JSON.parse(rawBody) as StripeWebhookEvent;
     } catch {
         return c.json(createErrorResponse("INVALID_REQUEST", "Malformed webhook body", requestId), 400);
+    }
+
+    // Fast-path dedup via KV on event.id (Stripe guarantees event.id is
+    // stable across retries). This short-circuits before hitting the DO so
+    // replayed events don't even do the round-trip.
+    if (c.env.CACHE) {
+        const dedupKey = `stripe:event:${event.id}`;
+        try {
+            const seen = await c.env.CACHE.get(dedupKey);
+            if (seen !== null) {
+                return c.json({ received: true, duplicate: true, event: event.id, requestId });
+            }
+        } catch { /* KV unavailable; fall through to DO-level dedup */ }
     }
 
     // Only react to completed checkout sessions. Other events (payment_intent.*,
@@ -144,28 +160,57 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
         return c.json(createErrorResponse("INVALID_REQUEST", "Invalid amount metadata", requestId), 400);
     }
 
+    // Cross-check against the authoritative settled amount Stripe reports.
+    // Defends against a future refactor that makes metadata drift from the
+    // actual charge — the card-facing `amount_total` is the ground truth.
+    const expectedCents = Math.round(amountUsd * 100);
+    if (
+        typeof session.amount_total === "number" &&
+        session.amount_total !== expectedCents
+    ) {
+        console.error(
+            `[stripe-webhook] amount mismatch: metadata=${String(expectedCents)}c, amount_total=${String(session.amount_total)}c, session=${session.id ?? "?"}`
+        );
+        return c.json(
+            createErrorResponse("INVALID_REQUEST", "Amount mismatch between metadata and settled charge", requestId),
+            400
+        );
+    }
+
     try {
-        const { account, bonusAccrued } = await processDeposit(
+        const { account, bonusAccrued, duplicate } = await processDeposit(
             c.env.CREDIT_MANAGER,
             wallet,
             amountUsd,
-            session.id ?? requestId
+            session.id ?? event.id,
+            { externalId: event.id, source: "stripe" }
         );
+
+        // Mark event as processed in KV (24h TTL covers Stripe's 72h retry
+        // with headroom; DO-level dedup remains the source of truth).
+        if (c.env.CACHE) {
+            try {
+                await c.env.CACHE.put(`stripe:event:${event.id}`, "1", { expirationTtl: 86400 });
+            } catch { /* non-fatal */ }
+        }
+
         console.log(
-            `[stripe-webhook] credited $${amountUsd.toFixed(2)} (+ $${bonusAccrued.toFixed(2)} bonus) to ${wallet}; new balance $${account.balance.toFixed(4)}`
+            `[stripe-webhook] ${duplicate ? "duplicate ignored" : "credited"} $${amountUsd.toFixed(2)} (+ $${bonusAccrued.toFixed(2)} bonus) to ${wallet}; balance $${account.balance.toFixed(4)}`
         );
         return c.json({
             received: true,
+            duplicate,
             wallet,
-            credited: `$${amountUsd.toFixed(2)}`,
+            credited: duplicate ? "$0.00" : `$${amountUsd.toFixed(2)}`,
             bonus: `$${bonusAccrued.toFixed(2)}`,
             newBalance: `$${account.balance.toFixed(4)}`,
             requestId,
         });
     } catch (err) {
         console.error(`[stripe-webhook] deposit failed for ${wallet}:`, err);
-        // Return 500 so Stripe retries — deposit is idempotent-by-session-id in
-        // practice because we key DO storage on wallet and history is append-only.
+        // Return 500 so Stripe retries. Idempotency is now enforced inside
+        // the Durable Object via externalId dedup, so a retry on the same
+        // event.id returns duplicate=true instead of double-crediting.
         return c.json(
             createErrorResponse("INTERNAL_ERROR", err instanceof Error ? err.message : "Deposit failed", requestId),
             500

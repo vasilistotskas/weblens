@@ -22,6 +22,14 @@ interface DepositRequest {
     amount: number;
     description: string;
     metadata?: Record<string, unknown>;
+    /**
+     * Optional external identifier (e.g. Stripe event.id, x402 transaction hash).
+     * When present, the DO persists a dedup marker so a replayed deposit for
+     * the same externalId returns `{duplicate: true}` without mutating state.
+     * This is load-bearing for Stripe webhook idempotency — Stripe retries
+     * failed deliveries for up to 72h and would otherwise double-credit.
+     */
+    externalId?: string;
 }
 
 interface SpendRequest {
@@ -48,6 +56,21 @@ export class CreditAccountDO extends DurableObject<Env> {
         if (path === "/deposit" && request.method === "POST") {
             const body: DepositRequest = await request.json();
 
+            // Idempotency: reject replays keyed on externalId. DO storage is
+            // strongly consistent and this DO is single-threaded, so the
+            // get→put sequence is race-free.
+            const dedupKey = body.externalId ? `dedup:${body.externalId}` : null;
+            if (dedupKey) {
+                const seen = await this.ctx.storage.get(dedupKey);
+                if (seen !== undefined) {
+                    return Response.json({
+                        success: true,
+                        duplicate: true,
+                        balance: account.balance,
+                    });
+                }
+            }
+
             account.balance += body.amount;
             account.totalDeposited += body.amount;
 
@@ -69,6 +92,9 @@ export class CreditAccountDO extends DurableObject<Env> {
             else if (account.totalDeposited >= 100) {account.tier = "premium";}
 
             await this.ctx.storage.put("account", account);
+            if (dedupKey) {
+                await this.ctx.storage.put(dedupKey, tx.id);
+            }
 
             return Response.json({ success: true, balance: account.balance, txId: tx.id });
         }
