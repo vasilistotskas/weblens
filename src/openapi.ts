@@ -704,7 +704,7 @@ For AI agents using Model Context Protocol:
   "mcpServers": {
     "weblens": {
       "command": "npx",
-      "args": ["-y", "weblens-mcp"],
+      "args": ["-y", "@weblens/mcp"],
       "env": {
         "PRIVATE_KEY": "0xYourPrivateKeyHere"
       }

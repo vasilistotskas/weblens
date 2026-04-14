@@ -99,12 +99,20 @@ binding = "BROWSER"
 # ============================================
 # Secrets (set via `wrangler secret put` or Cloudflare dashboard)
 # ============================================
-# The following secrets must be configured:
+# Core secrets:
 #
 #   wrangler secret put CDP_API_KEY_ID
 #   wrangler secret put CDP_API_KEY_SECRET
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler secret put SERP_API_KEY
+#
+# Optional — Stripe fiat onramp (POST /credits/deposit/fiat):
+# Lets agent devs without crypto wallets buy credits with a card.
+# Configure at https://dashboard.stripe.com/apikeys + /webhooks (add
+# `checkout.session.completed` event pointing to /credits/webhook/stripe).
+#
+#   wrangler secret put STRIPE_SECRET_KEY
+#   wrangler secret put STRIPE_WEBHOOK_SECRET
 
 # ============================================
 # Build Configuration

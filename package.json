@@ -26,6 +26,7 @@
     "lint": "eslint src scripts --ext .ts",
     "lint:fix": "eslint src scripts --ext .ts --fix",
     "verify-bazaar": "npx tsx scripts/verify-bazaar.ts",
+    "bootstrap-payment": "npx tsx scripts/bootstrap-payment.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

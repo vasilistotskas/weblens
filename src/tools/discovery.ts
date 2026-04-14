@@ -19,8 +19,8 @@ export const SERVICE_CATALOG = {
         version: 2,
         network: "base",
         token: "USDC",
-        facilitator: "CDP",
-        bazaarListed: true,
+        facilitator: "payai+cdp",
+        bazaarListed: false,
     },
     documentation: {
         interactive: "/docs",
@@ -250,13 +250,30 @@ export const SERVICE_CATALOG = {
     integration: {
         mcp: {
             remote: "https://api.weblens.dev/mcp",
-            local: "npx -y weblens-mcp",
+            local: "npx -y @weblens/mcp",
             description: "Model Context Protocol for AI agents (Claude, Kiro, etc.)",
         },
         http: {
             baseUrl: "https://api.weblens.dev",
             auth: "x402 v2 payment via Payment-Signature header",
         },
+        paymentMethods: [
+            {
+                name: "x402 (USDC on Base)",
+                path: "POST <any paid endpoint>",
+                description: "Pay per request with on-chain USDC. No account needed.",
+            },
+            {
+                name: "Credit account (prepaid USDC)",
+                path: "POST /credits/buy",
+                description: "Deposit USDC once, sign subsequent requests with X-CREDIT-WALLET. 20–40% bonus at $10/$50/$100.",
+            },
+            {
+                name: "Credit account (prepaid via card)",
+                path: "POST /credits/deposit/fiat",
+                description: "Zero-crypto onboarding. Pay with card via Stripe Checkout; credits land on the wallet address you supply. Minimum $2.",
+            },
+        ],
     },
     agentQuickStart: {
         step0: "Try it instantly! GET /r/https://example.com — zero friction, no wallet, no POST body needed",
@@ -354,10 +371,10 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         tagline: "Give your AI agents web superpowers with verified data",
         description: "Premium Web Intelligence API with x402 micropayments. Features Autonomous Context Verification (ACV), Dynamic Pricing, and Truth-as-a-Service for AI agents.",
         baseUrl,
-        facilitator: "CDP",
+        facilitator: "payai+cdp",
         network: "base",
         token: "USDC",
-        bazaarListed: true,
+        bazaarListed: false,
         keywords: [
             "web-scraping", "ai-agent", "x402", "micropayments", "truth-oracle",
             "context-verification", "web-intelligence", "data-extraction",

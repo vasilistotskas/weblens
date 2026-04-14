@@ -45,7 +45,7 @@ If you want automatic payment handling, use the local stdio server:
 ```bash
 claude mcp add --transport stdio weblens \
   --env PRIVATE_KEY=0xYourPrivateKeyHere \
-  -- npx -y weblens-mcp
+  -- npx -y @weblens/mcp
 ```
 
 **For Kiro** (`.kiro/settings/mcp.json`):
@@ -54,7 +54,7 @@ claude mcp add --transport stdio weblens \
   "mcpServers": {
     "weblens": {
       "command": "npx",
-      "args": ["-y", "weblens-mcp"],
+      "args": ["-y", "@weblens/mcp"],
       "env": {
         "PRIVATE_KEY": "0xYourPrivateKeyHere"
       }
@@ -69,7 +69,7 @@ claude mcp add --transport stdio weblens \
   "mcpServers": {
     "weblens": {
       "command": "npx",
-      "args": ["-y", "weblens-mcp"],
+      "args": ["-y", "@weblens/mcp"],
       "env": {
         "PRIVATE_KEY": "0xYourPrivateKeyHere"
       }
@@ -85,7 +85,7 @@ On Windows (not WSL), use the `cmd /c` wrapper:
 ```bash
 claude mcp add --transport stdio weblens \
   --env PRIVATE_KEY=0xYourPrivateKeyHere \
-  -- cmd /c npx -y weblens-mcp
+  -- cmd /c npx -y @weblens/mcp
 ```
 
 Or in JSON config:
@@ -95,7 +95,7 @@ Or in JSON config:
   "mcpServers": {
     "weblens": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "weblens-mcp"],
+      "args": ["/c", "npx", "-y", "@weblens/mcp"],
       "env": {
         "PRIVATE_KEY": "0xYourPrivateKeyHere"
       }

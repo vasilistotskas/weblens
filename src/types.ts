@@ -30,6 +30,13 @@ export interface Env {
   SIGNING_PRIVATE_KEY?: string;
   // Public key for verification (optional in Env, derived from private key)
   SIGNING_PUBLIC_KEY?: string;
+  // Stripe fiat onramp — agents/devs without on-chain wallets can buy
+  // credits via card. Webhook credits the wallet on `checkout.session.completed`.
+  // Set via: wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_SUCCESS_URL?: string;
+  STRIPE_CANCEL_URL?: string;
 }
 
 export interface Variables {

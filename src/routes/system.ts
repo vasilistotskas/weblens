@@ -90,15 +90,15 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
             mcp: {
                 remote: "/mcp",
                 info: "/mcp/info",
-                local: "npx -y weblens-mcp",
+                local: "npx -y @weblens/mcp",
             },
             supportedNetworks: SUPPORTED_NETWORKS,
             x402: {
                 version: 2,
                 protocol: "https://x402.org",
-                facilitator: "CDP (Coinbase)",
+                facilitator: "payai+cdp",
                 description: "HTTP-native micropayments using 402 Payment Required",
-                bazaarListed: true,
+                bazaarListed: false,
             },
             freeTier: {
                 description: "Try WebLens free — no wallet or payment needed",

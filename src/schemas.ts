@@ -97,7 +97,14 @@ export const MemoryGetRequestSchema = z.object({
 });
 
 export const CreditsBuyRequestSchema = z.object({
-    amount: z.number().min(5).max(1000), // USD
+    amount: z.number().min(2).max(1000), // USD
+});
+
+// Fiat deposit via Stripe Checkout. `wallet` keys the credit account so a
+// dev can buy credits with a card and then sign requests from that wallet.
+export const FiatDepositRequestSchema = z.object({
+    amount: z.number().min(2).max(1000),
+    wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/u, "Must be a 0x-prefixed 40-hex address"),
 });
 
 export const IntelRequestSchema = z.object({

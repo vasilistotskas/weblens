@@ -523,7 +523,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
     },
     integration: {
       remote: `${baseUrl}/mcp`,
-      local: "npx -y weblens-mcp",
+      local: "npx -y @weblens/mcp",
     },
     documentation: {
       interactive: `${baseUrl}/docs`,
@@ -533,8 +533,8 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
     },
     x402: {
       version: 2,
-      facilitator: "CDP",
-      bazaarListed: true,
+      facilitator: "payai+cdp",
+      bazaarListed: false,
     },
   });
 }

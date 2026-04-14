@@ -54,12 +54,13 @@ export const PRICING = {
   },
 
   // Intelligence endpoints (Knowledge Arbitrageur)
-  // Premium pricing — chains multiple tools + AI into structured intelligence
+  // Premium pricing — chains multiple tools + AI into structured intelligence.
+  // Still 50–100× cheaper than Semrush/Similarweb/Crunchbase APIs.
   intel: {
-    company: "$0.50",       // Company deep dive
-    market: "$2.00",        // Market research report
-    competitive: "$3.00",   // Competitive analysis
-    siteAudit: "$0.30",     // Full site audit
+    company: "$1.00",       // Company deep dive
+    market: "$5.00",        // Market research report
+    competitive: "$8.00",   // Competitive analysis
+    siteAudit: "$0.75",     // Full site audit
   },
 
   // Agent Prime: multi-provider routing

@@ -39,7 +39,7 @@ Premium Web Intelligence API with x402 micropayments. Give your AI agents web su
   "mcpServers": {
     "weblens": {
       "command": "npx",
-      "args": ["-y", "weblens-mcp"],
+      "args": ["-y", "@weblens/mcp"],
       "env": {
         "PRIVATE_KEY": "0xYourPrivateKeyHere"
       }

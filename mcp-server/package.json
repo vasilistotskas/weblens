@@ -1,5 +1,5 @@
 {
-  "name": "weblens-mcp",
+  "name": "@weblens/mcp",
   "version": "1.0.0",
   "description": "MCP server for WebLens - Web Intelligence API with x402 payments",
   "type": "module",
