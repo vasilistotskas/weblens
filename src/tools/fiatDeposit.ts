@@ -99,8 +99,14 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
     const rawBody = await c.req.text();
     const signature = c.req.header("stripe-signature") ?? null;
 
+    // Pass both primary and optional secondary secrets so rotations succeed
+    // without a deploy window where legitimate Stripe events get rejected.
+    const secrets: string[] = [c.env.STRIPE_WEBHOOK_SECRET];
+    if (c.env.STRIPE_WEBHOOK_SECRET_2) {
+        secrets.push(c.env.STRIPE_WEBHOOK_SECRET_2);
+    }
     const verification = await verifyStripeSignature({
-        secret: c.env.STRIPE_WEBHOOK_SECRET,
+        secret: secrets,
         payload: rawBody,
         header: signature,
     });

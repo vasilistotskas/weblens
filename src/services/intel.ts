@@ -176,8 +176,12 @@ export interface MarketResearchOptions {
 export async function marketResearch(options: MarketResearchOptions): Promise<MarketReport> {
     const { topic, depth, focus, aiConfig, serpApiKey } = options;
 
-    const searchCount = depth === "comprehensive" ? 10 : depth === "standard" ? 7 : 4;
-    const fetchCount = depth === "comprehensive" ? 8 : depth === "standard" ? 5 : 3;
+    // Cost cap: bounds SerpAPI fan-out so a single $5 comprehensive market
+    // research cannot burn 40+ upstream calls. Previous values (10/8) were
+    // unprofitable under heavy use; tightened to (5/5) which still exceeds
+    // the median result-density needed for a good report.
+    const searchCount = depth === "comprehensive" ? 5 : depth === "standard" ? 5 : 3;
+    const fetchCount = depth === "comprehensive" ? 5 : depth === "standard" ? 4 : 3;
 
     // Step 1: Multi-angle search
     const queries = [

@@ -98,6 +98,36 @@ describe("verifyStripeSignature", () => {
         expect(result.valid).toBe(true);
     });
 
+    it("accepts signature signed with secondary rotation secret", async () => {
+        const primary = "whsec_primary";
+        const secondary = "whsec_secondary_during_rotation";
+        const t = Math.floor(Date.now() / 1000);
+        // Signed by secondary, not primary.
+        const sig = await hmacHex(secondary, `${String(t)}.${payload}`);
+        const header = `t=${String(t)},v1=${sig}`;
+
+        const result = await verifyStripeSignature({
+            secret: [primary, secondary],
+            payload,
+            header,
+        });
+        expect(result.valid).toBe(true);
+    });
+
+    it("rejects when signed with neither primary nor secondary", async () => {
+        const t = Math.floor(Date.now() / 1000);
+        const sig = await hmacHex("whsec_unknown", `${String(t)}.${payload}`);
+        const header = `t=${String(t)},v1=${sig}`;
+
+        const result = await verifyStripeSignature({
+            secret: ["whsec_primary", "whsec_secondary"],
+            payload,
+            header,
+        });
+        expect(result.valid).toBe(false);
+        expect(result.reason).toMatch(/mismatch/u);
+    });
+
     it("rejects signature of wrong length without leaking via early-exit timing", async () => {
         // Both valid-length and invalid-length wrong signatures must reject.
         // The timing-safe contract is that both take the same observable path.

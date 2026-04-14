@@ -84,9 +84,13 @@ export async function createCheckoutSession(
  * Header format: `t=<unix>,v1=<hex_signature>[,v1=<...>]`
  * Signed payload: `<timestamp>.<raw_body>`
  * Tolerance: reject if |now - t| > 5 minutes (Stripe default).
+ *
+ * `secret` accepts either a single string or an array of strings to support
+ * zero-downtime rotation (Stripe exposes two active webhook secrets during
+ * a rotation window). Any one matching secret verifies the signature.
  */
 export async function verifyStripeSignature(params: {
-    secret: string;
+    secret: string | string[];
     payload: string;
     header: string | null;
     toleranceSeconds?: number;
@@ -113,24 +117,31 @@ export async function verifyStripeSignature(params: {
     }
 
     const signedPayload = `${timestamp}.${params.payload}`;
-    const key = await crypto.subtle.importKey(
-        "raw",
-        new TextEncoder().encode(params.secret),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-    );
-    const sigBytes = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        new TextEncoder().encode(signedPayload)
-    );
-    const expected = Array.from(new Uint8Array(sigBytes))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+    const secrets = Array.isArray(params.secret) ? params.secret : [params.secret];
 
-    const matched = signatures.some((sig) => timingSafeEqualHex(sig, expected));
-    return matched ? { valid: true } : { valid: false, reason: "Signature mismatch" };
+    for (const secret of secrets) {
+        if (!secret) {continue;}
+        const key = await crypto.subtle.importKey(
+            "raw",
+            new TextEncoder().encode(secret),
+            { name: "HMAC", hash: "SHA-256" },
+            false,
+            ["sign"]
+        );
+        const sigBytes = await crypto.subtle.sign(
+            "HMAC",
+            key,
+            new TextEncoder().encode(signedPayload)
+        );
+        const expected = Array.from(new Uint8Array(sigBytes))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+
+        if (signatures.some((sig) => timingSafeEqualHex(sig, expected))) {
+            return { valid: true };
+        }
+    }
+    return { valid: false, reason: "Signature mismatch" };
 }
 
 /**

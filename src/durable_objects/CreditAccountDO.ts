@@ -18,6 +18,14 @@ interface Transaction {
     metadata?: Record<string, unknown>;
 }
 
+interface RefundRequest {
+    amount: number;
+    description: string;
+    metadata?: Record<string, unknown>;
+    /** Dedup key — typically the original spend's requestId or transaction id. */
+    externalId?: string;
+}
+
 interface DepositRequest {
     amount: number;
     description: string;
@@ -122,6 +130,48 @@ export class CreditAccountDO extends DurableObject<Env> {
             if (account.history.length > 100) {account.history.pop();}
 
             await this.ctx.storage.put("account", account);
+
+            return Response.json({ success: true, balance: account.balance, txId: tx.id });
+        }
+
+        // Refund path: reverses a prior spend without affecting totalDeposited
+        // (so tier thresholds remain accurate). Dedups on externalId so
+        // credit-middleware's catch block can safely retry.
+        if (path === "/refund" && request.method === "POST") {
+            const body: RefundRequest = await request.json();
+
+            const dedupKey = body.externalId ? `dedup:refund:${body.externalId}` : null;
+            if (dedupKey) {
+                const seen = await this.ctx.storage.get(dedupKey);
+                if (seen !== undefined) {
+                    return Response.json({
+                        success: true,
+                        duplicate: true,
+                        balance: account.balance,
+                    });
+                }
+            }
+
+            account.balance += body.amount;
+            // Decrement totalSpent so the original debit is unwound; leave
+            // totalDeposited untouched (a refund is not a new deposit).
+            account.totalSpent = Math.max(0, account.totalSpent - body.amount);
+
+            const tx: Transaction = {
+                id: crypto.randomUUID(),
+                type: "refund",
+                amount: body.amount,
+                description: body.description,
+                timestamp: new Date().toISOString(),
+                metadata: body.metadata,
+            };
+            account.history.unshift(tx);
+            if (account.history.length > 100) {account.history.pop();}
+
+            await this.ctx.storage.put("account", account);
+            if (dedupKey) {
+                await this.ctx.storage.put(dedupKey, tx.id);
+            }
 
             return Response.json({ success: true, balance: account.balance, txId: tx.id });
         }

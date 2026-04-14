@@ -113,6 +113,10 @@ binding = "BROWSER"
 #
 #   wrangler secret put STRIPE_SECRET_KEY
 #   wrangler secret put STRIPE_WEBHOOK_SECRET
+#
+# Optional: set STRIPE_WEBHOOK_SECRET_2 during a webhook-secret rotation.
+# Both secrets verify concurrently; remove the secondary after rotation ends.
+#   wrangler secret put STRIPE_WEBHOOK_SECRET_2
 
 # ============================================
 # Build Configuration

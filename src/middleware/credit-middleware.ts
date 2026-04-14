@@ -8,7 +8,7 @@
  */
 
 import type { Context, MiddlewareHandler } from "hono";
-import { deductCredits } from "../services/credits";
+import { deductCredits, refundCredits } from "../services/credits";
 import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
@@ -88,7 +88,28 @@ export function createCreditMiddleware(
 
         } catch (error) {
             if (debited) {
-                // Debit succeeded but handler failed — do not call next() again
+                // Debit succeeded but handler failed — refund the debit so
+                // the user isn't charged for data they didn't receive. The
+                // refund is itself idempotent via externalId, so if this
+                // path is somehow retried the second refund is a no-op.
+                try {
+                    await refundCredits(
+                        c.env.CREDIT_MANAGER,
+                        creditWallet,
+                        amountUsd,
+                        `Refund: handler failure for ${description}`,
+                        `refund:${requestId}`,
+                    );
+                    console.warn(
+                        `[Credits] Handler threw after debit — refunded ${costStr} to ${creditWallet} (reqId=${requestId})`
+                    );
+                } catch (refundErr) {
+                    // Refund itself failed — log but still propagate the original error.
+                    // Operator action required: inspect /credits/history for the wallet.
+                    console.error(
+                        `[Credits] CRITICAL: refund failed after handler throw. wallet=${creditWallet} amount=${costStr} reqId=${requestId}: ${refundErr instanceof Error ? refundErr.message : String(refundErr)}`
+                    );
+                }
                 throw error;
             }
             // Insufficient funds or debit error — fall through to standard payment (x402)

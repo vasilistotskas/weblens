@@ -35,6 +35,12 @@ export interface Env {
   // Set via: wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  /**
+   * Optional secondary webhook secret to support Stripe's zero-downtime
+   * secret rotation (Stripe exposes two active secrets during rotation).
+   * If set, webhooks signed with either primary or secondary secret verify.
+   */
+  STRIPE_WEBHOOK_SECRET_2?: string;
   STRIPE_SUCCESS_URL?: string;
   STRIPE_CANCEL_URL?: string;
 }

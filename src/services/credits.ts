@@ -96,6 +96,35 @@ export async function processDeposit(
 }
 
 /**
+ * Refund credits previously debited. Used by credit-middleware when the
+ * downstream handler throws after a successful debit — without this the
+ * user is charged for data they never received.
+ *
+ * Idempotent via externalId so a catch block that itself fails and is
+ * retried won't double-refund.
+ */
+export async function refundCredits(
+    namespace: DurableObjectNamespace,
+    wallet: string,
+    amountUsd: number,
+    description: string,
+    externalId: string,
+): Promise<void> {
+    const stub = getAccountStub(namespace, wallet);
+    const res = await stub.fetch("http://do/refund", {
+        method: "POST",
+        body: JSON.stringify({
+            amount: amountUsd,
+            description,
+            metadata: { externalId, refund: true },
+            externalId,
+        })
+    });
+    if (!res.ok) {throw new Error("Refund failed");}
+    await res.json();
+}
+
+/**
  * Deduct credits from account.
  */
 export async function deductCredits(
