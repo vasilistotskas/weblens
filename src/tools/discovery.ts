@@ -338,6 +338,14 @@ export const SERVICE_CATALOG = {
 export function discoveryHandler(c: Context<{ Bindings: Env }>) {
     const baseUrl = new URL(c.req.url).origin;
 
+    // Only advertise the fiat onramp when Stripe is actually configured —
+    // otherwise /discovery promises a payment method that `/credits/deposit/fiat`
+    // would answer with 503.
+    const fiatEnabled = Boolean(c.env.STRIPE_SECRET_KEY);
+    const paymentMethods = SERVICE_CATALOG.integration.paymentMethods.filter(
+        (m) => fiatEnabled || !m.path.includes("/credits/deposit/fiat")
+    );
+
     return c.json({
         ...SERVICE_CATALOG,
         baseUrl,
@@ -347,6 +355,10 @@ export function discoveryHandler(c: Context<{ Bindings: Env }>) {
             openapi: `${baseUrl}/openapi.json`,
             llms: `${baseUrl}/llms.txt`,
             mcp: `${baseUrl}/mcp/info`,
+        },
+        integration: {
+            ...SERVICE_CATALOG.integration,
+            paymentMethods,
         },
         _links: {
             self: `${baseUrl}/discovery`,
