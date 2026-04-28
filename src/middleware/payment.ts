@@ -170,7 +170,10 @@ export function createPaymentConfig(
     }
 
     return {
-        [path]: {
+        // Route keys are method-prefixed per x402 v2 spec ("POST /path") so
+        // facilitator-side Bazaar indexing stores entries under the right
+        // resource tuple. All weblens paid endpoints are POST-only.
+        [`POST ${path}`]: {
             accepts: [{
                 scheme: "exact" as const,
                 price,
