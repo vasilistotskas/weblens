@@ -25,7 +25,7 @@ async function fetchSingleUrl(
       status: "success",
       content: result.content,
       title: result.title,
-      metadata: result.metadata as PageMetadata,
+      metadata: result.metadata,
       fetchedAt: result.fetchedAt,
     };
   } catch (error) {

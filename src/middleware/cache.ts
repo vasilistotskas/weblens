@@ -141,5 +141,5 @@ export function isCacheHit(c: Context): boolean {
  * @returns Cache metadata object
  */
 export function getCacheMetadata(c: Context): CacheMetadata {
-  return (c.get("cacheMetadata") as CacheMetadata | undefined) ?? { hit: false };
+  return (c.get("cacheMetadata")) ?? { hit: false };
 }

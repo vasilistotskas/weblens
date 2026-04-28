@@ -175,7 +175,7 @@ export function createPaymentConfig(
                 scheme: "exact" as const,
                 price,
                 network: networkCaip2,
-                payTo: destinationAddress as Address,
+                payTo: destinationAddress,
             }],
             description,
             mimeType: "application/json" as const,
