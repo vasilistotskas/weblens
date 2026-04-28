@@ -9,7 +9,7 @@ import { PRICING } from "./config";
 import type { Env, Variables } from "./types";
 
 // OpenAPI 3.0 Document
-export function getOpenAPIDocument(baseUrl: string = "https://api.weblens.dev") {
+function getOpenAPIDocument(baseUrl: string = "https://api.weblens.dev") {
   return {
     openapi: "3.0.3",
     info: {

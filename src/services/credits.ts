@@ -20,7 +20,7 @@ export interface CreditAccount {
 }
 
 /** A single credit transaction (deposit, spend, or bonus). */
-export interface CreditTransaction {
+interface CreditTransaction {
     id: string;
     type: "deposit" | "spend" | "bonus";
     amount: number;
@@ -175,7 +175,7 @@ export async function getTransactionHistory(
 /**
  * Calculate bonus for a deposit amount.
  */
-export function calculateBonus(depositAmount: number): number {
+function calculateBonus(depositAmount: number): number {
     const tiers = PRICING.credits.tiers;
     // Sort tiers descending by minDeposit to find highest applicable tier
     const sortedTiers = [...tiers].sort((a, b) => {

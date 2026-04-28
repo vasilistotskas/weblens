@@ -9,7 +9,7 @@ import puppeteer from "@cloudflare/puppeteer";
 import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "../config";
 import type { ScreenshotRequest } from "../types";
 
-export interface ScreenshotResult {
+interface ScreenshotResult {
   image: string;  // Base64-encoded PNG
   dimensions: {
     width: number;

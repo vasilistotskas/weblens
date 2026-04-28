@@ -11,7 +11,7 @@
  *   https://docs.stripe.com/api/checkout/sessions/create
  */
 
-export interface CheckoutSessionParams {
+interface CheckoutSessionParams {
     secretKey: string;
     amountUsd: number;
     wallet: string;
@@ -19,7 +19,7 @@ export interface CheckoutSessionParams {
     cancelUrl: string;
 }
 
-export interface CheckoutSession {
+interface CheckoutSession {
     id: string;
     url: string;
 }

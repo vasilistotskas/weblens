@@ -8,7 +8,7 @@
  */
 
 import { fetchBasicPage } from "../tools/fetch-basic";
-import type { BatchFetchResult, PageMetadata } from "../types";
+import type { BatchFetchResult } from "../types";
 
 /**
  * Fetch a single URL and return a BatchFetchResult

@@ -101,7 +101,7 @@ export interface FetchRequest {
   waitFor?: string; // CSS selector to wait for (pro only)
 }
 
-export interface PageMetadata {
+interface PageMetadata {
   description?: string;
   author?: string;
   publishedAt?: string;
@@ -115,25 +115,7 @@ export interface FetchResponse {
   tier: "basic" | "pro";
   fetchedAt: string; // ISO timestamp
   proof?: ProofOfContext; // ACV Proof
-  cache?: CacheMetadata;
   requestId: string;
-}
-
-// ============================================
-// Cache Types (Requirement 3)
-// ============================================
-
-export interface CacheMetadata {
-  hit: boolean;
-  age?: number; // Seconds since cached
-  expiresAt?: string; // ISO timestamp
-  key?: string;
-}
-
-export interface CachedResponse<T = unknown> {
-  data: T;
-  cachedAt: string; // ISO timestamp
-  ttl: number; // seconds
 }
 
 // ============================================
@@ -156,7 +138,7 @@ export interface SearchRequest {
   limit?: number; // default 10
 }
 
-export interface SearchResult {
+interface SearchResult {
   title: string;
   url: string;
   snippet: string;
@@ -225,16 +207,6 @@ export interface ErrorResponse {
   message: string;
   requestId: string;
   retryAfter?: number; // seconds
-}
-
-// ============================================
-// Response Headers (Requirement 5.3)
-// ============================================
-
-export interface ResponseHeaders {
-  "X-Request-Id": string;
-  "X-Processing-Time": string; // milliseconds
-  "X-Cache-Status"?: "HIT" | "MISS" | "BYPASS";
 }
 
 // ============================================
@@ -339,7 +311,7 @@ export interface SmartExtractRequest {
   format?: "json" | "text"; // Output format, default "json"
 }
 
-export interface ExtractedItem {
+interface ExtractedItem {
   value: unknown;           // Extracted value
   context?: string;         // Surrounding context
   confidence: number;       // 0-1 confidence score
@@ -387,16 +359,6 @@ export interface MonitorStatus {
   checkCount: number;
   totalCost: string;        // Total spent on checks
   createdAt: string;
-}
-
-export interface WebhookPayload {
-  monitorId: string;
-  url: string;
-  changeType: "content" | "status" | "error";
-  previousHash?: string;
-  currentHash?: string;
-  diff?: string;            // Summary of changes
-  checkedAt: string;
 }
 
 export interface StoredMonitor {

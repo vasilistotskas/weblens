@@ -13,12 +13,12 @@ import { generateRequestId } from "../utils/requestId";
 /**
  * Context key for storing request ID
  */
-export const REQUEST_ID_KEY = "requestId";
+const REQUEST_ID_KEY = "requestId";
 
 /**
  * Context key for storing request start time
  */
-export const REQUEST_START_TIME_KEY = "requestStartTime";
+const REQUEST_START_TIME_KEY = "requestStartTime";
 
 /**
  * Request ID middleware

@@ -200,7 +200,7 @@ async function fetchProPageInternal(
  * @param waitFor - Optional CSS selector to wait for
  * @returns The fetched page content and metadata
  */
-export async function fetchProPage(
+async function fetchProPage(
   browserBinding: Fetcher,
   env: Env,
   url: string,

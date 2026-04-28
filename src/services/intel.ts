@@ -17,7 +17,7 @@ import { searchWeb as searchWebService } from "./search";
 // Types
 // ============================================
 
-export interface CompanyProfile {
+interface CompanyProfile {
     name: string;
     description: string;
     industry: string;
@@ -31,7 +31,7 @@ export interface CompanyProfile {
     keywords: string[];
 }
 
-export interface MarketReport {
+interface MarketReport {
     topic: string;
     executiveSummary: string;
     keyFindings: { finding: string; source: string; confidence: string }[];
@@ -42,7 +42,7 @@ export interface MarketReport {
     sources: { url: string; title: string }[];
 }
 
-export interface CompetitiveReport {
+interface CompetitiveReport {
     company: string;
     competitors: { name: string; url: string; description: string }[];
     featureMatrix: Record<string, Record<string, string>>;
@@ -51,7 +51,7 @@ export interface CompetitiveReport {
     positioningSummary: string;
 }
 
-export interface SiteAudit {
+interface SiteAudit {
     url: string;
     seoScore: number;
     metaTags: { title: string; description: string; ogImage: string; canonical: string; robots: string };
@@ -86,7 +86,7 @@ async function fetchPage(url: string): Promise<{ title: string; content: string;
 // Company Intelligence
 // ============================================
 
-export interface CompanyIntelOptions {
+interface CompanyIntelOptions {
     target: string;
     aiConfig: AIServiceConfig;
     serpApiKey?: string;
@@ -165,7 +165,7 @@ Respond ONLY with valid JSON.`;
 // Market Research
 // ============================================
 
-export interface MarketResearchOptions {
+interface MarketResearchOptions {
     topic: string;
     depth: "quick" | "standard" | "comprehensive";
     focus?: string;
@@ -260,7 +260,7 @@ Respond ONLY with valid JSON.`;
 // Competitive Analysis
 // ============================================
 
-export interface CompetitiveAnalysisOptions {
+interface CompetitiveAnalysisOptions {
     company: string;
     maxCompetitors: number;
     focus?: string;
@@ -337,7 +337,7 @@ Respond ONLY with valid JSON.`;
 // Site Audit
 // ============================================
 
-export interface SiteAuditOptions {
+interface SiteAuditOptions {
     url: string;
     aiConfig: AIServiceConfig;
     serpApiKey?: string;

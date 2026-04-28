@@ -98,14 +98,6 @@ export const FREE_TIER = {
 // getResourceServer() in payment.ts for the full branch logic.
 export const SUPPORTED_NETWORKS = ["base"] as const;
 
-// Cache configuration
-export const CACHE_CONFIG = {
-  defaultTtl: 3600, // 1 hour in seconds
-  minTtl: 60, // 1 minute
-  maxTtl: 86400, // 24 hours
-  keyPrefix: "weblens",
-} as const;
-
 // Viewport bounds for screenshots
 export const VIEWPORT_BOUNDS = {
   width: { min: 320, max: 3840, default: 1280 },

@@ -32,7 +32,7 @@ export interface ProviderConfig {
     readonly priority: number;
 }
 
-export interface ProviderResult {
+interface ProviderResult {
     /** Which provider handled the request */
     providerId: string;
     providerName: string;
@@ -62,7 +62,7 @@ export interface ProviderStats {
     lastUpdated: string;
 }
 
-export interface ResilientFetchResult {
+interface ResilientFetchResult {
     url: string;
     title: string;
     content: string;
@@ -130,7 +130,7 @@ function getStatsKey(providerId: string): string {
 /**
  * Get current stats for a provider. Returns default stats if none exist.
  */
-export async function getProviderStats(
+async function getProviderStats(
     kv: KVNamespace | undefined,
     providerId: string,
 ): Promise<ProviderStats> {
@@ -161,7 +161,7 @@ export async function getProviderStats(
  * Record the outcome of a fetch attempt for a provider.
  * Updates success rate and average latency.
  */
-export async function recordProviderOutcome(
+async function recordProviderOutcome(
     kv: KVNamespace | undefined,
     providerId: string,
     success: boolean,
@@ -204,7 +204,7 @@ export async function recordProviderOutcome(
  * Get the success rate for a provider (0.0 - 1.0).
  * New providers with no data default to 0.5.
  */
-export function getSuccessRate(stats: ProviderStats): number {
+function getSuccessRate(stats: ProviderStats): number {
     if (stats.totalRequests === 0) {
         return 0.5; // Neutral prior for new providers
     }
@@ -400,7 +400,7 @@ async function fetchViaExternal(
 /**
  * Attempt to fetch a URL using a specific provider.
  */
-export async function fetchViaProvider(
+async function fetchViaProvider(
     provider: ProviderConfig,
     url: string,
     timeout: number,

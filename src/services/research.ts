@@ -19,9 +19,7 @@ import type {AIServiceConfig} from "./ai";
 import type { SearchResult } from "./search";
 import { searchWeb } from "./search";
 
-export type { SearchResult };
-
-export interface ResearchOptions {
+interface ResearchOptions {
   query: string;
   resultCount: number;
   includeRawContent: boolean;
@@ -29,7 +27,7 @@ export interface ResearchOptions {
   serpApiKey?: string;
 }
 
-export interface ResearchResult {
+interface ResearchResult {
   query: string;
   sources: ResearchSource[];
   summary: string;

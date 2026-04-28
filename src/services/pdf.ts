@@ -10,14 +10,14 @@
 import type { PdfPage } from "../types";
 import { validateURL } from "./validator";
 
-export interface PdfMetadata {
+interface PdfMetadata {
   title?: string;
   author?: string;
   pageCount: number;
   createdAt?: string;
 }
 
-export interface PdfExtractResult {
+interface PdfExtractResult {
   metadata: PdfMetadata;
   pages: PdfPage[];
   fullText: string;

@@ -109,5 +109,3 @@ export class WebLensActionProvider extends ActionProvider {
         ] as unknown as Action[];
     }
 }
-
-export const webLensActionProvider = () => new WebLensActionProvider();

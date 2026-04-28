@@ -153,18 +153,3 @@ export async function errorHandlerMiddleware(c: Context, next: Next) {
     return c.json(errorResponse, status as 400 | 402 | 404 | 429 | 500 | 502 | 503);
   }
 }
-
-/**
- * Helper to throw a typed error that will be caught by the error handler
- */
-export class WebLensError extends Error {
-  code: ErrorCode;
-  retryAfter?: number;
-
-  constructor(code: ErrorCode, message: string, retryAfter?: number) {
-    super(message);
-    this.code = code;
-    this.retryAfter = retryAfter;
-    this.name = "WebLensError";
-  }
-}

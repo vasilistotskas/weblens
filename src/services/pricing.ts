@@ -102,7 +102,7 @@ export function parsePrice(price: string): number {
  * Format a numeric price amount as a string with $ prefix.
  * @param decimals Number of decimal places (default 4 for USDC micro-payments)
  */
-export function formatPrice(amount: number, decimals: number = 4): string {
+function formatPrice(amount: number, decimals: number = 4): string {
     return `$${amount.toFixed(decimals)}`;
 }
 

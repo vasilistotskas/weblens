@@ -12,7 +12,7 @@
 
 import { validateURL } from "../services/validator";
 
-export const MAX_REDIRECTS = 5;
+const MAX_REDIRECTS = 5;
 
 export async function safeFetch(
     url: string,

@@ -9,12 +9,12 @@
 
 import { PRICING } from "../config";
 
-export interface MemoryServiceConfig {
+interface MemoryServiceConfig {
   kv: KVNamespace;
   walletAddress: string;
 }
 
-export interface StoredValue {
+interface StoredValue {
   value: unknown;
   storedAt: string;
   expiresAt: string;
@@ -40,7 +40,7 @@ function getKeysListKey(walletAddress: string): string {
  * Clamp TTL to valid bounds (1-720 hours)
  * Requirement 7.8: TTL between 1 hour and 30 days
  */
-export function clampTtl(ttl: number | undefined): number {
+function clampTtl(ttl: number | undefined): number {
   const { minTtl, maxTtl, defaultTtl } = PRICING.memory;
   if (ttl === undefined) {return defaultTtl;}
   return Math.max(minTtl, Math.min(maxTtl, ttl));

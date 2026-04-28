@@ -14,40 +14,40 @@ export interface AIServiceConfig {
   maxTokens?: number;
 }
 
-export interface SummarizeOptions {
+interface SummarizeOptions {
   content: string;
   query?: string;
   maxLength?: number;
 }
 
-export interface SummarizeResult {
+interface SummarizeResult {
   summary: string;
   keyFindings: string[];
 }
 
-export interface ExtractOptions {
+interface ExtractOptions {
   content: string;
   query: string;
   format?: "json" | "text";
 }
 
-export interface ExtractedItem {
+interface ExtractedItem {
   value: unknown;
   context?: string;
   confidence: number;
 }
 
-export interface ExtractResult {
+interface ExtractResult {
   data: ExtractedItem[];
   explanation: string;
 }
 
-export interface CompareOptions {
+interface CompareOptions {
   sources: { url: string; title: string; content: string }[];
   focus?: string;
 }
 
-export interface CompareResult {
+interface CompareResult {
   similarities: string[];
   differences: string[];
   summary: string;

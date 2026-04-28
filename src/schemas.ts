@@ -92,10 +92,6 @@ export const MemorySetRequestSchema = z.object({
     ttl: z.number().min(1).max(720).optional().default(168), // hours
 });
 
-export const MemoryGetRequestSchema = z.object({
-    key: z.string().min(1).max(128),
-});
-
 export const CreditsBuyRequestSchema = z.object({
     amount: z.number().min(2).max(1000), // USD
 });
@@ -111,8 +107,3 @@ export const IntelRequestSchema = z.object({
     param: z.string().min(1), // symbol, domain, or query depending on endpoint
     depth: z.enum(["basic", "deep"]).optional().default("basic"),
 });
-
-export type FetchRequest = z.infer<typeof FetchRequestSchema>;
-export type ScreenshotRequest = z.infer<typeof ScreenshotRequestSchema>;
-export type SearchRequest = z.infer<typeof SearchRequestSchema>;
-export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;

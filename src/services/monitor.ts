@@ -12,7 +12,7 @@ import { PRICING } from "../config";
 import type { StoredMonitor, MonitorStatus } from "../types";
 import { validateURL } from "./validator";
 
-export interface MonitorServiceConfig {
+interface MonitorServiceConfig {
   kv: KVNamespace;
   ownerId?: string; // Wallet address for ownership
 }
@@ -44,7 +44,7 @@ function getOwnerMonitorsKey(ownerId: string): string {
  * Clamp check interval to valid bounds (1-24 hours)
  * Requirement 4.7: Interval between 1 and 24 hours
  */
-export function clampInterval(interval: number | undefined): number {
+function clampInterval(interval: number | undefined): number {
   const { minInterval, maxInterval } = PRICING.monitor;
   if (interval === undefined) {return minInterval;}
   return Math.max(minInterval, Math.min(maxInterval, interval));
@@ -162,7 +162,7 @@ export async function deleteMonitor(
 /**
  * Update monitor after a check
  */
-export async function updateMonitorAfterCheck(
+async function updateMonitorAfterCheck(
   config: MonitorServiceConfig,
   monitorId: string,
   contentHash: string,
@@ -189,25 +189,6 @@ export async function updateMonitorAfterCheck(
   await kv.put(getMonitorKey(monitorId), JSON.stringify(updated));
 
   return updated;
-}
-
-/**
- * List monitors for an owner
- */
-export async function listMonitorsByOwner(
-  config: MonitorServiceConfig,
-  ownerId: string
-): Promise<string[]> {
-  const { kv } = config;
-  const data = await kv.get(getOwnerMonitorsKey(ownerId));
-  
-  if (!data) {return [];}
-
-  try {
-    return JSON.parse(data) as string[];
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -295,7 +276,7 @@ export function validateWebhookUrl(url: string): { valid: boolean; error?: strin
 /**
  * Hash content for change detection
  */
-export async function hashContent(content: string): Promise<string> {
+async function hashContent(content: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(content);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -308,7 +289,7 @@ export async function hashContent(content: string): Promise<string> {
  * Send webhook notification
  * Requirement 4.3: Send POST to webhook URL with change details
  */
-export async function sendWebhookNotification(
+async function sendWebhookNotification(
   webhookUrl: string,
   payload: {
     monitorId: string;
@@ -412,13 +393,3 @@ export async function checkMonitor(
   }
 }
 
-/**
- * Get all monitors that are due for checking
- */
-export function getMonitorsDueForCheck(): StoredMonitor[] {
-  // Note: In a real implementation, this would use KV list with prefix
-  // and filter by nextCheckAt. For now, this is a placeholder that
-  // would be implemented with Durable Objects for proper scheduling.
-  // The actual scheduling will be handled by the Durable Object in task 13.
-  return [];
-}

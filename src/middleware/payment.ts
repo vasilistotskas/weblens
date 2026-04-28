@@ -9,7 +9,6 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { paymentMiddleware } from "@x402/hono";
 import type { Context, MiddlewareHandler } from "hono";
-import type { Address } from "viem";
 import type { Env, Variables } from "../types";
 
 // ============================================
@@ -49,7 +48,7 @@ function envSignature(env: Env): string {
  * signature so the cost of `httpServer.initialize()` (one network call to
  * `/supported`) is paid once per distinct facilitator config, not per request.
  */
-export function getResourceServer(env: Env): x402ResourceServer {
+function getResourceServer(env: Env): x402ResourceServer {
     const key = envSignature(env);
     const cached = resourceServerCache.get(key);
     if (cached) {return cached;}
@@ -141,7 +140,7 @@ export function getResourceServer(env: Env): x402ResourceServer {
  * Build a RoutesConfig object for x402 payment middleware.
  * Includes Bazaar discovery extensions when input/output schemas are provided.
  */
-export function createPaymentConfig(
+function createPaymentConfig(
     path: string,
     price: string,
     destinationAddress: string,

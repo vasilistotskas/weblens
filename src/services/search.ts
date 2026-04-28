@@ -12,7 +12,7 @@ export interface SearchResult {
   position: number;
 }
 
-export interface SearchOptions {
+interface SearchOptions {
   query: string;
   limit: number;
   serpApiKey?: string;

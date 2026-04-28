@@ -8,7 +8,7 @@ import { PRICING, FREE_TIER } from "../config";
 import type { Env } from "../types";
 
 // Service catalog with rich metadata for AI agent discovery
-export const SERVICE_CATALOG = {
+const SERVICE_CATALOG = {
     name: "WebLens",
     version: "2.0.0",
     tagline: "Give your AI agents web superpowers",

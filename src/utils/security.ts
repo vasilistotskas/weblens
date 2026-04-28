@@ -9,7 +9,7 @@ import { getAddress, verifyMessage } from "viem";
  * - Wallet ownership proof
  */
 
-export interface VerificationResult {
+interface VerificationResult {
     isValid: boolean;
     error?: string;
     code?: string;
