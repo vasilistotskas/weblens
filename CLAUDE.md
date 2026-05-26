@@ -36,6 +36,8 @@ wrangler secret put ANTHROPIC_API_KEY
 wrangler secret put SERP_API_KEY
 ```
 
+> **pnpm 11**: pnpm-specific settings live in `pnpm-workspace.yaml` (the `pnpm` field in `package.json` is no longer read) — `allowBuilds` (replaces `onlyBuiltDependencies`), `blockExoticSubdeps: false` (viem@2.51 pulls `ox` from a pkg.pr.new tarball), plus `peerDependencyRules`/`overrides`/`allowedDeprecatedVersions`. `LOG_LEVEL` is a `[vars]` entry in `wrangler.toml`. `mcp-server/` is a **separate** npm package (own lockfile/build), not part of the workspace.
+
 ## Architecture
 
 ### Runtime & Framework
@@ -47,7 +49,7 @@ wrangler secret put SERP_API_KEY
 ### Entry Point & Middleware Chain (`src/index.ts`)
 Global middleware applied in this order, then route groups registered:
 
-1. Logger → CORS → Payment Debug → Request ID → Security Headers → Error Handler → POST-only enforcement (for `PAID_ENDPOINTS` array)
+1. Logger → CORS → Payment Debug → Request ID (also creates the request-scoped structured logger) → Security Headers → POST-only enforcement (for `PAID_ENDPOINTS` array). Global errors are caught by `app.onError(errorHandler)` (idiomatic Hono) — **not** a `*` middleware — and the 404 by `app.notFound`.
 2. Route groups registered in order: System → Free → Credits → Core → Advanced → Intel
 
 Durable Object classes (`CreditAccountDO`, `MonitorScheduler`) are re-exported from the entry point for Workers binding.
@@ -70,6 +72,8 @@ Middleware stores state in Hono context (`c.set()`/`c.get()`):
 - `validatedBody` — Zod-parsed request body (set by validation middleware, consumed by handlers)
 - `paidWithCredits` — boolean flag; when `true`, x402 payment middleware is skipped
 - `startTime` — `Date.now()` for `X-Processing-Time` header calculation
+- `log` — request-scoped structured `Logger` bound with `requestId`/method/path; use `c.get("log").info("event.name", {fields})` (set by Request ID middleware, always present)
+- `cacheHit` / `cacheKey` / `cacheTtl` / `cachedBody` — set by the cache middleware (see Caching)
 
 ### Adding a New Endpoint
 Each paid endpoint follows this middleware composition pattern in a route registrar:
@@ -79,7 +83,7 @@ app.use("/path", validateRequest(ZodSchema))                // Zod validation �
 app.use("/path", createLazyPaymentMiddleware(...))          // x402 payment wall
 app.post("/path", handlerFunction)                          // tool handler
 ```
-The order matters: credit check → validation → payment → handler. Free endpoints use `rateLimitMiddleware` instead of payment middleware. **Exception:** endpoints whose price is derived from the request body run validation *before* the credit middleware so the price function can read `validatedBody` — `/batch/fetch` (`src/routes/advanced.ts`) uses validation → credit → payment for per-URL pricing; `/fetch/pro` and `/extract` keep credit-first and re-read the body inside their dynamic price callback instead.
+The order matters: credit check → validation → payment → handler. Handlers then read `c.get("validatedBody")` (no per-handler re-parse) and `c.get("requestId")`. Free endpoints use `rateLimitMiddleware` + `validateRequest` with their own free-tier schemas (exported from `src/tools/free.ts`). **Exception:** endpoints whose price is derived from the request body run validation *before* the credit middleware so the price function can read `validatedBody` — `/batch/fetch` (`src/routes/advanced.ts`) uses validation → credit → payment for per-URL pricing; `/fetch/pro` and `/extract` keep credit-first and re-read the body inside their dynamic price callback instead. Cacheable endpoints prepend `cacheLookupMiddleware` and append `cacheServeMiddleware` (see Caching).
 
 ### Payment System (x402 Protocol)
 - Client sends POST without payment → gets 402 with price/network/address
@@ -92,17 +96,23 @@ The order matters: credit check → validation → payment → handler. Free end
 
 ### Credit System (Alternative to Per-Request Payment)
 Three-layer architecture:
-1. **Credit middleware** (`src/middleware/credit-middleware.ts`) — intercepts `X-CREDIT-WALLET` header, verifies wallet signature (timestamp + ECDSA via `verifyWalletSignature()`), attempts debit. On insufficient funds, gracefully falls through to x402 payment.
+1. **Credit middleware** (`src/middleware/credit-middleware.ts`) — intercepts `X-CREDIT-WALLET` header, verifies the EIP-191 wallet signature via `verifyWalletSignature()` (one-directional timestamp window: ≤5min old, ≤60s future skew) with KV-backed **replay protection** (each signature consumed once via a `sigreplay:` nonce in CACHE), then attempts debit. On insufficient funds, gracefully falls through to x402 payment.
 2. **CreditAccountDO** (`src/durable_objects/CreditAccountDO.ts`) — atomic balance management per wallet. Tiers: standard → premium ($100 deposited) → enterprise ($1000). Transaction history capped at 100 entries.
 3. **Credit service** (`src/services/credits.ts`) — DO proxy functions. Bonus tiers: 20% at $10, 30% at $50, 40% at $100+ (descending sort for highest applicable match).
 
 ### Error Handling
-- Global error handler (`src/middleware/errorHandler.ts`) uses `ERROR_CODE_MAP` — substring pattern matching on error messages to classify into `ErrorCode` enum values
-- Consistent response envelope: `{error, code, message, requestId, retryAfter?}`
-- Status code mapping: 400 (validation), 402 (payment), 404 (not found), 422 (unprocessable), 429 (rate limit), 500/502/503 (server errors)
+- Registered via `app.onError(errorHandler)` (`src/middleware/errorHandler.ts`) — idiomatic Hono; catches throws from any middleware/handler regardless of order, logs the error through the structured logger, and returns the envelope. `ERROR_CODE_MAP` does substring matching on the message → `ErrorCode`.
+- Consistent envelope: `{error, code, message, requestId, retryAfter?}` where **`error` always equals `code`** (machine-readable); human text goes in `message`. New codes must be added to the `ErrorCode` union in `types.ts`.
+- Status mapping in `getHttpStatus()`: 400/401/402/404/405/413/422/429/500/502/503.
 
-### URL Validation (`src/services/validator.ts`)
-Blocks private/internal IPs (RFC 1918 ranges, localhost, 127.0.0.1, decimal IP tricks), `.onion` domains, non-HTTP(S) schemes. Returns `{valid, normalized?, error?}`.
+### Logging & Observability (`src/utils/logger.ts`)
+- Structured JSON to `console.*` (Cloudflare Workers Logs auto-indexes the fields — no logging lib). `createLogger`/`loggerFromEnv(env)`/`mask()`; levels gated by `env.LOG_LEVEL`, mapped to `console.error/warn/log` for severity.
+- Request path uses `c.get("log")`; DOs use `loggerFromEnv(this.env)`; services take an optional `Logger`. Event names are dotted (`credit.debit`, `provider.fallback`). **Never log** secrets/signatures/raw headers; `mask()` wallets. `wrangler.toml [observability]` on with `head_sampling_rate` (0.1 prod / 1 testnet).
+
+### URL Validation & SSRF (`src/services/validator.ts`, `src/utils/safe-fetch.ts`)
+- `validateURL()` **canonicalizes** IPv4 literals in any encoding (dotted/octal/hex/shorthand/bare-int) and range-checks against private blocks; also blocks non-canonical encodings, RFC1918/loopback/link-local/CGNAT, IPv6 loopback/ULA/link-local, embedded credentials, `.onion`, and non-HTTP(S) schemes. Returns `{valid, normalized?, error?}`.
+- `safeFetch()` re-validates **every redirect hop** (manual redirect) — use it for any fetch of a user-supplied URL (all fetch tools + provider-registry native path do).
+- The validation middleware rejects bodies over 256KB (`Content-Length`) before parsing.
 
 ### Caching
 - Opt-in via the `cache` body field (default `true`) on the fetch family (`/fetch/basic`, `/fetch/pro`, `/fetch/resilient`); implemented in `src/middleware/cache.ts` + `src/services/cache.ts`. On a hit the cached body is served (handler skipped) and the 70% discount applies to both the credit debit and the x402 challenge.
@@ -115,6 +125,8 @@ Blocks private/internal IPs (RFC 1918 ranges, localhost, 127.0.0.1, decimal IP t
 - `getComplexityMultiplier()` analyzes URLs: HIGH_COMPLEXITY_DOMAINS (Twitter, Facebook, LinkedIn, Amazon, Booking, Airbnb) get 3.0x multiplier
 - Deep paths (>3 segments) or many query params (>2) get 1.5x
 - `calculatePrice()` returns 4-decimal precision for USDC atomic units
+- `getPriceRange()` derives the advertised price range from `PRICING` (single source of truth for discovery/MCP/docs — no hardcoded range strings)
+- `getCachedPrice()` applies the 70% cache discount; used by the cache middleware's `cacheAwareCreditCost`/`cacheAwarePaymentPrice`
 - `src/services/reputation.ts` — mock placeholder for ERC-8004 reputation discounts (hardcoded wallets for now)
 
 ### Crypto & Proof of Context (`src/services/crypto.ts`)
@@ -129,10 +141,10 @@ Blocks private/internal IPs (RFC 1918 ranges, localhost, 127.0.0.1, decimal IP t
 - **Environments**: production (Base mainnet, custom domain `api.weblens.dev`) and testnet (Base Sepolia, `workers_dev = true`)
 
 ### Testing
-- **Vitest** with property-based tests using **fast-check**
-- All tests in `tests/` — `tests/properties/` (property-based), `tests/unit/` (unit), `tests/integration/` (integration)
-- Cloudflare Workers runtime mocked via `tests/mocks/cloudflare-workers.ts` (aliased in `vitest.config.ts` so `import from "cloudflare:workers"` resolves to mock)
-- Tests cover: pricing calculations, credit middleware/deduction, rate limiting, validation bounds, cache TTL clamping, batch pricing, response headers, multi-chain support, resilient fetch fallback logic
+- **Vitest 4** + **fast-check**. `vitest.config.ts` defines two `projects` (`pnpm run test` runs both):
+  - **`node`** — pure-logic unit/property tests in `tests/properties/` + `tests/unit/`; production code importing `cloudflare:workers` is aliased to `tests/mocks/cloudflare-workers.ts`.
+  - **`workers`** — `tests/workers/` run in the **real workerd runtime** via `@cloudflare/vitest-pool-workers` (`cloudflareTest()` plugin reading `wrangler.toml`), with real KV/DO bindings. `CreditAccountDO` is tested here: `import { env } from "cloudflare:workers"` + `runInDurableObject`/`runDurableObjectAlarm` from `cloudflare:test`. Add binding/DO tests here, not in the node project.
+- Request handlers/schemas are tested by their **canonical Zod schema** (the validatedBody contract), not local mocks. Coverage: pricing, credit DO ledger (real), rate limiting, schema contracts, cache key/TTL/discount, SSRF encodings, crypto/ACV, response headers, resilient-fetch fallback.
 
 ### MCP Integration (`src/tools/mcp.ts`)
 Model Context Protocol JSON-RPC handler at `/mcp` — enables AI agents to discover and use WebLens tools via MCP protocol.
