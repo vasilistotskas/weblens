@@ -10,6 +10,12 @@ import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/
 import { paymentMiddleware } from "@x402/hono";
 import type { Context, MiddlewareHandler } from "hono";
 import type { Env, Variables } from "../types";
+import { createLogger } from "../utils/logger";
+
+// Module-level logger for init-time wiring and facilitator hooks, which run
+// outside any request context (no Hono `c` available). Per-request price logs
+// use the request-scoped logger via `c.get("log")`.
+const log = createLogger();
 
 // ============================================
 // Resource Server Cache (env-signature keyed)
@@ -53,7 +59,7 @@ function getResourceServer(env: Env): x402ResourceServer {
     const cached = resourceServerCache.get(key);
     if (cached) {return cached;}
 
-    console.log("🔧 [Init] Creating x402 resource server...");
+    log.info("x402.init_start");
 
     // CAIP-2 network identifier. Base mainnet = eip155:8453, Base Sepolia = eip155:84532.
     const NETWORK_CAIP2 = env.NETWORK === "base-sepolia" ? "eip155:84532" : "eip155:8453";
@@ -101,7 +107,7 @@ function getResourceServer(env: Env): x402ResourceServer {
     server.onVerifyFailure((ctx) => {
         const payload = ctx.paymentPayload as { scheme?: string; network?: string } | undefined;
         const reqs = ctx.requirements as { payTo?: string; amount?: string } | undefined;
-        console.error("❌ [x402 Verify Failure]", {
+        log.error("x402.verify_failure", {
             scheme: payload?.scheme,
             network: payload?.network,
             payTo: reqs?.payTo,
@@ -113,7 +119,7 @@ function getResourceServer(env: Env): x402ResourceServer {
     server.onSettleFailure((ctx) => {
         const payload = ctx.paymentPayload as { scheme?: string; network?: string } | undefined;
         const reqs = ctx.requirements as { payTo?: string; amount?: string } | undefined;
-        console.error("❌ [x402 Settle Failure]", {
+        log.error("x402.settle_failure", {
             scheme: payload?.scheme,
             network: payload?.network,
             payTo: reqs?.payTo,
@@ -125,9 +131,10 @@ function getResourceServer(env: Env): x402ResourceServer {
 
     resourceServerCache.set(key, server);
 
-    console.log("✅ [Init] x402 resource server ready");
-    console.log("   Network:", NETWORK_CAIP2);
-    console.log("   Facilitator:", facilitatorLabel);
+    log.info("x402.init_ready", {
+        network: NETWORK_CAIP2,
+        facilitator: facilitatorLabel,
+    });
 
     return server;
 }
@@ -264,9 +271,9 @@ export function createLazyPaymentMiddleware(
             }>;
             if (cacheKey) {
                 middlewareCache.set(cacheKey, middleware);
-                console.log(`✅ [Init] payment middleware ready for ${path} (${price})`);
+                c.get("log").debug("payment.middleware_ready", { path, price });
             } else {
-                console.log(`💲 [Dynamic] price for ${path}: ${price}`);
+                c.get("log").debug("pricing.dynamic", { path, price });
             }
         }
 

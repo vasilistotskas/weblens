@@ -79,7 +79,7 @@ app.use("/path", validateRequest(ZodSchema))                // Zod validation �
 app.use("/path", createLazyPaymentMiddleware(...))          // x402 payment wall
 app.post("/path", handlerFunction)                          // tool handler
 ```
-The order matters: credit check → validation → payment → handler. Free endpoints use `rateLimitMiddleware` instead of payment middleware.
+The order matters: credit check → validation → payment → handler. Free endpoints use `rateLimitMiddleware` instead of payment middleware. **Exception:** endpoints whose price is derived from the request body run validation *before* the credit middleware so the price function can read `validatedBody` — `/batch/fetch` (`src/routes/advanced.ts`) uses validation → credit → payment for per-URL pricing; `/fetch/pro` and `/extract` keep credit-first and re-read the body inside their dynamic price callback instead.
 
 ### Payment System (x402 Protocol)
 - Client sends POST without payment → gets 402 with price/network/address
@@ -87,7 +87,7 @@ The order matters: credit check → validation → payment → handler. Free end
 - `@x402/hono` middleware verifies on-chain, request proceeds
 - Payment middleware uses **lazy initialization** — `getResourceServer()` creates a singleton on first request, cached at module scope in `src/middleware/payment.ts`
 - Static pricing middleware is also cached; dynamic pricing (for extract/fetch-pro) re-evaluates per request via callback
-- Facilitator selection happens at runtime in `getResourceServer()` (`src/middleware/payment.ts`) based on env: `NETWORK=base-sepolia` → x402.org testnet facilitator; else if `CDP_API_KEY_ID`/`CDP_API_KEY_SECRET` are set → **CDP facilitator** via `@coinbase/x402` `createFacilitatorConfig()` (production default); else → PayAI fallback. The branch taken is logged at init (`wrangler tail` shows `Facilitator: cdp | payai | testnet`). `SUPPORTED_NETWORKS` in `config.ts` currently only contains `["base"]`.
+- Facilitator selection happens at runtime in `getResourceServer()` (`src/middleware/payment.ts`) based on env: `NETWORK=base-sepolia` (or a `FACILITATOR_URL` containing `x402.org`) → x402.org testnet facilitator; else if `CDP_API_KEY_ID`/`CDP_API_KEY_SECRET` are set → **PayAI primary + CDP fallback** (two `HTTPFacilitatorClient`s; PayAI wins precedence for shared scheme/network combos because the CDP facilitator has known Base-mainnet gas-estimation issues — coinbase/x402#1065 — so CDP is kept only as a fallback for schemes PayAI doesn't advertise); else → PayAI only. The chosen branch is logged at init (`wrangler tail` shows e.g. `Facilitator: payai (primary) + cdp (fallback)`). `SUPPORTED_NETWORKS` in `config.ts` currently only contains `["base"]`.
 - `payment-debug.ts` middleware logs EIP-3009 authorization structure for diagnosing CDP facilitator failures
 
 ### Credit System (Alternative to Per-Request Payment)

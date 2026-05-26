@@ -5,6 +5,11 @@
  * falls back to DuckDuckGo HTML parsing with CAPTCHA detection.
  */
 
+import { createLogger } from "../utils/logger";
+
+// Module-level logger: searchWeb is a pure service (no env or Hono context).
+const log = createLogger();
+
 export interface SearchResult {
   title: string;
   url: string;
@@ -34,7 +39,7 @@ export async function searchWeb(options: SearchOptions): Promise<SearchResult[]>
       // logging — SerpAPI 4xx bodies sometimes echo the full request URL.
       const raw = error instanceof Error ? error.message : String(error);
       const sanitized = raw.replace(/api_key=[^&\s"]+/gu, "api_key=REDACTED");
-      console.error(`[Search] SerpAPI failed, falling back to DuckDuckGo: ${sanitized}`);
+      log.warn("search.serpapi_fallback", { error: sanitized });
     }
   }
 

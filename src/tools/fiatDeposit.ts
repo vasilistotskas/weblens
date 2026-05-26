@@ -20,10 +20,10 @@ import { processDeposit } from "../services/credits";
 import type { StripeWebhookEvent } from "../services/stripe";
 import { createCheckoutSession, verifyStripeSignature } from "../services/stripe";
 import type { Env } from "../types";
-import { generateRequestId } from "../utils/requestId";
+import { mask } from "../utils/logger";
 
 export async function createFiatCheckoutHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     if (!c.env.STRIPE_SECRET_KEY) {
         return c.json(
@@ -68,7 +68,10 @@ export async function createFiatCheckoutHandler(c: Context<{ Bindings: Env }>) {
             requestId,
         });
     } catch (err) {
-        console.error("[fiat-deposit] checkout session creation failed:", err);
+        c.get("log").error("stripe.checkout_failed", {
+            wallet: mask(body.wallet),
+            error: err instanceof Error ? err.message : String(err),
+        });
         return c.json(
             createErrorResponse(
                 "INTERNAL_ERROR",
@@ -81,7 +84,7 @@ export async function createFiatCheckoutHandler(c: Context<{ Bindings: Env }>) {
 }
 
 export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     if (!c.env.STRIPE_WEBHOOK_SECRET || !c.env.CREDIT_MANAGER) {
         return c.json(
@@ -112,7 +115,7 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
     });
 
     if (!verification.valid) {
-        console.error("[stripe-webhook] signature verification failed:", verification.reason);
+        c.get("log").warn("stripe.webhook_signature_invalid", { reason: verification.reason });
         // 400 (not 401) — Stripe treats any non-2xx/5xx as permanent failure,
         // and 400 matches the "malformed webhook" semantics better than 401
         // (which implies the caller could re-authenticate).
@@ -150,14 +153,17 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
 
     const session = event.data.object;
     if (session.payment_status !== "paid") {
-        console.log(`[stripe-webhook] session ${session.id ?? "?"} not paid (status=${session.payment_status ?? "?"})`);
+        c.get("log").info("stripe.webhook_not_paid", {
+            session: session.id ?? "?",
+            status: session.payment_status ?? "?",
+        });
         return c.json({ received: true, skipped: "not paid", requestId });
     }
 
     const wallet = session.metadata?.wallet;
     const amountUsdStr = session.metadata?.amountUsd;
     if (!wallet || !amountUsdStr) {
-        console.error(`[stripe-webhook] session ${session.id ?? "?"} missing wallet/amount metadata`);
+        c.get("log").error("stripe.webhook_missing_metadata", { session: session.id ?? "?" });
         return c.json(createErrorResponse("INVALID_REQUEST", "Missing wallet/amount metadata", requestId), 400);
     }
 
@@ -174,9 +180,11 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
         typeof session.amount_total === "number" &&
         session.amount_total !== expectedCents
     ) {
-        console.error(
-            `[stripe-webhook] amount mismatch: metadata=${String(expectedCents)}c, amount_total=${String(session.amount_total)}c, session=${session.id ?? "?"}`
-        );
+        c.get("log").error("stripe.webhook_amount_mismatch", {
+            metadataCents: expectedCents,
+            amountTotalCents: session.amount_total,
+            session: session.id ?? "?",
+        });
         return c.json(
             createErrorResponse("INVALID_REQUEST", "Amount mismatch between metadata and settled charge", requestId),
             400
@@ -200,9 +208,13 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
             } catch { /* non-fatal */ }
         }
 
-        console.log(
-            `[stripe-webhook] ${duplicate ? "duplicate ignored" : "credited"} $${amountUsd.toFixed(2)} (+ $${bonusAccrued.toFixed(2)} bonus) to ${wallet}; balance $${account.balance.toFixed(4)}`
-        );
+        c.get("log").info("stripe.webhook_credited", {
+            duplicate,
+            wallet: mask(wallet),
+            amountUsd: amountUsd.toFixed(2),
+            bonusUsd: bonusAccrued.toFixed(2),
+            balanceUsd: account.balance.toFixed(4),
+        });
         return c.json({
             received: true,
             duplicate,
@@ -213,7 +225,10 @@ export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
             requestId,
         });
     } catch (err) {
-        console.error(`[stripe-webhook] deposit failed for ${wallet}:`, err);
+        c.get("log").error("stripe.webhook_deposit_failed", {
+            wallet: mask(wallet),
+            error: err instanceof Error ? err.message : String(err),
+        });
         // Return 500 so Stripe retries. Idempotency is now enforced inside
         // the Durable Object via externalId dedup, so a retry on the same
         // event.id returns duplicate=true instead of double-crediting.

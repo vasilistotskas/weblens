@@ -7,7 +7,7 @@
  * - Consistent error response format
  */
 
-import type { Context, Next } from "hono";
+import type { Context } from "hono";
 import type { ErrorCode, ErrorResponse } from "../types";
 import { loggerFromEnv } from "../utils/logger";
 import { getRequestId, getProcessingTime } from "./requestId";
@@ -167,37 +167,35 @@ export function createErrorResponse(
 }
 
 /**
- * Global error handler middleware
- * Catches all errors and returns consistent error responses
+ * Global error handler — registered via `app.onError()` (the idiomatic Hono v4
+ * mechanism). Unlike a `*` try/catch middleware, this catches errors thrown by
+ * any middleware or handler regardless of registration order, and returns the
+ * consistent error envelope.
  */
-export async function errorHandlerMiddleware(c: Context, next: Next) {
-  try {
-    await next();
-  } catch (error) {
-    const requestId = getRequestId(c);
-    const processingTime = getProcessingTime(c);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    const code = getErrorCode(message);
-    const status = getHttpStatus(code);
+export function errorHandler(error: Error, c: Context): Response {
+  const requestId = getRequestId(c);
+  const processingTime = getProcessingTime(c);
+  const message = error.message || "Unknown error";
+  const code = getErrorCode(message);
+  const status = getHttpStatus(code);
 
-    // Log the unhandled error (previously invisible in production). Stack stays
-    // server-side; it is never returned to the client.
-    loggerFromEnv(c.env as { LOG_LEVEL?: string }, { requestId }).error("request.unhandled_error", {
-      code,
-      status,
-      message,
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+  // Log the unhandled error (previously invisible in production). Stack stays
+  // server-side; it is never returned to the client.
+  loggerFromEnv(c.env as { LOG_LEVEL?: string }, { requestId }).error("request.unhandled_error", {
+    code,
+    status,
+    message,
+    stack: error.stack,
+  });
 
-    // Determine if retry is appropriate
-    const retryAfter = [502, 503, 429].includes(status) ? 5 : undefined;
+  // Determine if retry is appropriate
+  const retryAfter = [502, 503, 429].includes(status) ? 5 : undefined;
 
-    const errorResponse = createErrorResponse(code, message, requestId, retryAfter);
+  const errorResponse = createErrorResponse(code, message, requestId, retryAfter);
 
-    // Set response headers
-    c.header("X-Request-Id", requestId);
-    c.header("X-Processing-Time", processingTime.toString());
+  // Set response headers
+  c.header("X-Request-Id", requestId);
+  c.header("X-Processing-Time", processingTime.toString());
 
-    return c.json(errorResponse, status as 400 | 401 | 402 | 404 | 405 | 413 | 422 | 429 | 500 | 502 | 503);
-  }
+  return c.json(errorResponse, status as 400 | 401 | 402 | 404 | 405 | 413 | 422 | 429 | 500 | 502 | 503);
 }

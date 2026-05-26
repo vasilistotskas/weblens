@@ -10,7 +10,6 @@ import type { Context } from "hono";
 import { FREE_TIER } from "../config";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
-import { generateRequestId } from "../utils/requestId";
 import { fetchBasicPage } from "./fetch-basic";
 
 /**
@@ -42,7 +41,7 @@ function extractTargetUrl(c: Context): string | null {
  * Zero-friction reader — fetch any URL as markdown with a single GET request.
  */
 export async function readerHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
     const format = c.req.query("format") ?? "json";
 
     // Extract target URL from path
@@ -148,7 +147,7 @@ export async function readerHandler(c: Context<{ Bindings: Env }>) {
             }, 502);
         }
 
-        console.error(`[Reader] Error fetching URL: ${rawMessage}`);
+        c.get("log").error("reader.fetch_failed", { error: rawMessage });
         if (format === "text") {
             return c.text("Error: Failed to fetch the requested URL\n", 500);
         }

@@ -14,8 +14,13 @@ import type { FetchRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, FetchResponse, ProofOfContext } from "../types";
+import { createLogger } from "../utils/logger";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { safeFetch } from "../utils/safe-fetch";
+
+// Module-level logger: fetchBasicPage is a service-style function (takes `env`,
+// not a Hono context) and is also called outside any request (e.g. research).
+const log = createLogger();
 
 export interface FetchBasicResult {
   url: string;
@@ -86,7 +91,10 @@ export async function fetchBasicPage(
         keyId
       };
     } catch (e) {
-      console.warn("Failed to generate ACV proof:", e);
+      log.warn("acv.proof_failed", {
+        endpoint: "fetch-basic",
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 

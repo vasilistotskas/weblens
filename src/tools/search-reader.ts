@@ -10,14 +10,13 @@ import type { Context } from "hono";
 import { FREE_TIER } from "../config";
 import { searchWeb } from "../services/search";
 import type { Env } from "../types";
-import { generateRequestId } from "../utils/requestId";
 
 /**
  * GET /s/*
  * Zero-friction search — just append a query and GET results.
  */
 export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
     const format = c.req.query("format") ?? "json";
 
     // Extract query from path: /s/cloudflare+workers → "cloudflare workers"
@@ -91,7 +90,7 @@ export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
         });
     } catch (error) {
         const rawMessage = error instanceof Error ? error.message : "Unknown error";
-        console.error(`[SearchReader] Error: ${rawMessage}`);
+        c.get("log").error("search_reader.failed", { error: rawMessage });
 
         const isProviderError = rawMessage.includes("bot detection") || rawMessage.includes("challenge");
 

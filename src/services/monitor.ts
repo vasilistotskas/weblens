@@ -10,8 +10,13 @@
 
 import { PRICING } from "../config";
 import type { StoredMonitor, MonitorStatus } from "../types";
+import { createLogger } from "../utils/logger";
 import { hashContent } from "./crypto";
 import { validateURL } from "./validator";
+
+// Module-level logger: webhook send happens deep in the service call chain
+// (no Hono context and may run from a Durable Object alarm).
+const log = createLogger();
 
 interface MonitorServiceConfig {
   kv: KVNamespace;
@@ -295,7 +300,7 @@ async function sendWebhookNotification(
   // internal IP once a DNS record flips or a redirect chain rewrites.
   const validation = validateURL(webhookUrl);
   if (!validation.valid) {
-    console.warn(`[monitor] blocked webhook URL at send time: ${validation.error ?? "invalid"}`);
+    log.warn("monitor.webhook_blocked", { reason: validation.error ?? "invalid" });
     return false;
   }
   try {

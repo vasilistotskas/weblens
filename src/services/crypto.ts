@@ -1,6 +1,11 @@
 import type { Env, ProofOfContext } from "../types";
+import { createLogger } from "../utils/logger";
 
 const subtle = crypto.subtle;
+
+// Module-level logger: signContext is a pure service called from multiple
+// handlers and has no Hono context to thread.
+const log = createLogger();
 
 /**
  * Calculate SHA-256 hash of the content (DOM/Text)
@@ -69,7 +74,7 @@ export async function signContext(
             alg: "HMAC-SHA256",
         };
     } catch (e) {
-        console.error("Signing failed", e);
+        log.error("acv.signing_failed", { error: e instanceof Error ? e.message : String(e) });
         throw new Error("Internal signing error");
     }
 }

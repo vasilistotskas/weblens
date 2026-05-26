@@ -22,20 +22,12 @@ import { validateURL } from "../services/validator";
 import type {
   Env,
   MonitorCreateResponse,
+  PaymentPayload,
 } from "../types";
-import { generateRequestId } from "../utils/requestId";
 
 /**
  * Extract wallet address from payment context
  */
-interface PaymentPayload {
-  payload?: {
-    authorization?: {
-      from?: string;
-    };
-  };
-}
-
 function getWalletAddress(c: Context<{ Bindings: Env }>): string {
   const paymentHeader = c.req.header("Payment-Signature");
   if (paymentHeader) {
@@ -158,7 +150,7 @@ export async function monitorCreateHandler(c: Context<{ Bindings: Env }>) {
  * Requirement 4.5: Return monitor status and history
  */
 export async function monitorGetHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available
@@ -230,7 +222,7 @@ export async function monitorGetHandler(c: Context<{ Bindings: Env }>) {
  * Requirement 4.6: Stop monitoring and remove monitor
  */
 export async function monitorDeleteHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available

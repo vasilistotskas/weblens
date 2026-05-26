@@ -7,6 +7,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "../types";
+import { loggerFromEnv } from "../utils/logger";
 import { safeFetch } from "../utils/safe-fetch";
 
 export class MonitorScheduler extends DurableObject<Env> {
@@ -63,6 +64,7 @@ export class MonitorScheduler extends DurableObject<Env> {
    * Handle alarm - triggered when it's time to check monitors
    */
   override async alarm(): Promise<void> {
+    const log = loggerFromEnv(this.env);
     const monitors = await this.ctx.storage.list({ prefix: "monitor:" });
 
     if (monitors.size === 0) {
@@ -78,7 +80,7 @@ export class MonitorScheduler extends DurableObject<Env> {
 
       // If it's time to check (or past time)
       if (monitor.scheduledAt <= now) {
-        console.log(`Processing monitor: ${monitor.monitorId}`);
+        log.info("monitor.processing", { monitorId: monitor.monitorId });
 
         // Execute the check logic — returns false if billing failed
         const shouldContinue = await this.processCheck(monitor.monitorId);
@@ -86,7 +88,10 @@ export class MonitorScheduler extends DurableObject<Env> {
         if (!shouldContinue) {
           // Billing failed (insufficient credits) — remove from scheduler
           // to stop the alarm loop. Monitor remains in KV as "paused".
-          console.warn(`Pausing monitor ${monitor.monitorId} — billing failed, removing from scheduler`);
+          log.warn("monitor.paused", {
+            monitorId: monitor.monitorId,
+            reason: "billing_failed",
+          });
           await this.ctx.storage.delete(key);
           continue;
         }
@@ -120,6 +125,7 @@ export class MonitorScheduler extends DurableObject<Env> {
    * failed and the monitor should be paused to stop the alarm loop.
    */
   async processCheck(monitorId: string): Promise<boolean> {
+    const log = loggerFromEnv(this.env);
     try {
       const { checkMonitor } = await import("../services/monitor");
       const { deductCredits } = await import("../services/credits");
@@ -128,7 +134,7 @@ export class MonitorScheduler extends DurableObject<Env> {
 
       // 1. Get monitor to find owner
       if (!this.env.MONITOR || !this.env.CREDIT_MANAGER) {
-        console.error("Monitor or Credits service not configured");
+        log.error("monitor.misconfigured", { monitorId, reason: "monitor_or_credits_unset" });
         return false;
       }
 
@@ -136,7 +142,7 @@ export class MonitorScheduler extends DurableObject<Env> {
       const monitor = await getMonitor(config, monitorId);
 
       if (!monitor?.ownerId) {
-        console.error(`Monitor ${monitorId} not found or has no owner`);
+        log.error("monitor.no_owner", { monitorId });
         return false;
       }
 
@@ -151,7 +157,10 @@ export class MonitorScheduler extends DurableObject<Env> {
           `mon_check_${monitorId}_${Date.now()}`
         );
       } catch (error) {
-        console.error(`Billing failed for ${monitorId}:`, error);
+        log.error("monitor.billing_failed", {
+          monitorId,
+          error: error instanceof Error ? error.message : String(error),
+        });
         // Mark monitor as paused in KV so the owner can see why it stopped
         try {
           await updateMonitorStatus(config, monitorId, "paused");
@@ -168,11 +177,14 @@ export class MonitorScheduler extends DurableObject<Env> {
       };
 
       const result = await checkMonitor(config, monitorId, fetcher);
-      console.log(`Check complete for ${monitorId}. Changed: ${result.changed}`);
+      log.info("monitor.check_complete", { monitorId, changed: result.changed });
       return true;
 
     } catch (error) {
-      console.error(`Failed to process check for ${monitorId}:`, error);
+      log.error("monitor.check_failed", {
+        monitorId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return true; // reschedule — transient errors should retry
     }
   }

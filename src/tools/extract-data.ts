@@ -72,7 +72,10 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
           keyId
         };
       } catch (err) {
-        console.warn(`Failed to generate ACV proof: ${String(err)}`);
+        c.get("log").warn("acv.proof_failed", {
+            endpoint: "extract",
+            error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 

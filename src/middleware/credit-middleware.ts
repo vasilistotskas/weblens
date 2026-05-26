@@ -11,8 +11,16 @@ import type { Context, MiddlewareHandler } from "hono";
 import { deductCredits, refundCredits } from "../services/credits";
 import { hashContent } from "../services/crypto";
 import type { Env } from "../types";
+import type { Logger } from "../utils/logger";
+import { mask } from "../utils/logger";
 import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
+
+// The request-scoped logger is always set by requestId middleware (global
+// `app.use("*")`), so handlers/middleware can read it directly.
+function getLog(c: Context): Logger {
+    return c.get("log");
+}
 
 /**
  * Create credit payment middleware.
@@ -50,7 +58,11 @@ export function createCreditMiddleware(
         const verification = await verifyWalletSignature(creditWallet, signature, timestamp);
 
         if (!verification.isValid) {
-            console.warn(`[Credits] Security Warning: ${verification.error} for wallet ${creditWallet}`);
+            getLog(c).warn("credit.auth_failed", {
+                wallet: mask(creditWallet),
+                code: verification.code,
+                reason: verification.error,
+            });
             return c.json({
                 error: verification.code ?? "AUTH_FAILED",
                 message: verification.error ?? "Authentication failed"
@@ -65,7 +77,7 @@ export function createCreditMiddleware(
             const nonceKey = `sigreplay:${await hashContent(signature)}`;
             const alreadyUsed = await replayKv.get(nonceKey);
             if (alreadyUsed) {
-                console.warn(`[Credits] Replay rejected for wallet ${creditWallet}`);
+                getLog(c).warn("credit.replay_rejected", { wallet: mask(creditWallet) });
                 return c.json(
                     { error: "REPLAY_DETECTED", message: "This signature has already been used" },
                     401,
@@ -96,7 +108,12 @@ export function createCreditMiddleware(
             c.set("paidWithCredits", true);
             c.set("creditWallet", creditWallet);
 
-            console.log(`[Credits] Debited ${costStr} from ${creditWallet} for ${description}`);
+            getLog(c).info("credit.debit", {
+                wallet: mask(creditWallet),
+                cost: costStr,
+                description,
+                requestId,
+            });
 
             await next();
 
@@ -119,20 +136,30 @@ export function createCreditMiddleware(
                         `Refund: handler failure for ${description}`,
                         `refund:${requestId}`,
                     );
-                    console.warn(
-                        `[Credits] Handler threw after debit — refunded ${costStr} to ${creditWallet} (reqId=${requestId})`
-                    );
+                    getLog(c).warn("credit.refund", {
+                        wallet: mask(creditWallet),
+                        cost: costStr,
+                        requestId,
+                        reason: "handler_failure",
+                        description,
+                    });
                 } catch (refundErr) {
                     // Refund itself failed — log but still propagate the original error.
                     // Operator action required: inspect /credits/history for the wallet.
-                    console.error(
-                        `[Credits] CRITICAL: refund failed after handler throw. wallet=${creditWallet} amount=${costStr} reqId=${requestId}: ${refundErr instanceof Error ? refundErr.message : String(refundErr)}`
-                    );
+                    getLog(c).error("credit.refund_failed", {
+                        wallet: mask(creditWallet),
+                        cost: costStr,
+                        requestId,
+                        error: refundErr instanceof Error ? refundErr.message : String(refundErr),
+                    });
                 }
                 throw error;
             }
             // Insufficient funds or debit error — fall through to standard payment (x402)
-            console.warn(`[Credits] Failed to debit: ${error instanceof Error ? error.message : "Unknown"}`);
+            getLog(c).warn("credit.debit_failed", {
+                wallet: mask(creditWallet),
+                error: error instanceof Error ? error.message : "Unknown",
+            });
             await next();
         }
     };
