@@ -1,27 +1,15 @@
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
+import type { SearchRequestSchema } from "../schemas";
 import { searchWeb } from "../services/search";
-import type { Env, SearchRequest, SearchResponse } from "../types";
-import { generateRequestId } from "../utils/requestId";
-
-const searchSchema = z.object({
-  query: z.string().min(1).max(500),
-  limit: z.number().min(1).max(20).default(10),
-});
+import type { Env, SearchResponse } from "../types";
 
 export async function searchWebHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<SearchRequest>();
-    const parsed = searchSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json({ ...createErrorResponse("INVALID_REQUEST", "Invalid request parameters", requestId), details: parsed.error.issues }, 400);
-    }
-
-    const { query, limit } = parsed.data;
+    const { query, limit } = c.get("validatedBody") as z.infer<typeof SearchRequestSchema>;
 
     const results = await searchWeb({
       query,

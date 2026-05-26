@@ -24,6 +24,8 @@ custom_domain = true
 
 [vars]
 NETWORK = "base"
+# Structured-log verbosity for src/utils/logger.ts (debug|info|warn|error|silent).
+LOG_LEVEL = "info"
 # Public wallet address for receiving payments
 PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
@@ -131,6 +133,9 @@ command = "npm run build"
 
 [observability]
 enabled = true
+# Sample 10% of invocations into Workers Logs to bound cost at production volume.
+# (Errors/console.error are retained independently of head sampling.)
+head_sampling_rate = 0.1
 
 # ============================================
 # Testnet Environment (Base Sepolia)

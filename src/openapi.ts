@@ -399,12 +399,13 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         ErrorResponse: { type: "object", properties: { error: { type: "string" }, code: { type: "string" }, message: { type: "string" }, requestId: { type: "string" } } },
         ProofOfContext: {
           type: "object",
-          required: ["hash", "timestamp", "signature", "publicKey"],
+          required: ["hash", "timestamp", "alg", "mac", "keyId"],
           properties: {
             hash: { type: "string", description: "SHA-256 hash of the content" },
             timestamp: { type: "string", description: "ISO timestamp of verification" },
-            signature: { type: "string", description: "Cryptographic signature" },
-            publicKey: { type: "string", description: "Public key to verify signature" },
+            alg: { type: "string", description: "MAC algorithm (e.g. HMAC-SHA256)" },
+            mac: { type: "string", description: "Symmetric HMAC tag over {url, hash, timestamp} — not third-party verifiable" },
+            keyId: { type: "string", description: "Identifier of the oracle key that produced the MAC" },
           }
         },
       },

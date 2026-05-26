@@ -39,7 +39,7 @@ export const SearchRequestSchema = z.object({
 
 export const ExtractRequestSchema = z.object({
     url: urlSchema,
-    schema: z.record(z.string(), z.any()).describe("JSON schema for extraction"),
+    schema: z.record(z.string(), z.unknown()).describe("JSON schema for extraction"),
     instructions: z.string().optional().describe("Natural language extraction hints"),
 });
 
@@ -62,7 +62,9 @@ export const ResearchRequestSchema = z.object({
 export const SmartExtractRequestSchema = z.object({
     url: urlSchema,
     query: z.string().min(1).max(500).describe("What to extract"),
-    format: z.enum(["json", "text", "markdown"]).optional().default("json"),
+    // The smart-extract AI service (src/services/ai.ts `smartExtract`) only
+    // branches on "text" vs default JSON output — it cannot produce markdown.
+    format: z.enum(["json", "text"]).optional().default("json"),
 });
 
 export const PdfRequestSchema = z.object({
@@ -87,8 +89,8 @@ export const MonitorCreateRequestSchema = z.object({
 });
 
 export const MemorySetRequestSchema = z.object({
-    key: z.string().min(1).max(128),
-    value: z.any(),
+    key: z.string().min(1).max(256),
+    value: z.unknown(),
     ttl: z.number().min(1).max(720).optional().default(168), // hours
 });
 
@@ -101,9 +103,4 @@ export const CreditsBuyRequestSchema = z.object({
 export const FiatDepositRequestSchema = z.object({
     amount: z.number().min(2).max(1000),
     wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/u, "Must be a 0x-prefixed 40-hex address"),
-});
-
-export const IntelRequestSchema = z.object({
-    param: z.string().min(1), // symbol, domain, or query depending on endpoint
-    depth: z.enum(["basic", "deep"]).optional().default("basic"),
 });

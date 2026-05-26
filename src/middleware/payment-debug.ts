@@ -53,7 +53,9 @@ interface PaymentPayload {
 
 function safeBase64Decode(value: string): string | null {
   try {
-    return Buffer.from(value, "base64").toString("utf-8");
+    // Web-standard base64 decode (consistent with the rest of the codebase; avoids Node Buffer).
+    const bytes = Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
   } catch {
     return null;
   }
@@ -179,8 +181,9 @@ export async function paymentDebugMiddleware(
         console.log(`    authorization.validBefore: ${auth.validBefore ?? "undefined"}`);
       }
       if (payload.payload?.signature) {
+        // Never log signature bytes — only presence + length.
         console.log(
-          `    payload.signature: ${payload.payload.signature.substring(0, 22)}... (${String(payload.payload.signature.length)} chars)`
+          `    payload.signature: present (${String(payload.payload.signature.length)} chars)`
         );
       }
 

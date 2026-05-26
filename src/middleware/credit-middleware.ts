@@ -9,6 +9,7 @@
 
 import type { Context, MiddlewareHandler } from "hono";
 import { deductCredits, refundCredits } from "../services/credits";
+import { hashContent } from "../services/crypto";
 import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
@@ -54,6 +55,24 @@ export function createCreditMiddleware(
                 error: verification.code ?? "AUTH_FAILED",
                 message: verification.error ?? "Authentication failed"
             }, 401);
+        }
+
+        // Replay protection: the signature is valid for up to the 5-minute
+        // timestamp window. Reject any (wallet+timestamp+signature) tuple we've
+        // already seen within that window so a leaked header can't be replayed.
+        const replayKv = c.env.CACHE;
+        if (replayKv) {
+            const nonceKey = `sigreplay:${await hashContent(signature)}`;
+            const alreadyUsed = await replayKv.get(nonceKey);
+            if (alreadyUsed) {
+                console.warn(`[Credits] Replay rejected for wallet ${creditWallet}`);
+                return c.json(
+                    { error: "REPLAY_DETECTED", message: "This signature has already been used" },
+                    401,
+                );
+            }
+            // TTL just past the 5-min signature window so the marker outlives validity.
+            await replayKv.put(nonceKey, "1", { expirationTtl: 360 });
         }
 
         const requestId = c.get("requestId") || generateRequestId();

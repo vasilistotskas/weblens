@@ -92,10 +92,10 @@ const PAID_ENDPOINTS: { path: string; body: Record<string, unknown> }[] = [
   { path: "/compare",         body: { urls: ["https://example.com", "https://example.org"] } },
   { path: "/monitor/create",  body: { url: "https://example.com", webhookUrl: "https://example.com/hook" } },
   { path: "/memory/set",      body: { key: "test", value: "test" } },
-  { path: "/intel/company",   body: { param: "test", target: "test" } },
-  { path: "/intel/market",    body: { param: "test", topic: "test" } },
-  { path: "/intel/competitive", body: { param: "test", company: "test" } },
-  { path: "/intel/site-audit", body: { param: "https://example.com", url: "https://example.com" } },
+  { path: "/intel/company",   body: { target: "test" } },
+  { path: "/intel/market",    body: { topic: "test" } },
+  { path: "/intel/competitive", body: { company: "test" } },
+  { path: "/intel/site-audit", body: { url: "https://example.com" } },
   { path: "/credits/buy",     body: { amount: 5 } },
 ];
 
@@ -134,6 +134,9 @@ async function probeEndpoint(path: string, body: Record<string, unknown>): Promi
     const decoded = JSON.parse(Buffer.from(paymentHeader, "base64").toString()) as PaymentChallenge;
     const accept = decoded.accepts[0];
     const hasBazaar = decoded.extensions?.bazaar !== undefined;
+    if (!accept) {
+      return { success: false, hasBazaar, error: "No accepts in payment challenge" };
+    }
 
     return {
       success: true,

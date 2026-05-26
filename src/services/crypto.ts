@@ -1,4 +1,4 @@
-import type { Env } from "../types";
+import type { Env, ProofOfContext } from "../types";
 
 const subtle = crypto.subtle;
 
@@ -33,21 +33,24 @@ export async function signContext(
     contentHash: string,
     timestamp: string,
     env: Env
-): Promise<{ signature: string; publicKey: string }> {
+): Promise<{ mac: string; keyId: string; alg: string }> {
 
-    // payload to sign
+    // payload to authenticate
     const payload = JSON.stringify({ url, hash: contentHash, timestamp });
     const encoder = new TextEncoder();
     const data = encoder.encode(payload);
 
-    // 1. Get/Import the signing key
-    const secretKey = env.CDP_API_KEY_SECRET;
+    // Prefer a dedicated signing secret; fall back to the CDP secret only when
+    // that's all that's configured (avoids overloading the payment credential).
+    const secretKey = env.SIGNING_PRIVATE_KEY ?? env.CDP_API_KEY_SECRET;
     if (!secretKey) {
-        throw new Error("Missing CDP_API_KEY_SECRET for signing");
+        throw new Error("Missing signing secret (SIGNING_PRIVATE_KEY or CDP_API_KEY_SECRET)");
     }
 
-    // HMAC-SHA256 signing for stable oracle proofs across worker restarts.
-    // For true ECDSA, provision env.SIGNING_PRIVATE_KEY and upgrade this path.
+    // NOTE: This produces a SYMMETRIC HMAC tag (a MAC), not a public-key
+    // signature — only the secret holder can verify it, so it is NOT
+    // third-party verifiable. The field names reflect that. ECDSA is a roadmap
+    // item (would publish a real verifying key).
     try {
         const key = await subtle.importKey(
             "raw",
@@ -57,20 +60,14 @@ export async function signContext(
             ["sign"]
         );
 
-        const signatureBuffer = await subtle.sign(
-            "HMAC",
-            key,
-            data
-        );
-
-        const signatureArray = Array.from(new Uint8Array(signatureBuffer));
-        const signatureHex = signatureArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        const macBuffer = await subtle.sign("HMAC", key, data);
+        const macHex = Array.from(new Uint8Array(macBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
         return {
-            signature: signatureHex,
-            publicKey: "WebLens-Oracle-v1-HMAC" // Indicating this is a symmetric oracle proof
+            mac: macHex,
+            keyId: "weblens-oracle-v1",
+            alg: "HMAC-SHA256",
         };
-
     } catch (e) {
         console.error("Signing failed", e);
         throw new Error("Internal signing error");
@@ -84,9 +81,9 @@ export async function createProofOfContext(
     url: string,
     content: string,
     env: Env
-): Promise<{ hash: string; timestamp: string; signature: string; publicKey: string }> {
+): Promise<ProofOfContext> {
     const hash = await hashContent(content);
     const timestamp = new Date().toISOString();
-    const { signature, publicKey } = await signContext(url, hash, timestamp, env);
-    return { hash, timestamp, signature, publicKey };
+    const { mac, keyId, alg } = await signContext(url, hash, timestamp, env);
+    return { hash, timestamp, alg, mac, keyId };
 }

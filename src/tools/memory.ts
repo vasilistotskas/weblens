@@ -10,7 +10,8 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { MemorySetRequestSchema } from "../schemas";
 import {
   setMemory,
   getMemory,
@@ -21,18 +22,11 @@ import {
 } from "../services/memory";
 import type {
   Env,
-  MemorySetRequest,
   MemorySetResponse,
   MemoryGetResponse,
   MemoryListResponse,
 } from "../types";
 import { generateRequestId } from "../utils/requestId";
-
-const memorySetSchema = z.object({
-  key: z.string().min(1).max(256),
-  value: z.unknown(),
-  ttl: z.number().min(1).max(720).optional(),
-});
 
 /**
  * Extract wallet address from payment context
@@ -75,7 +69,7 @@ function getWalletAddress(c: Context<{ Bindings: Env }>): string | null {
  * Requirement 7.1: Store value and return confirmation
  */
 export async function memorySetHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available
@@ -91,23 +85,7 @@ export async function memorySetHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    const body = await c.req.json<MemorySetRequest>();
-    const parsed = memorySetSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "INVALID_REQUEST",
-          code: "INVALID_REQUEST",
-          message: "Invalid request parameters",
-          requestId,
-          details: parsed.error.issues,
-        },
-        400
-      );
-    }
-
-    const { key, value, ttl } = parsed.data;
+    const { key, value, ttl } = c.get("validatedBody") as z.infer<typeof MemorySetRequestSchema>;
 
     // Validate key
     const keyValidation = validateKey(key);

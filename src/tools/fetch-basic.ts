@@ -9,20 +9,13 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { FetchRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, FetchRequest, FetchResponse, ProofOfContext } from "../types";
+import type { Env, FetchResponse, ProofOfContext } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
-import { generateRequestId } from "../utils/requestId";
 import { safeFetch } from "../utils/safe-fetch";
-
-const fetchBasicSchema = z.object({
-  url: z.url(),
-  timeout: z.number().min(1000).max(30000).default(10000),
-  cache: z.boolean().optional(),
-  cacheTtl: z.number().min(60).max(86400).optional(),
-});
 
 export interface FetchBasicResult {
   url: string;
@@ -84,12 +77,13 @@ export async function fetchBasicPage(
   if (env && (env.SIGNING_PRIVATE_KEY || env.CDP_API_KEY_SECRET)) {
     try {
       const hash = await hashContent(html);
-      const { signature, publicKey } = await signContext(url, hash, result.fetchedAt, env);
+      const { mac, keyId, alg } = await signContext(url, hash, result.fetchedAt, env);
       result.proof = {
         hash,
         timestamp: result.fetchedAt,
-        signature,
-        publicKey
+        alg,
+        mac,
+        keyId
       };
     } catch (e) {
       console.warn("Failed to generate ACV proof:", e);
@@ -104,23 +98,10 @@ export async function fetchBasicPage(
  * POST /fetch/basic
  */
 export async function fetchBasic(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<FetchRequest>();
-    const parsed = fetchBasicSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json({
-        error: "INVALID_REQUEST",
-        code: "INVALID_REQUEST",
-        message: "Invalid request parameters",
-        requestId,
-        details: parsed.error.issues,
-      }, 400);
-    }
-
-    const { url, timeout } = parsed.data;
+    const { url, timeout } = c.get("validatedBody") as z.infer<typeof FetchRequestSchema>;
 
     // Validate URL
     const urlValidation = validateURL(url);

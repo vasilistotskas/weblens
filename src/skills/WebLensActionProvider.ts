@@ -1,5 +1,8 @@
 import { ActionProvider, X402ActionProvider } from "@coinbase/agentkit";
 import type { Action, WalletProvider, Network } from "@coinbase/agentkit";
+// @coinbase/agentkit's Action.schema requires a Zod v3 schema, so we import the
+// zod/v3 compat build here. Do NOT migrate to the v4 top-level API (e.g. z.url()):
+// it would break AgentKit's type contract. The rest of the app uses zod v4.
 import { z } from "zod/v3";
 
 // Schema definitions for each action
@@ -46,7 +49,7 @@ export class WebLensActionProvider extends ActionProvider {
         return this.x402Provider.supportsNetwork(network);
     }
 
-    getActions(walletProvider: WalletProvider): Action[] {
+    override getActions(walletProvider: WalletProvider): Action[] {
         const makeRequest = (walletProvider: WalletProvider, endpoint: string, body: Record<string, unknown>) =>
             this.x402Provider.makeHttpRequestWithX402(walletProvider, {
                 url: endpoint,

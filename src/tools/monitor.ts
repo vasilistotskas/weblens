@@ -9,7 +9,8 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { MonitorCreateRequestSchema } from "../schemas";
 import {
   createMonitor,
   getMonitor,
@@ -20,17 +21,9 @@ import {
 import { validateURL } from "../services/validator";
 import type {
   Env,
-  MonitorCreateRequest,
   MonitorCreateResponse,
 } from "../types";
 import { generateRequestId } from "../utils/requestId";
-
-const monitorCreateSchema = z.object({
-  url: z.url(),
-  webhookUrl: z.url(),
-  checkInterval: z.number().min(1).max(24).optional(),
-  notifyOn: z.enum(["any", "content", "status"]).optional(),
-});
 
 /**
  * Extract wallet address from payment context
@@ -64,7 +57,7 @@ function getWalletAddress(c: Context<{ Bindings: Env }>): string {
  * Requirement 4.1: Create monitor and return ID
  */
 export async function monitorCreateHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available
@@ -80,23 +73,7 @@ export async function monitorCreateHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    const body = await c.req.json<MonitorCreateRequest>();
-    const parsed = monitorCreateSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "INVALID_REQUEST",
-          code: "INVALID_REQUEST",
-          message: "Invalid request parameters",
-          requestId,
-          details: parsed.error.issues,
-        },
-        400
-      );
-    }
-
-    const { url, webhookUrl, checkInterval, notifyOn } = parsed.data;
+    const { url, webhookUrl, checkInterval, notifyOn } = c.get("validatedBody") as z.infer<typeof MonitorCreateRequestSchema>;
 
     // Validate target URL (SSRF — same checks applied to all scraping endpoints).
     const targetValidation = validateURL(url);

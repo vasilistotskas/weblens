@@ -1,5 +1,11 @@
 import type { Hono } from "hono";
 import { PRICING } from "../config";
+import {
+    cacheLookupMiddleware,
+    cacheServeMiddleware,
+    cacheAwareCreditCost,
+    cacheAwarePaymentPrice,
+} from "../middleware/cache";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
@@ -30,11 +36,12 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/fetch/basic",
-        createCreditMiddleware(PRICING.fetch.basic, "Fetch Webpage (Basic)"),
+        cacheLookupMiddleware("fetch-basic"),
+        createCreditMiddleware(cacheAwareCreditCost(PRICING.fetch.basic), "Fetch Webpage (Basic)"),
         validateRequest(FetchRequestSchema), // New Zod Validation
         createLazyPaymentMiddleware(
             "/fetch/basic",
-            PRICING.fetch.basic,
+            cacheAwarePaymentPrice(PRICING.fetch.basic),
             "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
             { url: "https://example.com/article", timeout: 10000, cache: true, cacheTtl: 3600 },
             {
@@ -64,7 +71,8 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                     requestId: { type: "string" },
                 },
             }
-        )
+        ),
+        cacheServeMiddleware()
     );
     app.post("/fetch/basic", fetchBasic);
 
@@ -73,11 +81,12 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/fetch/pro",
-        createCreditMiddleware(PRICING.fetch.pro, "Fetch Webpage (Pro)"),
+        cacheLookupMiddleware("fetch-pro"),
+        createCreditMiddleware(cacheAwareCreditCost(PRICING.fetch.pro), "Fetch Webpage (Pro)"),
         validateRequest(FetchRequestSchema),
         createLazyPaymentMiddleware(
             "/fetch/pro",
-            async (c) => {
+            cacheAwarePaymentPrice(async (c) => {
                 // Peek at the request body to get URL for pricing
                 try {
                     // Use validatedBody if available to avoid re-parsing
@@ -90,7 +99,7 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                     console.warn("Failed to parse body for dynamic pricing, using base price", e);
                     return PRICING.fetch.pro;
                 }
-            },
+            }),
             "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
             { url: "https://app.example.com", waitFor: ".content", timeout: 15000, cache: true },
             {
@@ -120,7 +129,8 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                     requestId: { type: "string" },
                 },
             }
-        )
+        ),
+        cacheServeMiddleware()
     );
     app.post("/fetch/pro", fetchPro);
 
@@ -129,11 +139,12 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/fetch/resilient",
-        createCreditMiddleware(PRICING.fetch.resilient, "Resilient Fetch (Agent Prime)"),
+        cacheLookupMiddleware("fetch-resilient"),
+        createCreditMiddleware(cacheAwareCreditCost(PRICING.fetch.resilient), "Resilient Fetch (Agent Prime)"),
         validateRequest(FetchRequestSchema),
         createLazyPaymentMiddleware(
             "/fetch/resilient",
-            PRICING.fetch.resilient,
+            cacheAwarePaymentPrice(PRICING.fetch.resilient),
             "Resilient fetch with automatic provider fallback. Tries WebLens native scraper first, then falls back to Firecrawl and Zyte via x402.",
             { url: "https://example.com", timeout: 10000 },
             {
@@ -163,7 +174,8 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                     requestId: { type: "string" },
                 },
             }
-        )
+        ),
+        cacheServeMiddleware()
     );
     app.post("/fetch/resilient", resilientFetchHandler);
 

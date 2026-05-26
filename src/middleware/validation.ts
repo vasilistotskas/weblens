@@ -37,6 +37,18 @@ export function validateRequest(schema: z.ZodType) {
                 return;
             }
 
+            // Reject oversized bodies before parsing to bound CPU/memory per request.
+            const MAX_BODY_BYTES = 256 * 1024; // 256 KB
+            const contentLength = Number(c.req.header("Content-Length") ?? "0");
+            if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+                return c.json({
+                    error: "PAYLOAD_TOO_LARGE",
+                    message: "Request body exceeds the 256KB limit",
+                    code: "PAYLOAD_TOO_LARGE",
+                    requestId: c.get("requestId"),
+                }, 413);
+            }
+
             const body: unknown = await c.req.json();
 
             // Parse and strip unknown fields

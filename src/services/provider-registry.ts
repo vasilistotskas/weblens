@@ -10,6 +10,7 @@
  */
 
 import { PRICING } from "../config";
+import { safeFetch } from "../utils/safe-fetch";
 
 // ============================================
 // Types
@@ -248,8 +249,8 @@ async function fetchViaNative(url: string, timeout: number): Promise<ProviderRes
     const start = Date.now();
 
     try {
-        // Use the same fetch logic as fetch-basic
-        const response = await fetch(url, {
+        // SSRF-safe: revalidate every redirect hop (blocks redirect-to-internal-IP).
+        const response = await safeFetch(url, {
             headers: {
                 "User-Agent":
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",

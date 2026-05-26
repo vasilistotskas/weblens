@@ -8,6 +8,7 @@
  */
 
 import type { Context, Next } from "hono";
+import { loggerFromEnv } from "../utils/logger";
 import { generateRequestId } from "../utils/requestId";
 
 /**
@@ -34,11 +35,20 @@ export async function requestIdMiddleware(c: Context, next: Next) {
   c.set(REQUEST_ID_KEY, requestId);
   c.set(REQUEST_START_TIME_KEY, startTime);
 
+  // Request-scoped structured logger — every line auto-correlates by requestId.
+  const log = loggerFromEnv(c.env as { LOG_LEVEL?: string }, {
+    requestId,
+    method: c.req.method,
+    path: c.req.path,
+  });
+  c.set("log", log);
+
   // Process the request
   await next();
 
   // Calculate processing time
   const processingTime = Date.now() - startTime;
+  log.debug("request.complete", { status: c.res.status, ms: processingTime });
 
   // Add headers to response
   c.header("X-Request-Id", requestId);

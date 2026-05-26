@@ -2,10 +2,10 @@
  * Intelligence Endpoint Handlers
  * Knowledge Arbitrageur — Premium intelligence products
  *
- * POST /intel/company   - Company deep dive ($0.50)
- * POST /intel/market    - Market research report ($2.00)
- * POST /intel/competitive - Competitive analysis ($3.00)
- * POST /intel/site-audit  - Full site audit ($0.30)
+ * POST /intel/company   - Company deep dive ($1.00)
+ * POST /intel/market    - Market research report ($5.00)
+ * POST /intel/competitive - Competitive analysis ($8.00)
+ * POST /intel/site-audit  - Full site audit ($0.75)
  */
 
 import type { Context } from "hono";
@@ -18,7 +18,6 @@ import {
     siteAudit,
 } from "../services/intel";
 import type { Env } from "../types";
-import { generateRequestId } from "../utils/requestId";
 
 // ============================================
 // Validation Schemas
@@ -105,24 +104,10 @@ function handleIntelError(c: Context<{ Bindings: Env }>, error: unknown, request
 // ============================================
 
 export async function intelCompanyHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = companySchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400,
-            );
-        }
+        const data = c.get("validatedBody") as z.infer<typeof companySchema>;
 
         const apiKeyOrError = getAIKeyOrError(c, requestId);
         if (typeof apiKeyOrError !== "string") {
@@ -130,7 +115,7 @@ export async function intelCompanyHandler(c: Context<{ Bindings: Env }>) {
         }
 
         const profile = await companyIntel({
-            target: parsed.data.target,
+            target: data.target,
             aiConfig: { apiKey: apiKeyOrError },
             serpApiKey: c.env.SERP_API_KEY,
         });
@@ -150,24 +135,10 @@ export async function intelCompanyHandler(c: Context<{ Bindings: Env }>) {
 // ============================================
 
 export async function intelMarketHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = marketSchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400,
-            );
-        }
+        const data = c.get("validatedBody") as z.infer<typeof marketSchema>;
 
         const apiKeyOrError = getAIKeyOrError(c, requestId);
         if (typeof apiKeyOrError !== "string") {
@@ -175,16 +146,16 @@ export async function intelMarketHandler(c: Context<{ Bindings: Env }>) {
         }
 
         const report = await marketResearch({
-            topic: parsed.data.topic,
-            depth: parsed.data.depth,
-            focus: parsed.data.focus,
+            topic: data.topic,
+            depth: data.depth,
+            focus: data.focus,
             aiConfig: { apiKey: apiKeyOrError },
             serpApiKey: c.env.SERP_API_KEY,
         });
 
         return c.json({
             ...report,
-            depth: parsed.data.depth,
+            depth: data.depth,
             researchedAt: new Date().toISOString(),
             requestId,
         });
@@ -198,24 +169,10 @@ export async function intelMarketHandler(c: Context<{ Bindings: Env }>) {
 // ============================================
 
 export async function intelCompetitiveHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = competitiveSchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400,
-            );
-        }
+        const data = c.get("validatedBody") as z.infer<typeof competitiveSchema>;
 
         const apiKeyOrError = getAIKeyOrError(c, requestId);
         if (typeof apiKeyOrError !== "string") {
@@ -223,9 +180,9 @@ export async function intelCompetitiveHandler(c: Context<{ Bindings: Env }>) {
         }
 
         const report = await competitiveAnalysis({
-            company: parsed.data.company,
-            maxCompetitors: parsed.data.maxCompetitors,
-            focus: parsed.data.focus,
+            company: data.company,
+            maxCompetitors: data.maxCompetitors,
+            focus: data.focus,
             aiConfig: { apiKey: apiKeyOrError },
             serpApiKey: c.env.SERP_API_KEY,
         });
@@ -245,24 +202,10 @@ export async function intelCompetitiveHandler(c: Context<{ Bindings: Env }>) {
 // ============================================
 
 export async function intelSiteAuditHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = siteAuditSchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400,
-            );
-        }
+        const data = c.get("validatedBody") as z.infer<typeof siteAuditSchema>;
 
         const apiKeyOrError = getAIKeyOrError(c, requestId);
         if (typeof apiKeyOrError !== "string") {
@@ -270,7 +213,7 @@ export async function intelSiteAuditHandler(c: Context<{ Bindings: Env }>) {
         }
 
         const audit = await siteAudit({
-            url: parsed.data.url,
+            url: data.url,
             aiConfig: { apiKey: apiKeyOrError },
             serpApiKey: c.env.SERP_API_KEY,
         });

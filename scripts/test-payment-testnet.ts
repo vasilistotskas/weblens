@@ -110,13 +110,11 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
         ttl: 1, // 1 hour minimum
     },
 
-    // Intel endpoints — route middleware validates IntelRequestSchema (param + depth),
-    // then each handler re-parses with its own schema (target/topic/company/url).
-    // Both must be satisfied, so we include all fields.
-    "/intel/company":    { param: "coinbase.com", target: "coinbase.com" },
-    "/intel/market":     { param: "web3 payments", topic: "web3 payments" },
-    "/intel/competitive":{ param: "stripe.com", company: "stripe.com" },
-    "/intel/site-audit": { param: "https://example.com", url: "https://example.com" },
+    // Intel endpoints — each route validates its own per-endpoint schema.
+    "/intel/company":    { target: "coinbase.com" },
+    "/intel/market":     { topic: "web3 payments" },
+    "/intel/competitive":{ company: "stripe.com" },
+    "/intel/site-audit": { url: "https://example.com" },
 
     // Credits — amount must be a number (USD), matches CreditsBuyRequestSchema
     "/credits/buy": { amount: 5 },

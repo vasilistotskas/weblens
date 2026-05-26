@@ -1,31 +1,18 @@
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
+import type { ExtractRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, ExtractRequest, ExtractResponse } from "../types";
+import type { Env, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
-import { generateRequestId } from "../utils/requestId";
 import { safeFetch } from "../utils/safe-fetch";
 
-const extractSchema = z.object({
-  url: z.url(),
-  schema: z.record(z.string(), z.unknown()),
-  instructions: z.string().optional(),
-});
-
 export async function extractData(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<ExtractRequest>();
-    const parsed = extractSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json({ ...createErrorResponse("INVALID_REQUEST", "Invalid request parameters", requestId), details: parsed.error.issues }, 400);
-    }
-
-    const { url, schema, instructions } = parsed.data;
+    const { url, schema, instructions } = c.get("validatedBody") as z.infer<typeof ExtractRequestSchema>;
 
     const urlValidation = validateURL(url);
     if (!urlValidation.valid) {
@@ -75,13 +62,14 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
       try {
         const timestamp = result.extractedAt;
         const hash = await hashContent(html);
-        const { signature, publicKey } = await signContext(url, hash, timestamp, c.env);
+        const { mac, keyId, alg } = await signContext(url, hash, timestamp, c.env);
 
         result.proof = {
           hash,
           timestamp,
-          signature,
-          publicKey
+          alg,
+          mac,
+          keyId
         };
       } catch (err) {
         console.warn(`Failed to generate ACV proof: ${String(err)}`);
@@ -134,8 +122,7 @@ Respond ONLY with valid JSON matching the schema. No explanations.`;
 
   interface ClaudeResponse { content: { text?: string }[] }
   const result: ClaudeResponse = await response.json();
-  const firstContent = result.content[0];
-  const text = firstContent.text ?? "{}";
+  const text = result.content[0]?.text ?? "{}";
 
   try {
     return JSON.parse(text) as Record<string, unknown>;

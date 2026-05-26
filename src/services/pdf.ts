@@ -92,8 +92,9 @@ async function downloadPdf(url: string, attemptedUrls = new Set<string>()): Prom
                           /href=["']([^"']+\.pdf)["']/i.exec(text) ??
                           /(https?:\/\/[^\s<>"]+\.pdf)/i.exec(text);
 
-        if (linkMatch) {
-          const resolvedUrl = new URL(linkMatch[1], url).href;
+        const pdfHref = linkMatch?.[1];
+        if (pdfHref !== undefined) {
+          const resolvedUrl = new URL(pdfHref, url).href;
           const redirectValidation = validateURL(resolvedUrl);
           if (!redirectValidation.valid) {
             throw new InvalidPdfError(`PDF redirect target blocked: ${redirectValidation.error ?? "internal URL"}`);
@@ -186,21 +187,20 @@ function extractPdfMetadata(
   const metadata: Omit<PdfMetadata, "pageCount"> = {};
 
   // Extract title
-  const titleMatch = /\/Title\s*\(([^)]+)\)/.exec(text);
-  if (titleMatch) {
-    metadata.title = decodePdfString(titleMatch[1]);
+  const titleRaw = /\/Title\s*\(([^)]+)\)/.exec(text)?.[1];
+  if (titleRaw !== undefined) {
+    metadata.title = decodePdfString(titleRaw);
   }
 
   // Extract author
-  const authorMatch = /\/Author\s*\(([^)]+)\)/.exec(text);
-  if (authorMatch) {
-    metadata.author = decodePdfString(authorMatch[1]);
+  const authorRaw = /\/Author\s*\(([^)]+)\)/.exec(text)?.[1];
+  if (authorRaw !== undefined) {
+    metadata.author = decodePdfString(authorRaw);
   }
 
   // Extract creation date
-  const dateMatch = /\/CreationDate\s*\(D:(\d{14})/.exec(text);
-  if (dateMatch) {
-    const dateStr = dateMatch[1];
+  const dateStr = /\/CreationDate\s*\(D:(\d{14})/.exec(text)?.[1];
+  if (dateStr !== undefined) {
     const year = dateStr.slice(0, 4);
     const month = dateStr.slice(4, 6);
     const day = dateStr.slice(6, 8);
@@ -222,7 +222,7 @@ function extractPdfPages(text: string): PdfPage[] {
   let pageNumber = 1;
 
   while ((match = streamRegex.exec(text)) !== null) {
-    const streamContent = match[1];
+    const streamContent = match[1] ?? "";
 
     // Try to extract readable text from stream
     const readableText = extractReadableText(streamContent);
@@ -273,7 +273,7 @@ function extractAlternativeText(text: string): string {
   let match;
 
   while ((match = btRegex.exec(text)) !== null) {
-    const block = match[1];
+    const block = match[1] ?? "";
     const textMatches = block.match(/\(([^)]+)\)/g) ?? [];
     const blockText = textMatches
       .map((m) => decodePdfString(m.slice(1, -1)))

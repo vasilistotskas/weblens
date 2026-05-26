@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "../types";
+import { loggerFromEnv } from "../utils/logger";
 
 interface CreditAccount {
     balance: number;
@@ -47,7 +48,7 @@ interface SpendRequest {
 }
 
 export class CreditAccountDO extends DurableObject<Env> {
-    async fetch(request: Request): Promise<Response> {
+    override async fetch(request: Request): Promise<Response> {
         const url = new URL(request.url);
         const path = url.pathname;
 
@@ -109,8 +110,13 @@ export class CreditAccountDO extends DurableObject<Env> {
 
         if (path === "/spend" && request.method === "POST") {
             const body: SpendRequest = await request.json();
+            const log = loggerFromEnv(this.env);
 
             if (account.balance < body.amount) {
+                log.warn("credit.insufficient_funds", {
+                    requested: body.amount,
+                    balance: account.balance,
+                });
                 return Response.json({ error: "Insufficient funds" }, { status: 402 });
             }
 
@@ -130,6 +136,8 @@ export class CreditAccountDO extends DurableObject<Env> {
             if (account.history.length > 100) {account.history.pop();}
 
             await this.ctx.storage.put("account", account);
+
+            log.debug("credit.spend", { amount: body.amount, balance: account.balance, txId: tx.id });
 
             return Response.json({ success: true, balance: account.balance, txId: tx.id });
         }

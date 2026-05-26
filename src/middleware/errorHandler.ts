@@ -9,6 +9,7 @@
 
 import type { Context, Next } from "hono";
 import type { ErrorCode, ErrorResponse } from "../types";
+import { loggerFromEnv } from "../utils/logger";
 import { getRequestId, getProcessingTime } from "./requestId";
 
 /**
@@ -88,22 +89,60 @@ export function getHttpStatus(code: ErrorCode): number {
     case "INVALID_VIEWPORT":
     case "INVALID_TTL":
     case "INVALID_SELECTOR":
+    case "VALIDATION_ERROR":
+    case "INVALID_CONTENT_TYPE":
+    case "INVALID_JSON":
+    case "MISSING_URL":
+    case "REDIRECT_BLOCKED":
+    case "MISSING_QUERY":
+    case "QUERY_TOO_LONG":
+    case "COMPARE_TOO_SMALL":
+    case "COMPARE_TOO_LARGE":
+    case "BATCH_TOO_SMALL":
+    case "BATCH_TOO_LARGE":
+    case "INVALID_PDF":
+    case "PDF_TOO_LARGE":
+    case "WEBHOOK_INVALID":
+    case "MEMORY_VALUE_TOO_LARGE":
       return 400;
+    case "AUTH_FAILED":
+    case "REPLAY_DETECTED":
+    case "MISSING_AUTH":
+    case "INVALID_TIMESTAMP":
+    case "EXPIRED_TIMESTAMP":
+    case "INVALID_WALLET":
+    case "INVALID_SIGNATURE":
+    case "VERIFICATION_FAILED":
+    case "UNAUTHORIZED":
+      return 401;
     case "PAYMENT_FAILED":
       return 402;
     case "ELEMENT_NOT_FOUND":
+    case "MONITOR_NOT_FOUND":
+    case "MEMORY_KEY_NOT_FOUND":
+    case "NOT_FOUND":
       return 404;
+    case "METHOD_NOT_ALLOWED":
+      return 405;
+    case "PAYLOAD_TOO_LARGE":
+      return 413;
     case "ACV_FAILED":
       return 422;
     case "RATE_LIMITED":
       return 429;
     case "FETCH_TIMEOUT":
     case "RENDER_FAILED":
+    case "FETCH_FAILED":
+    case "FETCH_ALL_PROVIDERS_FAILED":
+    case "RESEARCH_FAILED":
       return 502;
     case "SERVICE_UNAVAILABLE":
+    case "AI_UNAVAILABLE":
       return 503;
     case "CACHE_ERROR":
     case "INTERNAL_ERROR":
+    case "EXTRACTION_FAILED":
+    case "INTEL_FAILED":
     default:
       return 500;
   }
@@ -141,6 +180,15 @@ export async function errorHandlerMiddleware(c: Context, next: Next) {
     const code = getErrorCode(message);
     const status = getHttpStatus(code);
 
+    // Log the unhandled error (previously invisible in production). Stack stays
+    // server-side; it is never returned to the client.
+    loggerFromEnv(c.env as { LOG_LEVEL?: string }, { requestId }).error("request.unhandled_error", {
+      code,
+      status,
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     // Determine if retry is appropriate
     const retryAfter = [502, 503, 429].includes(status) ? 5 : undefined;
 
@@ -150,6 +198,6 @@ export async function errorHandlerMiddleware(c: Context, next: Next) {
     c.header("X-Request-Id", requestId);
     c.header("X-Processing-Time", processingTime.toString());
 
-    return c.json(errorResponse, status as 400 | 402 | 404 | 429 | 500 | 502 | 503);
+    return c.json(errorResponse, status as 400 | 401 | 402 | 404 | 405 | 413 | 422 | 429 | 500 | 502 | 503);
   }
 }
