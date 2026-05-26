@@ -1,196 +1,31 @@
 /**
- * Property-Based Tests for Research Endpoint
+ * Request-contract tests for the research endpoint.
  *
- * **Feature: weblens, Property 4: Research response completeness**
- * **Validates: Requirements 2.1, 2.5**
- *
- * For any research request, the response SHALL include the original query,
- * sources array, and AI-generated summary.
+ * Tests the REAL canonical schema (ResearchRequestSchema) consumed via
+ * validatedBody — query bounds, resultCount range, and defaults.
  */
 
 import { describe, it, expect } from "vitest";
-import * as fc from "fast-check";
+import { ResearchRequestSchema } from "../../src/schemas";
 
-// Mock research response structure for testing
-interface MockResearchSource {
-  url: string;
-  title: string;
-  snippet: string;
-  content?: string;
-  fetchedAt: string;
-}
-
-interface MockResearchResponse {
-  query: string;
-  sources: MockResearchSource[];
-  summary: string;
-  keyFindings: string[];
-  researchedAt: string;
-  requestId: string;
-}
-
-/**
- * Simulates research response structure
- */
-function simulateResearchResponse(
-  query: string,
-  sourceCount: number,
-  includeContent: boolean
-): MockResearchResponse {
-  const sources: MockResearchSource[] = [];
-  for (let i = 0; i < sourceCount; i++) {
-    sources.push({
-      url: `https://example${i}.com/article`,
-      title: `Article ${i + 1} about ${query}`,
-      snippet: `This is a snippet about ${query}...`,
-      content: includeContent ? `Full content about ${query}...` : undefined,
-      fetchedAt: new Date().toISOString(),
+describe("ResearchRequestSchema (request contract)", () => {
+    it("applies defaults for resultCount and includeRawContent", () => {
+        const r = ResearchRequestSchema.safeParse({ query: "x402 micropayments" });
+        expect(r.success).toBe(true);
+        if (r.success) {
+            expect(r.data.resultCount).toBe(5);
+            expect(r.data.includeRawContent).toBe(false);
+        }
     });
-  }
 
-  return {
-    query,
-    sources,
-    summary: `Summary of research on "${query}" from ${sourceCount} sources.`,
-    keyFindings: [`Finding 1 about ${query}`, `Finding 2 about ${query}`],
-    researchedAt: new Date().toISOString(),
-    requestId: `req_${Date.now()}`,
-  };
-}
+    it("rejects an empty or over-long query", () => {
+        expect(ResearchRequestSchema.safeParse({ query: "" }).success).toBe(false);
+        expect(ResearchRequestSchema.safeParse({ query: "a".repeat(501) }).success).toBe(false);
+    });
 
-describe("Property 4: Research response completeness", () => {
-  /**
-   * Property: Response includes original query
-   * For any research request, response.query === input query
-   */
-  it("response includes the original query", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 1, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, false);
-          expect(response.query).toBe(query);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Response includes sources array
-   * For any research request, response SHALL have sources array
-   */
-  it("response includes sources array", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 0, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, false);
-          expect(Array.isArray(response.sources)).toBe(true);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Response includes AI-generated summary
-   * For any research request, response SHALL have summary string
-   */
-  it("response includes AI-generated summary", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 1, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, false);
-          expect(typeof response.summary).toBe("string");
-          expect(response.summary.length).toBeGreaterThan(0);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Response includes key findings array
-   * For any research request, response SHALL have keyFindings array
-   */
-  it("response includes key findings array", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 1, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, false);
-          expect(Array.isArray(response.keyFindings)).toBe(true);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Each source has required fields
-   * For any source in response, it SHALL have url, title, snippet, fetchedAt
-   */
-  it("each source has required fields", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 1, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, false);
-          for (const source of response.sources) {
-            expect(source).toHaveProperty("url");
-            expect(source).toHaveProperty("title");
-            expect(source).toHaveProperty("snippet");
-            expect(source).toHaveProperty("fetchedAt");
-          }
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Response includes metadata
-   * For any research request, response SHALL have researchedAt and requestId
-   */
-  it("response includes metadata (researchedAt, requestId)", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 1, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, false);
-          expect(response).toHaveProperty("researchedAt");
-          expect(response).toHaveProperty("requestId");
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Content included when requested
-   * When includeRawContent is true, sources SHALL have content field
-   */
-  it("sources include content when includeRawContent is true", () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        fc.integer({ min: 1, max: 10 }),
-        (query, sourceCount) => {
-          const response = simulateResearchResponse(query, sourceCount, true);
-          for (const source of response.sources) {
-            expect(source.content).toBeDefined();
-          }
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
+    it("rejects resultCount outside 1–10", () => {
+        expect(ResearchRequestSchema.safeParse({ query: "x", resultCount: 0 }).success).toBe(false);
+        expect(ResearchRequestSchema.safeParse({ query: "x", resultCount: 11 }).success).toBe(false);
+        expect(ResearchRequestSchema.safeParse({ query: "x", resultCount: 7 }).success).toBe(true);
+    });
 });
