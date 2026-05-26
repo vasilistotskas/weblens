@@ -3,6 +3,8 @@
  * All request/response interfaces for the API
  */
 
+import type { Logger } from "./utils/logger";
+
 // Environment bindings for Cloudflare Workers
 export interface Env {
   PAY_TO_ADDRESS: string;
@@ -24,12 +26,11 @@ export interface Env {
   // Optional API keys
   SERP_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
-  // Legacy facilitator URLs (for multi-chain support)
-  CDP_FACILITATOR_URL?: string;
+  // Structured-log verbosity (debug|info|warn|error|silent); default info.
+  LOG_LEVEL?: string;
+  // Facilitator URL override (PayAI fallback for multi-chain support)
   PAYAI_FACILITATOR_URL?: string;
   SIGNING_PRIVATE_KEY?: string;
-  // Public key for verification (optional in Env, derived from private key)
-  SIGNING_PUBLIC_KEY?: string;
   // Stripe fiat onramp — agents/devs without on-chain wallets can buy
   // credits via card. Webhook credits the wallet on `checkout.session.completed`.
   // Set via: wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET
@@ -60,6 +61,15 @@ declare module "hono" {
     paidWithCredits: boolean;
     creditWallet: string;
     startTime: number;
+    // Response caching (set by cacheLookupMiddleware, read by the credit/x402
+    // price functions and cacheServeMiddleware). See src/middleware/cache.ts.
+    cacheEnabled: boolean;
+    cacheKey: string;
+    cacheTtl: number;
+    cacheHit: boolean;
+    cachedBody: unknown;
+    // Request-scoped structured logger (set by requestId middleware).
+    log: Logger;
   }
 }
 
@@ -125,8 +135,9 @@ export interface FetchResponse {
 export interface ProofOfContext {
   hash: string;       // SHA-256 hash of the content
   timestamp: string;  // ISO timestamp of verification
-  signature: string;  // Cryptographic signature of { hash, timestamp, url }
-  publicKey: string;  // Public key to verify signature
+  alg: string;        // MAC algorithm (e.g. "HMAC-SHA256")
+  mac: string;        // Symmetric HMAC tag over { url, hash, timestamp } — NOT a public-key signature
+  keyId: string;      // Identifier of the oracle key that produced `mac`
 }
 
 // ============================================
@@ -199,7 +210,38 @@ export type ErrorCode =
   | "AI_UNAVAILABLE"
   | "MEMORY_KEY_NOT_FOUND"
   | "MEMORY_VALUE_TOO_LARGE"
-  | "ACV_FAILED";
+  | "ACV_FAILED"
+  // --- Validation middleware (src/middleware/validation.ts) ---
+  | "VALIDATION_ERROR" // Zod schema validation failed (400)
+  | "INVALID_CONTENT_TYPE" // Non-JSON Content-Type on POST/PUT (400)
+  | "INVALID_JSON" // Body was not parseable JSON (400)
+  | "PAYLOAD_TOO_LARGE" // Body exceeds 256KB cap (413)
+  // --- Credit auth + wallet signature (credit-middleware.ts, utils/security.ts) ---
+  | "AUTH_FAILED" // Generic credit auth failure (401)
+  | "REPLAY_DETECTED" // Reused wallet signature within replay window (401)
+  | "MISSING_AUTH" // Required auth headers absent (401)
+  | "INVALID_TIMESTAMP" // Malformed / future auth timestamp (401)
+  | "EXPIRED_TIMESTAMP" // Auth timestamp outside the 5-min window (401)
+  | "INVALID_WALLET" // Malformed wallet address (401)
+  | "INVALID_SIGNATURE" // Signature did not verify (401)
+  | "VERIFICATION_FAILED" // Signature verification threw (401)
+  | "UNAUTHORIZED" // No valid payment/credit wallet for the operation (401)
+  // --- Routing (src/index.ts) ---
+  | "METHOD_NOT_ALLOWED" // Non-POST on a POST-only paid endpoint (405)
+  | "NOT_FOUND" // Unknown route (404)
+  // --- Free-tier reader/search (tools/reader.ts, tools/search-reader.ts) ---
+  | "MISSING_URL" // Reader called without a URL (400)
+  | "REDIRECT_BLOCKED" // Reader hit a blocked redirect target (400)
+  | "MISSING_QUERY" // Search-reader called without a query (400)
+  | "QUERY_TOO_LONG" // Search-reader query exceeds max length (400)
+  // --- Compare endpoint (tools/compare.ts) ---
+  | "COMPARE_TOO_SMALL" // Fewer than 2 URLs supplied (400)
+  | "COMPARE_TOO_LARGE" // More than 3 URLs supplied (400)
+  | "FETCH_FAILED" // Could not fetch enough URLs for comparison (502)
+  // --- Resilient fetch (tools/resilient-fetch.ts) ---
+  | "FETCH_ALL_PROVIDERS_FAILED" // Every fetch provider failed (502)
+  // --- Intel endpoints (tools/intel.ts) ---
+  | "INTEL_FAILED"; // Intelligence workflow failed (500)
 
 export interface ErrorResponse {
   error: string;

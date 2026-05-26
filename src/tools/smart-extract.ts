@@ -9,7 +9,8 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { SmartExtractRequestSchema } from "../schemas";
 import {
   smartExtract,
   isAIAvailable,
@@ -17,41 +18,18 @@ import {
   AIUnavailableError,
 } from "../services/ai";
 import { validateURL } from "../services/validator";
-import type { Env, SmartExtractRequest, SmartExtractResponse } from "../types";
-import { generateRequestId } from "../utils/requestId";
+import type { Env, SmartExtractResponse } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
-
-const smartExtractSchema = z.object({
-  url: z.string(),
-  query: z.string().min(1).max(500),
-  format: z.enum(["json", "text"]).default("json"),
-});
 
 /**
  * Smart Extract endpoint handler
  * POST /extract/smart
  */
 export async function smartExtractHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<SmartExtractRequest>();
-    const parsed = smartExtractSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "INVALID_REQUEST",
-          code: "INVALID_REQUEST",
-          message: "Invalid request parameters",
-          requestId,
-          details: parsed.error.issues,
-        },
-        400
-      );
-    }
-
-    const { url, query, format } = parsed.data;
+    const { url, query, format } = c.get("validatedBody") as z.infer<typeof SmartExtractRequestSchema>;
 
     // Validate URL
     const urlValidation = validateURL(url);

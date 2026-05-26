@@ -10,6 +10,7 @@
 
 import { PRICING } from "../config";
 import type { StoredMonitor, MonitorStatus } from "../types";
+import { hashContent } from "./crypto";
 import { validateURL } from "./validator";
 
 interface MonitorServiceConfig {
@@ -272,18 +273,6 @@ export function validateWebhookUrl(url: string): { valid: boolean; error?: strin
   }
   return { valid: true };
 }
-
-/**
- * Hash content for change detection
- */
-async function hashContent(content: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(content);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 
 /**
  * Send webhook notification

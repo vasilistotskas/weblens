@@ -49,10 +49,14 @@ export async function verifyWalletSignature(
     }
 
     const now = Date.now();
-    const timeDiff = Math.abs(now - timestampNum);
-    // 5 minutes = 300,000 ms
-    if (timeDiff > 5 * 60 * 1000) {
-        return { isValid: false, error: "Request expired or timestamp out of range", code: "EXPIRED_TIMESTAMP" };
+    const age = now - timestampNum; // positive = past, negative = future
+    const MAX_AGE_MS = 5 * 60 * 1000; // accept up to 5 min old
+    const MAX_SKEW_MS = 60 * 1000; // tolerate only 60s of forward clock skew
+    if (age > MAX_AGE_MS) {
+        return { isValid: false, error: "Request expired (timestamp too old)", code: "EXPIRED_TIMESTAMP" };
+    }
+    if (age < -MAX_SKEW_MS) {
+        return { isValid: false, error: "Timestamp is in the future", code: "INVALID_TIMESTAMP" };
     }
 
     // 3. Reconstruct the message. Try both the raw form and the checksum

@@ -10,72 +10,22 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { CompareRequestSchema } from "../schemas";
 import { compare as aiCompare, isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import { validateURL } from "../services/validator";
-import type { Env, CompareRequest, CompareResponse, CompareSource } from "../types";
-import { generateRequestId } from "../utils/requestId";
+import type { Env, CompareResponse, CompareSource } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
-
-const compareSchema = z.object({
-  urls: z.array(z.url()).min(2).max(3),
-  focus: z.string().max(500).optional(),
-});
 
 /**
  * Compare endpoint handler
  * POST /compare
  */
 export async function compareHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<CompareRequest>();
-    const parsed = compareSchema.safeParse(body);
-
-    if (!parsed.success) {
-      // Check for specific bounds errors
-      const urlsIssue = parsed.error.issues.find(
-        (issue) => issue.path[0] === "urls"
-      );
-      
-      if (urlsIssue?.code === "too_small") {
-        return c.json(
-          {
-            error: "COMPARE_TOO_SMALL",
-            code: "COMPARE_TOO_SMALL",
-            message: "Minimum 2 URLs required for comparison",
-            requestId,
-          },
-          400
-        );
-      }
-
-      if (urlsIssue?.code === "too_big") {
-        return c.json(
-          {
-            error: "COMPARE_TOO_LARGE",
-            code: "COMPARE_TOO_LARGE",
-            message: "Maximum 3 URLs allowed for comparison",
-            requestId,
-          },
-          400
-        );
-      }
-
-      return c.json(
-        {
-          error: "INVALID_REQUEST",
-          code: "INVALID_REQUEST",
-          message: "Invalid request parameters",
-          requestId,
-          details: parsed.error.issues,
-        },
-        400
-      );
-    }
-
-    const { urls, focus } = parsed.data;
+    const { urls, focus } = c.get("validatedBody") as z.infer<typeof CompareRequestSchema>;
 
     // Check if AI is available
     if (!isAIAvailable(c.env.ANTHROPIC_API_KEY)) {

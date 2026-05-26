@@ -152,7 +152,7 @@ function parseDuckDuckGoHtml(html: string, limit: number): SearchResult[] {
       results.push({
         title: decodeHtmlEntities(title.trim()),
         url: decodeURIComponent(url),
-        snippet: decodeHtmlEntities(snippet.trim()),
+        snippet: decodeHtmlEntities((snippet ?? "").trim()),
         position: position++,
       });
     }

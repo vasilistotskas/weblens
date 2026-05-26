@@ -23,8 +23,8 @@
     "build": "tsc --noEmit",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "lint": "eslint src scripts --ext .ts",
-    "lint:fix": "eslint src scripts --ext .ts --fix",
+    "lint": "eslint src scripts",
+    "lint:fix": "eslint src scripts --fix",
     "verify-bazaar": "npx tsx scripts/verify-bazaar.ts",
     "bootstrap-payment": "npx tsx scripts/bootstrap-payment.ts",
     "typecheck": "tsc --noEmit"
@@ -32,41 +32,25 @@
   "dependencies": {
     "@cloudflare/puppeteer": "^1.1.0",
     "@coinbase/x402": "^2.1.0",
-    "@hono/eslint-config": "^2.1.0",
     "@scalar/hono-api-reference": "^0.10.19",
-    "@types/node": "^25.9.1",
     "@x402/axios": "^2.13.0",
     "@x402/core": "^2.13.0",
     "@x402/evm": "^2.13.0",
     "@x402/extensions": "^2.13.0",
     "@x402/hono": "^2.13.0",
     "hono": "^4.12.23",
-    "typescript-eslint": "^8.60.0",
     "zod": "^4.4.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@coinbase/x402",
-      "@opensea/seaport-js",
-      "bigint-buffer",
-      "bufferutil",
-      "esbuild",
-      "keccak",
-      "opensea-js",
-      "secp256k1",
-      "sharp",
-      "unrs-resolver",
-      "utf-8-validate",
-      "workerd"
-    ]
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260526.1",
     "@coinbase/agentkit": "^0.10.4",
+    "@hono/eslint-config": "^2.1.0",
+    "@types/node": "^25.9.1",
     "axios": "^1.16.1",
     "eslint": "10.4.0",
     "fast-check": "^4.8.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0",
     "viem": "^2.51.0",
     "vitest": "^4.1.7",
     "wrangler": "^4.94.0"

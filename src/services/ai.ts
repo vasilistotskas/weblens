@@ -65,7 +65,8 @@ function stripCodeFences(text: string): string {
   const trimmed = text.trim();
   // Match ```json ... ``` or ``` ... ```
   const fenceMatch = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i.exec(trimmed);
-  return fenceMatch ? fenceMatch[1].trim() : trimmed;
+  const captured = fenceMatch?.[1];
+  return captured !== undefined ? captured.trim() : trimmed;
 }
 
 /**
@@ -108,8 +109,7 @@ export async function callClaude(
 
   interface ClaudeResponse { content: { text?: string }[] }
   const result: ClaudeResponse = await response.json();
-  const firstContent = result.content[0];
-  return stripCodeFences(firstContent.text ?? "");
+  return stripCodeFences(result.content[0]?.text ?? "");
 }
 
 /**

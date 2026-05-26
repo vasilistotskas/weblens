@@ -77,22 +77,22 @@ export function extractMetadata(html: string): {
   } = {};
 
   // Title
-  const titleMatch = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
-  if (titleMatch) {metadata.title = decodeHtmlEntities(titleMatch[1].trim());}
+  const titleText = /<title[^>]*>([^<]+)<\/title>/i.exec(html)?.[1];
+  if (titleText !== undefined) {metadata.title = decodeHtmlEntities(titleText.trim());}
 
   // Meta description
-  const descMatch = /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i.exec(html);
-  if (descMatch) {metadata.description = decodeHtmlEntities(descMatch[1]);}
+  const descText = /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i.exec(html)?.[1];
+  if (descText !== undefined) {metadata.description = decodeHtmlEntities(descText);}
 
   // OG description fallback
   if (!metadata.description) {
-    const ogDescMatch = /<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i.exec(html);
-    if (ogDescMatch) {metadata.description = decodeHtmlEntities(ogDescMatch[1]);}
+    const ogDesc = /<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i.exec(html)?.[1];
+    if (ogDesc !== undefined) {metadata.description = decodeHtmlEntities(ogDesc);}
   }
 
   // Author
-  const authorMatch = /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i.exec(html);
-  if (authorMatch) {metadata.author = decodeHtmlEntities(authorMatch[1]);}
+  const authorText = /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i.exec(html)?.[1];
+  if (authorText !== undefined) {metadata.author = decodeHtmlEntities(authorText);}
 
   // Published date
   const dateMatch = /<meta[^>]*property=["']article:published_time["'][^>]*content=["']([^"']+)["']/i.exec(html);

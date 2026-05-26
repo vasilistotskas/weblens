@@ -14,7 +14,7 @@ export class MonitorScheduler extends DurableObject<Env> {
   /**
    * Handle HTTP requests to the Durable Object
    */
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/schedule" && request.method === "POST") {
@@ -62,7 +62,7 @@ export class MonitorScheduler extends DurableObject<Env> {
   /**
    * Handle alarm - triggered when it's time to check monitors
    */
-  async alarm(): Promise<void> {
+  override async alarm(): Promise<void> {
     const monitors = await this.ctx.storage.list({ prefix: "monitor:" });
 
     if (monitors.size === 0) {

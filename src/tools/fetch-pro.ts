@@ -11,21 +11,13 @@
 
 import puppeteer from "@cloudflare/puppeteer";
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
 import { VIEWPORT_BOUNDS } from "../config";
+import type { FetchRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, FetchRequest, FetchResponse, ProofOfContext } from "../types";
+import type { Env, FetchResponse, ProofOfContext } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
-import { generateRequestId } from "../utils/requestId";
-
-const fetchProSchema = z.object({
-  url: z.url(),
-  timeout: z.number().min(5000).max(30000).default(10000),
-  cache: z.boolean().optional(),
-  cacheTtl: z.number().min(60).max(86400).optional(),
-  waitFor: z.string().optional(), // CSS selector to wait for
-});
 
 export interface FetchProResult {
   url: string;
@@ -171,13 +163,14 @@ async function fetchProPageInternal(
       try {
         const timestamp = result.fetchedAt;
         const hash = await hashContent(html);
-        const { signature, publicKey } = await signContext(url, hash, timestamp, env);
+        const { mac, keyId, alg } = await signContext(url, hash, timestamp, env);
 
         result.proof = {
           hash,
           timestamp,
-          signature,
-          publicKey
+          alg,
+          mac,
+          keyId
         };
       } catch (err) {
         console.warn(`Failed to generate ACV proof: ${String(err)}`);
@@ -215,23 +208,10 @@ async function fetchProPage(
  * POST /fetch/pro
  */
 export async function fetchPro(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<FetchRequest>();
-    const parsed = fetchProSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json({
-        error: "INVALID_REQUEST",
-        code: "INVALID_REQUEST",
-        message: "Invalid request parameters",
-        requestId,
-        details: parsed.error.issues,
-      }, 400);
-    }
-
-    const { url, timeout, waitFor } = parsed.data;
+    const { url, timeout, waitFor } = c.get("validatedBody") as z.infer<typeof FetchRequestSchema>;
 
     // Validate URL
     const urlValidation = validateURL(url);

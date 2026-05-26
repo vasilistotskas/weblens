@@ -8,46 +8,25 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { PdfRequestSchema } from "../schemas";
 import {
   extractPdf,
   InvalidPdfError,
   PdfTooLargeError,
 } from "../services/pdf";
 import { validateURL } from "../services/validator";
-import type { Env, PdfExtractRequest, PdfExtractResponse } from "../types";
-import { generateRequestId } from "../utils/requestId";
-
-const pdfSchema = z.object({
-  url: z.string(),
-  pages: z.array(z.number().int().positive()).optional(),
-});
+import type { Env, PdfExtractResponse } from "../types";
 
 /**
  * PDF extraction endpoint handler
  * POST /pdf
  */
 export async function pdfHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<PdfExtractRequest>();
-    const parsed = pdfSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "INVALID_REQUEST",
-          code: "INVALID_REQUEST",
-          message: "Invalid request parameters",
-          requestId,
-          details: parsed.error.issues,
-        },
-        400
-      );
-    }
-
-    const { url, pages } = parsed.data;
+    const { url, pages } = c.get("validatedBody") as z.infer<typeof PdfRequestSchema>;
 
     // Validate URL
     const urlValidation = validateURL(url);

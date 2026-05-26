@@ -3,30 +3,58 @@ import { PRICING } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
-import { IntelRequestSchema } from "../schemas";
-
-// Tool Handlers
+// Tool Handlers + their canonical per-endpoint request schemas.
 import {
     intelCompanyHandler,
     intelMarketHandler,
     intelCompetitiveHandler,
-    intelSiteAuditHandler
+    intelSiteAuditHandler,
+    companySchema,
+    marketSchema,
+    competitiveSchema,
+    siteAuditSchema,
 } from "../tools/intel";
 import type { Env, Variables } from "../types";
 
-// Reusable Bazaar input schema — all four intel endpoints accept the same
-// `{ param, depth }` request body shape (see IntelRequestSchema in schemas.ts).
-const INTEL_INPUT_SCHEMA = {
+// ---- Bazaar/x402 advertised input schemas (must match the handler schemas) ----
+const COMPANY_INPUT = {
     type: "object",
     properties: {
-        param: { type: "string", description: "Symbol, domain, or query depending on the endpoint" },
+        target: { type: "string", description: "Company name or domain to research" },
+    },
+    required: ["target"],
+} as const;
+
+const MARKET_INPUT = {
+    type: "object",
+    properties: {
+        topic: { type: "string", description: "Market or industry topic to research" },
         depth: {
             type: "string",
-            enum: ["basic", "deep"],
-            description: "Depth of analysis (default: basic)",
+            enum: ["quick", "standard", "comprehensive"],
+            description: "Research depth (default: standard)",
         },
+        focus: { type: "string", description: "Optional focus area" },
     },
-    required: ["param"],
+    required: ["topic"],
+} as const;
+
+const COMPETITIVE_INPUT = {
+    type: "object",
+    properties: {
+        company: { type: "string", description: "Company to analyze" },
+        maxCompetitors: { type: "number", description: "Max competitors to include (default: 5)" },
+        focus: { type: "string", description: "Optional focus area" },
+    },
+    required: ["company"],
+} as const;
+
+const SITE_AUDIT_INPUT = {
+    type: "object",
+    properties: {
+        url: { type: "string", description: "URL to audit (http/https)" },
+    },
+    required: ["url"],
 } as const;
 
 export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
@@ -36,13 +64,13 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     app.use(
         "/intel/company",
         createCreditMiddleware(PRICING.intel.company, "Company Intelligence"),
-        validateRequest(IntelRequestSchema),
+        validateRequest(companySchema),
         createLazyPaymentMiddleware(
             "/intel/company",
             PRICING.intel.company,
             "Get comprehensive intelligence on any company. Includes verified data, funding, key people, and recent news.",
-            { param: "coinbase", depth: "basic" },
-            INTEL_INPUT_SCHEMA,
+            { target: "coinbase.com" },
+            COMPANY_INPUT,
             {
                 name: "Coinbase",
                 domain: "coinbase.com",
@@ -70,13 +98,13 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     app.use(
         "/intel/market",
         createCreditMiddleware(PRICING.intel.market, "Market Intelligence"),
-        validateRequest(IntelRequestSchema),
+        validateRequest(marketSchema),
         createLazyPaymentMiddleware(
             "/intel/market",
             PRICING.intel.market,
             "Analyze market trends and dynamics. Get market size, growth rates, key trends, players, and recommended actions.",
-            { param: "AI Agents", depth: "basic" },
-            INTEL_INPUT_SCHEMA,
+            { topic: "AI Agents", depth: "standard" },
+            MARKET_INPUT,
             {
                 topic: "AI Agents",
                 executiveSummary: "The AI agents market is rapidly expanding...",
@@ -110,13 +138,13 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     app.use(
         "/intel/competitive",
         createCreditMiddleware(PRICING.intel.competitive, "Competitive Intelligence"),
-        validateRequest(IntelRequestSchema),
+        validateRequest(competitiveSchema),
         createLazyPaymentMiddleware(
             "/intel/competitive",
             PRICING.intel.competitive,
             "Analyze competitors and their positioning. Compare features, pricing, SWOT, and market share.",
-            { param: "Example Corp", depth: "basic" },
-            INTEL_INPUT_SCHEMA,
+            { company: "Example Corp", maxCompetitors: 5 },
+            COMPETITIVE_INPUT,
             {
                 company: "Example Corp",
                 competitors: ["Acme Inc", "Globex", "Initech"],
@@ -164,13 +192,13 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     app.use(
         "/intel/site-audit",
         createCreditMiddleware(PRICING.intel.siteAudit, "Site Audit"),
-        validateRequest(IntelRequestSchema),
+        validateRequest(siteAuditSchema),
         createLazyPaymentMiddleware(
             "/intel/site-audit",
             PRICING.intel.siteAudit,
             "Audit a website for SEO, performance, and security with actionable recommendations and scoring.",
-            { param: "https://example.com", depth: "basic" },
-            INTEL_INPUT_SCHEMA,
+            { url: "https://example.com" },
+            SITE_AUDIT_INPUT,
             {
                 url: "https://example.com",
                 scores: { seo: 87, performance: 92, security: 95, accessibility: 88 },

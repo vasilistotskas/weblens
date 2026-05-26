@@ -8,43 +8,21 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { ResearchRequestSchema } from "../schemas";
 import { isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import { research } from "../services/research";
-import type { Env, ResearchRequest, ResearchResponse } from "../types";
-import { generateRequestId } from "../utils/requestId";
-
-const researchSchema = z.object({
-  query: z.string().min(1).max(500),
-  resultCount: z.number().min(1).max(10).default(5),
-  includeRawContent: z.boolean().default(false),
-});
+import type { Env, ResearchResponse } from "../types";
 
 /**
  * Research endpoint handler
  * POST /research
  */
 export async function researchHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
-    const body = await c.req.json<ResearchRequest>();
-    const parsed = researchSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "INVALID_REQUEST",
-          code: "INVALID_REQUEST",
-          message: "Invalid request parameters",
-          requestId,
-          details: parsed.error.issues,
-        },
-        400
-      );
-    }
-
-    const { query, resultCount, includeRawContent } = parsed.data;
+    const { query, resultCount, includeRawContent } = c.get("validatedBody") as z.infer<typeof ResearchRequestSchema>;
 
     // Check if AI is available
     if (!isAIAvailable(c.env.ANTHROPIC_API_KEY)) {

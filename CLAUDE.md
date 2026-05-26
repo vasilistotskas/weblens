@@ -54,10 +54,10 @@ Durable Object classes (`CreditAccountDO`, `MonitorScheduler`) are re-exported f
 
 ### Key Directories
 - **`src/routes/`** — Route registrars grouped by tier (system, free, core, advanced, intel, credits). Each function takes the Hono app and registers endpoints with their middleware stack.
-- **`src/tools/`** — Endpoint handler implementations. Each tool is a Hono handler that reads `validatedBody` from context, calls services/external APIs, and returns `{data, requestId, timestamp}`.
+- **`src/tools/`** — Endpoint handler implementations. Each tool is a Hono handler that reads `validatedBody` from context, calls services/external APIs, and returns a flat domain object plus `requestId` and a per-endpoint ISO timestamp field (`fetchedAt` / `searchedAt` / `extractedAt` / `analyzedAt` / etc.).
 - **`src/services/`** — Business logic layer (pricing, caching, credits DO proxy, scheduler DO, crypto/ACV proofs, AI/Anthropic integration, reputation).
 - **`src/middleware/`** — Middleware factories: payment (x402 lazy-init singleton), credit-middleware (wallet signature auth + debit), validation (Zod), rate-limit (IP-based via KV), cache, security, error handler.
-- **`src/durable_objects/`** — Cloudflare Durable Objects. `CreditAccountDO` manages atomic credit transactions with SQLite backend, exposes `/deposit`, `/spend`, `/balance`, `/history` internal endpoints. Keeps max 100 transactions (LIFO).
+- **`src/durable_objects/`** — Cloudflare Durable Objects. `CreditAccountDO` manages atomic credit transactions via key-value Durable Object storage (`ctx.storage.get/put` — not the SQL API), exposes `/deposit`, `/spend`, `/balance`, `/history` internal endpoints. Keeps max 100 transactions (LIFO).
 - **`src/schemas.ts`** — All Zod request validation schemas. Reusable primitives: `urlSchema`, `timeoutSchema`, `limitSchema`. Includes bounds (viewport 320-3840px, timeout 5-30s, cache TTL 60-86400s).
 - **`src/config.ts`** — Centralized pricing, network/facilitator config, cache settings, viewport bounds, timeouts. All prices defined here.
 - **`src/types.ts`** — All TypeScript interfaces: `Env` (Worker bindings), `Variables` (Hono context vars), request/response types, `ErrorCode` enum, `ProofOfContext`.
@@ -105,7 +105,7 @@ Three-layer architecture:
 Blocks private/internal IPs (RFC 1918 ranges, localhost, 127.0.0.1, decimal IP tricks), `.onion` domains, non-HTTP(S) schemes. Returns `{valid, normalized?, error?}`.
 
 ### Caching
-- Opt-in via `cache=true` query param on requests
+- Opt-in via the `cache` body field (default `true`) on the fetch family (`/fetch/basic`, `/fetch/pro`, `/fetch/resilient`); implemented in `src/middleware/cache.ts` + `src/services/cache.ts`. On a hit the cached body is served (handler skipped) and the 70% discount applies to both the credit debit and the x402 challenge.
 - Cache keys: `weblens:{endpoint}:{sha256(sorted_params)[:12]}`
 - TTL clamped to 60-86400s; default 3600s
 - 70% discount on cached responses (`PRICING.cacheDiscount`)
@@ -119,8 +119,8 @@ Blocks private/internal IPs (RFC 1918 ranges, localhost, 127.0.0.1, decimal IP t
 
 ### Crypto & Proof of Context (`src/services/crypto.ts`)
 - `hashContent()` — SHA-256 via `crypto.subtle`
-- `createProofOfContext()` — ACV (Autonomous Context Verification) wrapping content with `{hash, timestamp, signature, publicKey}`
-- Currently uses HMAC-SHA256 with `CDP_API_KEY_SECRET`; roadmap item to upgrade to ECDSA
+- `createProofOfContext()` — ACV (Autonomous Context Verification) wrapping content with `{hash, timestamp, alg, mac, keyId}`. `mac` is a symmetric HMAC tag (a MAC), **not** a public-key signature — only the secret holder can verify it
+- Uses HMAC-SHA256 keyed by `SIGNING_PRIVATE_KEY` (falls back to `CDP_API_KEY_SECRET`); since it is symmetric it is not third-party-verifiable — true ECDSA signing is a roadmap item
 
 ### Cloudflare Bindings (wrangler.toml)
 - **KV namespaces**: CACHE, MEMORY, MONITOR, CREDITS

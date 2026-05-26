@@ -19,12 +19,10 @@ interface RateLimitEntry {
  * Get the client IP from Cloudflare headers
  */
 function getClientIP(c: Context<{ Bindings: Env }>): string {
-    return (
-        c.req.header("cf-connecting-ip") ??
-        c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-        c.req.header("x-real-ip") ??
-        "unknown"
-    );
+    // Trust ONLY Cloudflare's edge-set header. X-Forwarded-For / X-Real-IP are
+    // client-controllable; honoring them would let an attacker rotate the value
+    // to mint unlimited fresh rate-limit buckets.
+    return c.req.header("cf-connecting-ip") ?? "unknown";
 }
 
 /**

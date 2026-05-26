@@ -151,7 +151,7 @@ const TOOLS = [
   },
   {
     name: "intel_company",
-    description: "Company intelligence deep dive: tech stack, funding, team, competitors, news. Price: $0.50",
+    description: "Company intelligence deep dive: tech stack, funding, team, competitors, news. Price: $1.00",
     inputSchema: {
       type: "object",
       properties: {
@@ -162,7 +162,7 @@ const TOOLS = [
   },
   {
     name: "intel_market",
-    description: "AI-powered market research report with trends, key players, and data points. Price: $2.00",
+    description: "AI-powered market research report with trends, key players, and data points. Price: $5.00",
     inputSchema: {
       type: "object",
       properties: {
@@ -175,7 +175,7 @@ const TOOLS = [
   },
   {
     name: "intel_competitive",
-    description: "Competitive analysis: feature matrix, pricing, SWOT analysis. Price: $3.00",
+    description: "Competitive analysis: feature matrix, pricing, SWOT analysis. Price: $8.00",
     inputSchema: {
       type: "object",
       properties: {
@@ -188,7 +188,7 @@ const TOOLS = [
   },
   {
     name: "intel_site_audit",
-    description: "Comprehensive SEO, performance, and security audit with scoring. Price: $0.30",
+    description: "Comprehensive SEO, performance, and security audit with scoring. Price: $0.75",
     inputSchema: {
       type: "object",
       properties: {
