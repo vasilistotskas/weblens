@@ -1,132 +1,57 @@
 /**
- * Property-Based Tests for Batch Fetch
+ * Request-contract tests for the batch-fetch endpoint.
  *
- * **Feature: weblens, Property 1: Batch fetch returns results for all URLs**
- * **Validates: Requirements 1.1, 1.6**
- *
- * For any batch fetch request with N URLs (2 ≤ N ≤ 20), the response SHALL
- * contain exactly N results, one for each input URL.
+ * Tests the REAL canonical schema (BatchFetchRequestSchema) that the handler
+ * consumes via validatedBody — bounds (2–20 URLs), URL validity, tier enum,
+ * and defaults — rather than a local mock.
  */
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { PRICING } from "../../src/config";
+import { BatchFetchRequestSchema } from "../../src/schemas";
 
-// Mock batch fetch result structure for testing response structure
-interface MockBatchFetchResult {
-  url: string;
-  status: "success" | "error";
-  content?: string;
-  title?: string;
-  error?: string;
-  fetchedAt: string;
-}
+describe("BatchFetchRequestSchema (request contract)", () => {
+    it("accepts any 2–20 valid URLs and applies defaults", () => {
+        fc.assert(
+            fc.property(
+                fc.array(fc.webUrl(), {
+                    minLength: PRICING.batchFetch.minUrls,
+                    maxLength: PRICING.batchFetch.maxUrls,
+                }),
+                (urls) => {
+                    const r = BatchFetchRequestSchema.safeParse({ urls });
+                    expect(r.success).toBe(true);
+                    if (r.success) {
+                        expect(r.data.urls).toHaveLength(urls.length);
+                        expect(r.data.tier).toBe("basic"); // default
+                        expect(r.data.timeout).toBe(10000); // shared timeout default
+                    }
+                },
+            ),
+            { numRuns: 50 },
+        );
+    });
 
-/**
- * Simulates batch fetch response structure
- * This tests the contract that results array length equals input URLs length
- */
-function simulateBatchFetchResponse(urls: string[]): MockBatchFetchResult[] {
-  return urls.map((url) => ({
-    url,
-    status: "success" as const,
-    content: "# Mock Content",
-    title: "Mock Title",
-    fetchedAt: new Date().toISOString(),
-  }));
-}
+    it("rejects fewer than the minimum URLs", () => {
+        expect(BatchFetchRequestSchema.safeParse({ urls: ["https://a.com"] }).success).toBe(false);
+        expect(BatchFetchRequestSchema.safeParse({ urls: [] }).success).toBe(false);
+    });
 
-describe("Property 1: Batch fetch returns results for all URLs", () => {
-  /**
-   * Property: Result count equals input URL count
-   * For any batch fetch request with N URLs, response contains exactly N results
-   */
-  it("result count equals input URL count for valid batches", () => {
-    fc.assert(
-      fc.property(
-        // Generate arrays of valid URLs within bounds
-        fc.array(fc.webUrl(), {
-          minLength: PRICING.batchFetch.minUrls,
-          maxLength: PRICING.batchFetch.maxUrls,
-        }),
-        (urls) => {
-          const results = simulateBatchFetchResponse(urls);
-          expect(results.length).toBe(urls.length);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
+    it("rejects more than the maximum URLs", () => {
+        const urls = Array.from({ length: PRICING.batchFetch.maxUrls + 1 }, (_, i) => `https://a${String(i)}.com`);
+        expect(BatchFetchRequestSchema.safeParse({ urls }).success).toBe(false);
+    });
 
-  /**
-   * Property: Each result corresponds to its input URL
-   * For any batch fetch, result[i].url === input[i]
-   */
-  it("each result URL matches its corresponding input URL", () => {
-    fc.assert(
-      fc.property(
-        fc.array(fc.webUrl(), {
-          minLength: PRICING.batchFetch.minUrls,
-          maxLength: PRICING.batchFetch.maxUrls,
-        }),
-        (urls) => {
-          const results = simulateBatchFetchResponse(urls);
-          for (let i = 0; i < urls.length; i++) {
-            expect(results[i].url).toBe(urls[i]);
-          }
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
+    it("rejects invalid URLs and unknown tiers", () => {
+        expect(BatchFetchRequestSchema.safeParse({ urls: ["not a url", "https://b.com"] }).success).toBe(false);
+        expect(
+            BatchFetchRequestSchema.safeParse({ urls: ["https://a.com", "https://b.com"], tier: "ultra" }).success,
+        ).toBe(false);
+    });
 
-  /**
-   * Property: All results have required fields
-   * For any batch fetch result, it SHALL include url, status, and fetchedAt
-   */
-  it("all results contain required fields (url, status, fetchedAt)", () => {
-    fc.assert(
-      fc.property(
-        fc.array(fc.webUrl(), {
-          minLength: PRICING.batchFetch.minUrls,
-          maxLength: PRICING.batchFetch.maxUrls,
-        }),
-        (urls) => {
-          const results = simulateBatchFetchResponse(urls);
-          for (const result of results) {
-            expect(result).toHaveProperty("url");
-            expect(result).toHaveProperty("status");
-            expect(result).toHaveProperty("fetchedAt");
-            expect(["success", "error"]).toContain(result.status);
-          }
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  /**
-   * Property: Successful results have content
-   * For any successful result, it SHALL include content and title
-   */
-  it("successful results include content and title", () => {
-    fc.assert(
-      fc.property(
-        fc.array(fc.webUrl(), {
-          minLength: PRICING.batchFetch.minUrls,
-          maxLength: PRICING.batchFetch.maxUrls,
-        }),
-        (urls) => {
-          const results = simulateBatchFetchResponse(urls);
-          for (const result of results) {
-            if (result.status === "success") {
-              expect(result.content).toBeDefined();
-              expect(result.title).toBeDefined();
-            }
-          }
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
+    it("accepts the pro tier explicitly", () => {
+        const r = BatchFetchRequestSchema.safeParse({ urls: ["https://a.com", "https://b.com"], tier: "pro" });
+        expect(r.success).toBe(true);
+    });
 });
