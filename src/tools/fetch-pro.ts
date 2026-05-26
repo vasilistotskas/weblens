@@ -17,7 +17,12 @@ import type { FetchRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, FetchResponse, ProofOfContext } from "../types";
+import { createLogger } from "../utils/logger";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
+
+// Module-level logger: the fetch-pro render path is a service-style function
+// chain (takes `env`, not a Hono context), so it cannot use `c.get("log")`.
+const log = createLogger();
 
 export interface FetchProResult {
   url: string;
@@ -173,7 +178,10 @@ async function fetchProPageInternal(
           keyId
         };
       } catch (err) {
-        console.warn(`Failed to generate ACV proof: ${String(err)}`);
+        log.warn("acv.proof_failed", {
+          endpoint: "fetch-pro",
+          error: err instanceof Error ? err.message : String(err),
+        });
         // Do not fail the request, just omit the proof
       }
     }

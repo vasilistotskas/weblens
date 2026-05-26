@@ -37,7 +37,7 @@ export async function rateLimitMiddleware(
 
     if (!kv) {
         // If KV is unavailable, allow request but log warning
-        console.warn("⚠️ Rate limiting KV unavailable, allowing request");
+        c.get("log").warn("ratelimit.kv_unavailable");
         await next();
         return;
     }
@@ -102,7 +102,7 @@ export async function rateLimitMiddleware(
         });
     } catch {
         // Non-fatal: allow request even if KV write fails
-        console.warn("⚠️ Failed to update rate limit counter");
+        c.get("log").warn("ratelimit.counter_update_failed");
     }
 
     // Set rate limit headers

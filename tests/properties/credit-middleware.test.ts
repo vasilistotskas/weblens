@@ -28,6 +28,11 @@ describe("Credit Middleware", () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
+        // No-op structured logger, as the global requestId middleware would set.
+        const noopLogger = {
+            debug() {}, info() {}, warn() {}, error() {},
+            child() { return noopLogger; },
+        };
         mockContext = {
             req: {
                 header: vi.fn() as unknown as (name: string) => string | undefined,
@@ -38,7 +43,7 @@ describe("Credit Middleware", () => {
                     get: vi.fn(),
                 } as unknown as any,
             },
-            get: vi.fn(),
+            get: vi.fn((key: string) => (key === "log" ? noopLogger : undefined)),
             set: vi.fn(),
             json: vi.fn(),
             header: vi.fn(),

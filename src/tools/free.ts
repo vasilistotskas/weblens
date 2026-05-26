@@ -12,19 +12,21 @@ import { createErrorResponse } from "../middleware/errorHandler";
 import { searchWeb } from "../services/search";
 import { validateURL } from "../services/validator";
 import type { Env, FreeTierMetadata } from "../types";
-import { generateRequestId } from "../utils/requestId";
 import { fetchBasicPage } from "./fetch-basic";
 
 // ============================================
 // Schemas
 // ============================================
 
-const freeFetchSchema = z.object({
+// Free-tier request schemas — the canonical contract for these endpoints.
+// Validated at the route level (routes/free.ts) and consumed here via
+// validatedBody. Bounds intentionally differ from the paid schemas.
+export const freeFetchSchema = z.object({
     url: z.url(),
     timeout: z.number().min(1000).max(15000).default(10000),
 });
 
-const freeSearchSchema = z.object({
+export const freeSearchSchema = z.object({
     query: z.string().min(1).max(200),
 });
 
@@ -64,27 +66,11 @@ function getRemainingFromContext(c: Context<{ Bindings: Env }>): number {
  * Free tier fetch — truncated content, rate limited.
  */
 export async function freeFetch(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
     const remaining = getRemainingFromContext(c);
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = freeFetchSchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400
-            );
-        }
-
-        const { url, timeout } = parsed.data;
+        const { url, timeout } = c.get("validatedBody") as z.infer<typeof freeFetchSchema>;
 
         // Validate URL
         const urlValidation = validateURL(url);
@@ -163,27 +149,11 @@ export async function freeFetch(c: Context<{ Bindings: Env }>) {
  * Free tier search — capped results, rate limited.
  */
 export async function freeSearch(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
     const remaining = getRemainingFromContext(c);
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = freeSearchSchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400
-            );
-        }
-
-        const { query } = parsed.data;
+        const { query } = c.get("validatedBody") as z.infer<typeof freeSearchSchema>;
         const maxResults = FREE_TIER.searchMaxResults;
 
         const allResults = await searchWeb({

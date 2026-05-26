@@ -140,6 +140,28 @@ export interface ProofOfContext {
   keyId: string;      // Identifier of the oracle key that produced `mac`
 }
 
+/**
+ * x402 v2 payment payload, decoded from the `Payment-Signature` request header.
+ * Used to read the paying wallet (`payload.authorization.from`) and, in the
+ * payment-debug middleware, to inspect the EIP-3009 authorization structure.
+ */
+export interface PaymentPayload {
+  x402Version?: number;
+  scheme?: string;
+  network?: string;
+  payload?: {
+    signature?: string;
+    authorization?: {
+      from?: string;
+      to?: string;
+      value?: string;
+      validAfter?: string;
+      validBefore?: string;
+      nonce?: string;
+    };
+  };
+}
+
 // ============================================
 // Search Types
 // ============================================

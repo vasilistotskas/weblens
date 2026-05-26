@@ -96,7 +96,10 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                     const discount = getDiscount(walletAddress);
                     return await calculatePrice(body.url, "fetch-pro", discount);
                 } catch (e) {
-                    console.warn("Failed to parse body for dynamic pricing, using base price", e);
+                    c.get("log").warn("pricing.dynamic_fallback", {
+                        endpoint: "fetch-pro",
+                        error: e instanceof Error ? e.message : String(e),
+                    });
                     return PRICING.fetch.pro;
                 }
             }),
@@ -274,7 +277,10 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                     const discount = getDiscount(walletAddress);
                     return await calculatePrice(body.url, "extract", discount);
                 } catch (e) {
-                    console.warn("Failed to parse body for dynamic pricing, using base price", e);
+                    c.get("log").warn("pricing.dynamic_fallback", {
+                        endpoint: "extract",
+                        error: e instanceof Error ? e.message : String(e),
+                    });
                     return PRICING.extract;
                 }
             },

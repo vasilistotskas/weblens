@@ -5,6 +5,7 @@
 
 import type { Context } from "hono";
 import { PRICING, FREE_TIER } from "../config";
+import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
 // Service catalog with rich metadata for AI agent discovery
@@ -245,7 +246,7 @@ const SERVICE_CATALOG = {
         cacheDiscount: "70% off for cached responses",
         noFees: "x402 protocol has 0 fees",
         instantSettlement: "~1-2 seconds on Base",
-        priceRange: "$0.0005 - $3.00 per request",
+        priceRange: getPriceRange(),
     },
     integration: {
         mcp: {
@@ -404,7 +405,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         })),
         pricing: {
             currency: "USDC",
-            range: "$0.001 - $3.00",
+            range: getPriceRange(),
             cacheDiscount: "70%",
         },
         documentation: `${baseUrl}/docs`,

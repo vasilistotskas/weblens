@@ -27,7 +27,7 @@ export function validateRequest(schema: z.ZodType) {
                 // For paid endpoints, we expect JSON.
                 if (c.req.method === "POST" || c.req.method === "PUT") {
                     return c.json({
-                        error: "Invalid Content-Type",
+                        error: "INVALID_CONTENT_TYPE",
                         message: "Content-Type must be application/json",
                         code: "INVALID_CONTENT_TYPE",
                         requestId: c.get("requestId"),
@@ -62,7 +62,7 @@ export function validateRequest(schema: z.ZodType) {
                 }));
 
                 return c.json({
-                    error: "Validation Error",
+                    error: "VALIDATION_ERROR",
                     message: "Request body failed validation",
                     details: formattedErrors,
                     code: "VALIDATION_ERROR",
@@ -75,9 +75,11 @@ export function validateRequest(schema: z.ZodType) {
 
             await next();
         } catch (e) {
-            console.error("Validation Middleware Error:", e);
+            c.get("log").warn("validation.json_parse_failed", {
+                error: e instanceof Error ? e.message : String(e),
+            });
             return c.json({
-                error: "Bad Request",
+                error: "INVALID_JSON",
                 message: "Invalid JSON body",
                 code: "INVALID_JSON",
                 requestId: c.get("requestId"),

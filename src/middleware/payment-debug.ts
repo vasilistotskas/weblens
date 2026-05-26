@@ -11,7 +11,7 @@
  */
 
 import type { Context, Next } from "hono";
-import type { Env } from "../types";
+import type { Env, PaymentPayload } from "../types";
 
 // ---- Types ----
 
@@ -32,22 +32,6 @@ interface V2PaymentRequiredResponse {
   accepts?: V2PaymentAccept[];
 }
 
-interface PaymentPayload {
-  x402Version?: number;
-  scheme?: string;
-  network?: string;
-  payload?: {
-    signature?: string;
-    authorization?: {
-      from?: string;
-      to?: string;
-      value?: string;
-      validAfter?: string;
-      validBefore?: string;
-      nonce?: string;
-    };
-  };
-}
 
 // ---- Helpers ----
 

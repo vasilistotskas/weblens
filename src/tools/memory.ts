@@ -25,21 +25,13 @@ import type {
   MemorySetResponse,
   MemoryGetResponse,
   MemoryListResponse,
+  PaymentPayload,
 } from "../types";
-import { generateRequestId } from "../utils/requestId";
 
 /**
  * Extract wallet address from payment context
  * In x402, the paying wallet is available after payment verification
  */
-interface PaymentPayload {
-  payload?: {
-    authorization?: {
-      from?: string;
-    };
-  };
-}
-
 function getWalletAddress(c: Context<{ Bindings: Env }>): string | null {
   // Try to get from x402 v2 payment context.
   const paymentHeader = c.req.header("Payment-Signature");
@@ -156,7 +148,7 @@ export async function memorySetHandler(c: Context<{ Bindings: Env }>) {
  * Requirement 7.7: Return 404 if key does not exist
  */
 export async function memoryGetHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available
@@ -236,7 +228,7 @@ export async function memoryGetHandler(c: Context<{ Bindings: Env }>) {
  * Requirement 7.5: Remove stored value
  */
 export async function memoryDeleteHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available
@@ -312,7 +304,7 @@ export async function memoryDeleteHandler(c: Context<{ Bindings: Env }>) {
  * List all keys for the current wallet
  */
 export async function memoryListHandler(c: Context<{ Bindings: Env }>) {
-  const requestId = generateRequestId();
+  const requestId = c.get("requestId");
 
   try {
     // Check if KV is available

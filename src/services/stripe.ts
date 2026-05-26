@@ -11,6 +11,12 @@
  *   https://docs.stripe.com/api/checkout/sessions/create
  */
 
+import { createLogger } from "../utils/logger";
+
+// Module-level logger: these are pure Workers-native service functions with no
+// env or Hono context to thread.
+const log = createLogger();
+
 interface CheckoutSessionParams {
     secretKey: string;
     amountUsd: number;
@@ -70,7 +76,10 @@ export async function createCheckoutSession(
         // generic message to the caller — Stripe error bodies can include
         // card tail digits, billing metadata, or HTML from upstream proxies.
         const text = await response.text();
-        console.error(`[stripe] checkout.sessions.create ${String(response.status)}: ${text.slice(0, 500)}`);
+        log.error("stripe.checkout_create_failed", {
+            status: response.status,
+            body: text.slice(0, 500),
+        });
         throw new Error(`Stripe checkout session creation failed (HTTP ${String(response.status)})`);
     }
 

@@ -7,6 +7,7 @@
 
 import type { Context } from "hono";
 import { PRICING } from "../config";
+import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
 // MCP Protocol version
@@ -517,7 +518,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       currency: "USDC",
       network: "base",
       protocol: "x402",
-      range: "$0.001 - $3.00 per request",
+      range: getPriceRange(),
       noFees: true,
       instantSettlement: true,
     },

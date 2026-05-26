@@ -10,7 +10,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 // Middleware
-import { errorHandlerMiddleware } from "./middleware/errorHandler";
+import { errorHandler } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { securityMiddleware } from "./middleware/security";
@@ -82,9 +82,6 @@ app.use("*", requestIdMiddleware);
 // Security headers
 app.use("*", securityMiddleware);
 
-// Global error handler
-app.use("*", errorHandlerMiddleware);
-
 
 // ============================================
 // Global Policies
@@ -106,7 +103,7 @@ app.use("*", async (c, next) => {
     // Check if this is a paid endpoint that requires POST
     if (PAID_ENDPOINTS.includes(path) && method !== "POST") {
         return c.json({
-            error: "Method Not Allowed",
+            error: "METHOD_NOT_ALLOWED",
             message: "This endpoint only accepts POST requests. Please send a POST request with the required JSON body.",
             method: method,
             path: path,
@@ -149,12 +146,16 @@ registerIntelRoutes(app);
 // Custom 404 handler — consistent JSON error envelope
 app.notFound((c) => {
     return c.json({
-        error: "Not Found",
+        error: "NOT_FOUND",
         code: "NOT_FOUND",
         message: `Route ${c.req.method} ${c.req.path} not found`,
         requestId: c.get("requestId"),
     }, 404);
 });
+
+// Global error handler (idiomatic Hono): catches throws from any middleware or
+// handler regardless of order, returning the consistent error envelope.
+app.onError(errorHandler);
 
 // Named export of the underlying Hono app — used by integration tests that
 // want to call `app.request(...)` directly.

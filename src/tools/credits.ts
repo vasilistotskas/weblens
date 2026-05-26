@@ -16,7 +16,6 @@ import {
     getTransactionHistory,
 } from "../services/credits";
 import type { Env } from "../types";
-import { generateRequestId } from "../utils/requestId";
 import { verifyWalletSignature } from "../utils/security";
 
 /**
@@ -38,7 +37,7 @@ import { verifyWalletSignature } from "../utils/security";
  * The x402 middleware will challenge for the amount.
  */
 export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     if (!c.env.CREDIT_MANAGER) {
         return c.json(
@@ -156,7 +155,7 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
  * Get current balance and tier info.
  */
 export async function getBalanceHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     const walletAddress = c.req.header("X-CREDIT-WALLET");
     const signature = c.req.header("X-CREDIT-SIGNATURE");
@@ -201,7 +200,7 @@ export async function getBalanceHandler(c: Context<{ Bindings: Env }>) {
  * Get transaction history.
  */
 export async function getHistoryHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     const walletAddress = c.req.header("X-CREDIT-WALLET");
     const signature = c.req.header("X-CREDIT-SIGNATURE");

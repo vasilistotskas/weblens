@@ -13,7 +13,6 @@ import { z } from "zod/v4";
 import { resilientFetch } from "../services/provider-registry";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
-import { generateRequestId } from "../utils/requestId";
 
 const resilientFetchSchema = z.object({
     url: z.url(),
@@ -25,7 +24,7 @@ const resilientFetchSchema = z.object({
  * POST /fetch/resilient
  */
 export async function resilientFetchHandler(c: Context<{ Bindings: Env }>) {
-    const requestId = generateRequestId();
+    const requestId = c.get("requestId");
 
     try {
         const body: unknown = await c.req.json();
