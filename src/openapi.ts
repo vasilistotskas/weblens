@@ -63,7 +63,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         "for web search, and POST /research {\"query\": \"...\"} for search + fetch + AI summary. " +
         "Use POST /fetch/pro for JavaScript-rendered pages and POST /extract to pull structured JSON from any page. " +
         "Free, unauthenticated tries: GET /r/{url} and GET /s/{query} (rate limited).",
-      contact: { name: "WebLens Support", url: "https://api.weblens.dev" },
+      contact: { name: "WebLens Support", url: "https://api.weblens.dev", email: "vassilistotskas@msn.com" },
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
     },
     servers: [
