@@ -21,15 +21,3 @@ export function generateRequestId(): string {
   const random = crypto.randomUUID().replace(/-/gu, "").slice(0, 8);
   return `wl_${timestamp}_${random}`;
 }
-
-/**
- * Validate if a string is a valid WebLens request ID
- *
- * @param id - The string to validate
- * @returns true if the string matches the request ID format
- */
-export function isValidRequestId(id: string): boolean {
-  // Pattern: wl_{base36 timestamp}_{1..12 hex/base36 random}
-  const pattern = /^wl_[a-z0-9]+_[a-z0-9]{1,12}$/u;
-  return pattern.test(id);
-}

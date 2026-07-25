@@ -9,14 +9,15 @@
  * Why two middlewares: the cache-hit flag must be known *before* pricing so the
  * credit debit and the x402 402-challenge both reflect the cached discount; but
  * serving the cached body (and storing fresh responses) must happen *after*
- * payment, right before the handler. The price functions apply the discount via
- * `cacheAwareCreditCost` / `cacheAwarePaymentPrice`.
+ * payment, right before the handler. Both money paths apply the discount via
+ * the shared `cacheAwarePrice`.
  */
 
 import type { Context, MiddlewareHandler } from "hono";
 import { buildCacheKey, clampCacheTtl, getCached, setCached } from "../services/cache";
 import { getCachedPrice } from "../services/pricing";
 import type { Env, Variables } from "../types";
+import { MAX_BODY_BYTES } from "./validation";
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
@@ -35,6 +36,19 @@ export function cacheLookupMiddleware(
     endpoint: string,
 ): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
     return async (c, next) => {
+        // This middleware runs before validateRequest, so the 256KB bound
+        // must be enforced here too — otherwise oversized bodies get fully
+        // buffered, parsed, and hashed before the validation guard runs.
+        const contentLength = Number(c.req.header("Content-Length") ?? "0");
+        if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+            return c.json({
+                error: "PAYLOAD_TOO_LARGE",
+                message: "Request body exceeds the 256KB limit",
+                code: "PAYLOAD_TOO_LARGE",
+                requestId: c.get("requestId"),
+            }, 413);
+        }
+
         const kv = c.env.CACHE;
         if (!kv) {
             await next();
@@ -108,18 +122,12 @@ export function cacheServeMiddleware(): MiddlewareHandler<{ Bindings: Env; Varia
 }
 
 /**
- * Credit cost function (sync) that applies the 70% cached discount on a hit.
- * The hit flag is set by `cacheLookupMiddleware`, which runs before credit.
+ * Price function that applies the 70% cached discount on a hit. Pass a fixed
+ * base price, or a resolver for dynamically-priced endpoints. Used for BOTH
+ * the credit debit and the x402 challenge so the two can never diverge —
+ * the hit flag is set by `cacheLookupMiddleware`, which runs before either.
  */
-export function cacheAwareCreditCost(basePrice: string): (c: AppContext) => string {
-    return (c) => (c.get("cacheHit") ? getCachedPrice(basePrice) : basePrice);
-}
-
-/**
- * x402 price function (async) that applies the cached discount on a hit. Pass a
- * fixed base price, or a resolver for dynamically-priced endpoints.
- */
-export function cacheAwarePaymentPrice(
+export function cacheAwarePrice(
     base: string | ((c: AppContext) => Promise<string>),
 ): (c: AppContext) => Promise<string> {
     return async (c) => {

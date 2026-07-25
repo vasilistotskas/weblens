@@ -8,6 +8,7 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "../config";
 import type { ScreenshotRequest } from "../types";
+import { hardenPage } from "../utils/browser-guard";
 
 interface ScreenshotResult {
   image: string;  // Base64-encoded PNG
@@ -110,7 +111,12 @@ async function captureScreenshotInternal(
 
   try {
     const page = await browser.newPage();
-    
+
+    // Re-validate every request the browser makes (redirect hops,
+    // subresources) against the SSRF rules — page.goto follows redirects
+    // internally, bypassing safeFetch's per-hop revalidation.
+    await hardenPage(page);
+
     // Set viewport dimensions
     await page.setViewport({
       width: viewport.width,

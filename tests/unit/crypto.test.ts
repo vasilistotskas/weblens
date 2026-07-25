@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
-import { hashContent, signContext, createProofOfContext } from '../../src/services/crypto';
+import { hashContent, signContext } from '../../src/services/crypto';
 import type { Env } from '../../src/types';
 
 function createMockEnv(overrides: Partial<Env> = {}): Env {
@@ -124,25 +124,32 @@ describe('Crypto Service (ACV)', () => {
         });
     });
 
-    describe('createProofOfContext', () => {
-        it('should return a complete proof envelope', async () => {
+    describe('hashContent + signContext composition (proof envelope)', () => {
+        // Production handlers build the ACV proof by composing hashContent and
+        // signContext directly — this covers that composed path end to end.
+        it('composes into a complete proof envelope', async () => {
             const env = createMockEnv();
-            const proof = await createProofOfContext("https://example.com", "Hello World", env);
+            const hash = await hashContent("Hello World");
+            const timestamp = new Date().toISOString();
+            const { mac, keyId, alg } = await signContext("https://example.com", hash, timestamp, env);
 
-            expect(proof.hash).toBe('a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e');
-            expect(proof.timestamp).toBeTruthy();
-            expect(proof.mac).toMatch(/^[0-9a-f]{64}$/);
-            expect(proof.keyId).toBe("weblens-oracle-v1");
-            expect(proof.alg).toBe("HMAC-SHA256");
+            expect(hash).toBe('a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e');
+            expect(timestamp).toBeTruthy();
+            expect(mac).toMatch(/^[0-9a-f]{64}$/);
+            expect(keyId).toBe("weblens-oracle-v1");
+            expect(alg).toBe("HMAC-SHA256");
         });
 
-        it('should produce different proofs for different content', async () => {
+        it('produces different proofs for different content', async () => {
             const env = createMockEnv();
-            const proof1 = await createProofOfContext("https://example.com", "Content A", env);
-            const proof2 = await createProofOfContext("https://example.com", "Content B", env);
+            const timestamp = "2024-01-01T00:00:00Z";
+            const hash1 = await hashContent("Content A");
+            const hash2 = await hashContent("Content B");
+            const sig1 = await signContext("https://example.com", hash1, timestamp, env);
+            const sig2 = await signContext("https://example.com", hash2, timestamp, env);
 
-            expect(proof1.hash).not.toBe(proof2.hash);
-            expect(proof1.mac).not.toBe(proof2.mac);
+            expect(hash1).not.toBe(hash2);
+            expect(sig1.mac).not.toBe(sig2.mac);
         });
     });
 });

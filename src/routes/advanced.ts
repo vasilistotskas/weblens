@@ -82,8 +82,8 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     // ============================================
     app.use(
         "/research",
-        createCreditMiddleware(PRICING.research, "AI Research Assistant"),
         validateRequest(ResearchRequestSchema),
+        createCreditMiddleware(PRICING.research, "AI Research Assistant"),
         createLazyPaymentMiddleware(
             "/research",
             PRICING.research,
@@ -126,8 +126,8 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     // ============================================
     app.use(
         "/pdf",
-        createCreditMiddleware(PRICING.pdf, "PDF Text Extraction"),
         validateRequest(PdfRequestSchema),
+        createCreditMiddleware(PRICING.pdf, "PDF Text Extraction"),
         createLazyPaymentMiddleware(
             "/pdf",
             PRICING.pdf,
@@ -169,8 +169,8 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     // ============================================
     app.use(
         "/compare",
-        createCreditMiddleware(PRICING.compare, "Webpage Comparison"),
         validateRequest(CompareRequestSchema),
+        createCreditMiddleware(PRICING.compare, "Webpage Comparison"),
         createLazyPaymentMiddleware(
             "/compare",
             PRICING.compare,

@@ -6,12 +6,43 @@
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
 import { PRICING } from "./config";
+import { MAX_COMPLEXITY_MULTIPLIER, parsePrice } from "./services/pricing";
 import type { Env, Variables } from "./types";
 
-// OpenAPI 3.0 Document
-function getOpenAPIDocument(baseUrl: string = "https://api.weblens.dev") {
+// ---- x402scan discovery helpers (https://www.x402scan.com/discovery/spec) ----
+// x-payment-info amounts are decimal USD strings; runtime 402 challenges use
+// token atomic units. Both derive from PRICING so they can never drift.
+
+/** "$0.005" → "0.005000" (decimal USD, 6 places). */
+function usd(price: string): string {
+  return parsePrice(price).toFixed(6);
+}
+
+/** x-payment-info for an op whose runtime price never varies. */
+function fixedPayment(price: string) {
   return {
-    openapi: "3.0.3",
+    price: { mode: "fixed" as const, currency: "USD", amount: usd(price) },
+    protocols: [{ x402: {} }],
+  };
+}
+
+/** x-payment-info for an op whose runtime price varies (cache discount, complexity, per-URL). */
+function dynamicPayment(minUsd: number, maxUsd: number) {
+  return {
+    price: { mode: "dynamic" as const, currency: "USD", min: minUsd.toFixed(6), max: maxUsd.toFixed(6) },
+    protocols: [{ x402: {} }],
+  };
+}
+
+/** Lowest price after the cache discount (70% off ⇒ 30% of base). */
+function cachedMin(price: string): number {
+  return parsePrice(price) * (1 - PRICING.cacheDiscount);
+}
+
+// OpenAPI Document (exported for the discovery-contract tests)
+export function getOpenAPIDocument(baseUrl: string = "https://api.weblens.dev") {
+  return {
+    openapi: "3.1.0",
     info: {
       title: "WebLens API",
       version: "2.0.0",
@@ -24,7 +55,15 @@ All paid endpoints use the [x402 protocol](https://x402.org) for HTTP-native mic
 
 ## Cache Discount
 Cached responses are **70% cheaper** than fresh fetches.`,
-      contact: { name: "WebLens Support", url: "https://github.com/weblens/weblens" },
+      "x-guidance":
+        "WebLens is a pay-per-call web intelligence API for AI agents — no accounts or API keys. " +
+        "Every paid operation is a POST with a JSON body, paid via x402 (USDC on Base): call it, read the " +
+        "PAYMENT-REQUIRED response header from the 402, sign, and retry with Payment-Signature. " +
+        "Start with POST /fetch/basic {\"url\": \"...\"} for markdown scraping, POST /search {\"query\": \"...\"} " +
+        "for web search, and POST /research {\"query\": \"...\"} for search + fetch + AI summary. " +
+        "Use POST /fetch/pro for JavaScript-rendered pages and POST /extract to pull structured JSON from any page. " +
+        "Free, unauthenticated tries: GET /r/{url} and GET /s/{query} (rate limited).",
+      contact: { name: "WebLens Support", url: "https://api.weblens.dev" },
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
     },
     servers: [
@@ -44,13 +83,14 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { name: "Credits", description: "Prepaid credit system" },
     ],
     paths: {
-      "/": { get: { tags: ["System"], summary: "API Info", operationId: "getApiInfo", responses: { "200": { description: "API info" } } } },
-      "/health": { get: { tags: ["System"], summary: "Health Check", operationId: "healthCheck", responses: { "200": { description: "Health status" } } } },
+      "/": { get: { tags: ["System"], summary: "API Info", operationId: "getApiInfo", security: [], responses: { "200": { description: "API info" } } } },
+      "/health": { get: { tags: ["System"], summary: "Health Check", operationId: "healthCheck", security: [], responses: { "200": { description: "Health status" } } } },
       "/discovery": {
         get: {
           tags: ["System"],
           summary: "Service Discovery",
           operationId: "getDiscovery",
+          security: [],
           description: "Machine-readable service catalog optimized for AI agent discovery. Returns all available endpoints, pricing, capabilities, and integration options.",
           responses: { "200": { description: "Service catalog with endpoints, pricing, and capabilities" } }
         }
@@ -60,6 +100,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           tags: ["System"],
           summary: "x402 Discovery",
           operationId: "getWellKnownX402",
+          security: [],
           description: "Standard x402 discovery endpoint. Returns x402-compatible service information for Bazaar indexing.",
           responses: { "200": { description: "x402 service information" } }
         }
@@ -69,6 +110,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           tags: ["Free"],
           summary: "Reader Mode (Zero-Friction)",
           operationId: "readerFetch",
+          security: [],
           description: "Fetch any webpage as markdown with a single GET request. No auth, no payment, no POST body. Just append a URL. Rate limited to 10/hour, content truncated to 2000 chars. Inspired by Jina Reader.",
           parameters: [
             { name: "url", in: "path", required: true, schema: { type: "string" }, description: "Full URL to fetch (e.g. https://example.com/article)", example: "https://example.com" },
@@ -87,6 +129,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           tags: ["Free"],
           summary: "Search Reader (Zero-Friction)",
           operationId: "searchReader",
+          security: [],
           description: "Search the web with a single GET request. No auth, no payment, no POST body. Just append a query. Rate limited to 10/hour, max 3 results. Upgrade to POST /search for up to 20 results.",
           parameters: [
             { name: "query", in: "path", required: true, schema: { type: "string" }, description: "Search query (use + for spaces)", example: "cloudflare+workers" },
@@ -104,23 +147,26 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Core"], summary: "Capture Screenshot", operationId: "captureScreenshot",
           description: `Capture webpage screenshot as PNG. Price: ${PRICING.screenshot}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ScreenshotRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.screenshot),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ScreenshotRequest" }, example: { url: "https://example.com", fullPage: false } } } },
           responses: { "200": { description: "Screenshot captured", content: { "application/json": { schema: { $ref: "#/components/schemas/ScreenshotResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
       "/fetch/basic": {
         post: {
           tags: ["Core"], summary: "Fetch Page (Basic)", operationId: "fetchBasic",
-          description: `Fetch webpage without JS rendering. Price: ${PRICING.fetch.basic}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/FetchRequest" } } } },
+          description: `Fetch webpage without JS rendering. Price: ${PRICING.fetch.basic} (70% off on cache hits)`,
+          "x-payment-info": dynamicPayment(cachedMin(PRICING.fetch.basic), parsePrice(PRICING.fetch.basic)),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/FetchRequest" }, example: { url: "https://example.com" } } } },
           responses: { "200": { description: "Page fetched", content: { "application/json": { schema: { $ref: "#/components/schemas/FetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
       "/fetch/pro": {
         post: {
           tags: ["Core"], summary: "Fetch Page (Pro)", operationId: "fetchPro",
-          description: `Fetch webpage with full JS rendering. Price: ${PRICING.fetch.pro}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/FetchRequest" } } } },
+          description: `Fetch webpage with full JS rendering. Price: ${PRICING.fetch.pro} base — up to ${MAX_COMPLEXITY_MULTIPLIER}x for high-complexity domains, 70% off on cache hits`,
+          "x-payment-info": dynamicPayment(cachedMin(PRICING.fetch.pro), parsePrice(PRICING.fetch.pro) * MAX_COMPLEXITY_MULTIPLIER),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/FetchRequest" }, example: { url: "https://example.com" } } } },
           responses: { "200": { description: "Page fetched", content: { "application/json": { schema: { $ref: "#/components/schemas/FetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -128,15 +174,17 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Search"], summary: "Web Search", operationId: "searchWeb",
           description: `Real-time web search. Price: ${PRICING.search}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SearchRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.search),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SearchRequest" }, example: { query: "x402 payment protocol", limit: 10 } } } },
           responses: { "200": { description: "Search results", content: { "application/json": { schema: { $ref: "#/components/schemas/SearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
       "/extract": {
         post: {
           tags: ["Extraction"], summary: "Extract Structured Data", operationId: "extractData",
-          description: `Extract structured data using JSON schema. Price: ${PRICING.extract}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ExtractRequest" } } } },
+          description: `Extract structured data using JSON schema. Price: ${PRICING.extract} base — up to ${MAX_COMPLEXITY_MULTIPLIER}x for high-complexity domains`,
+          "x-payment-info": dynamicPayment(parsePrice(PRICING.extract), parsePrice(PRICING.extract) * MAX_COMPLEXITY_MULTIPLIER),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ExtractRequest" }, example: { url: "https://example.com/product", schema: { name: { type: "string" }, price: { type: "number" } } } } } },
           responses: { "200": { description: "Data extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/ExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -144,7 +192,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Extraction"], summary: "Smart Extract", operationId: "smartExtract",
           description: `AI-powered extraction with natural language. Price: ${PRICING.smartExtract}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SmartExtractRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.smartExtract),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SmartExtractRequest" }, example: { url: "https://example.com/contact", query: "find all email addresses" } } } },
           responses: { "200": { description: "Data extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/SmartExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -152,15 +201,20 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Core"], summary: "Batch Fetch", operationId: "batchFetch",
           description: `Fetch 2-20 URLs in parallel. Price: ${PRICING.batchFetch.perUrl}/URL`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchRequest" } } } },
+          "x-payment-info": dynamicPayment(
+            parsePrice(PRICING.batchFetch.perUrl) * PRICING.batchFetch.minUrls,
+            parsePrice(PRICING.batchFetch.perUrl) * PRICING.batchFetch.maxUrls,
+          ),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchRequest" }, example: { urls: ["https://example.com/1", "https://example.com/2"] } } } },
           responses: { "200": { description: "Batch results", content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
       "/fetch/resilient": {
         post: {
           tags: ["Core"], summary: "Resilient Fetch (Agent Prime)", operationId: "resilientFetch",
-          description: `Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Price: ${PRICING.fetch.resilient}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchRequest" } } } },
+          description: `Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Price: ${PRICING.fetch.resilient} (70% off on cache hits)`,
+          "x-payment-info": dynamicPayment(cachedMin(PRICING.fetch.resilient), parsePrice(PRICING.fetch.resilient)),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchRequest" }, example: { url: "https://example.com" } } } },
           responses: { "200": { description: "Fetch results", content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -168,6 +222,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["System"], summary: "Agent Dashboard", operationId: "getDashboard",
           description: "HTML dashboard for connecting wallet, viewing balance, and transaction history.",
+          security: [],
           responses: { "200": { description: "HTML Dashboard" } },
         },
       },
@@ -175,7 +230,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Credits"], summary: "Buy Credits", operationId: "buyCredits",
           description: "Purchase agent credits with x402. Fixed $10 bundle implies 20% bonus.",
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { amount: { type: "string", example: "$10.00" } } } } } },
+          "x-payment-info": fixedPayment("$10.00"),
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { amount: { type: "string", example: "$10.00" } } }, example: { amount: "$10.00" } } } },
           responses: { "200": { description: "Credits purchased" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -183,6 +239,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["Credits"], summary: "Get Balance", operationId: "getCreditsBalance",
           description: "Get current credit balance. Requires X-CREDIT-WALLET and X-CREDIT-SIGNATURE headers.",
+          security: [],
           parameters: [
             { name: "X-CREDIT-WALLET", in: "header", required: true, schema: { type: "string" } },
             { name: "X-CREDIT-SIGNATURE", in: "header", required: true, schema: { type: "string" } },
@@ -195,6 +252,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["Credits"], summary: "Get History", operationId: "getCreditsHistory",
           description: "Get credit transaction history. Requires X-CREDIT-WALLET and X-CREDIT-SIGNATURE headers.",
+          security: [],
           parameters: [
             { name: "X-CREDIT-WALLET", in: "header", required: true, schema: { type: "string" } },
             { name: "X-CREDIT-SIGNATURE", in: "header", required: true, schema: { type: "string" } },
@@ -207,7 +265,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Research"], summary: "Research Topic", operationId: "research",
           description: `Search + fetch + AI summarize. Price: ${PRICING.research}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ResearchRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.research),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ResearchRequest" }, example: { query: "x402 payment protocol benefits", resultCount: 5 } } } },
           responses: { "200": { description: "Research results", content: { "application/json": { schema: { $ref: "#/components/schemas/ResearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -215,7 +274,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Extraction"], summary: "Extract PDF", operationId: "extractPdf",
           description: `Extract text from PDF documents. Price: ${PRICING.pdf}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/PdfExtractRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.pdf),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/PdfExtractRequest" }, example: { url: "https://example.com/document.pdf" } } } },
           responses: { "200": { description: "PDF extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/PdfExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -223,7 +283,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Research"], summary: "Compare URLs", operationId: "compareUrls",
           description: `Compare 2-3 URLs with AI analysis. Price: ${PRICING.compare}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/CompareRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.compare),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/CompareRequest" }, example: { urls: ["https://product-a.com", "https://product-b.com"] } } } },
           responses: { "200": { description: "Comparison results", content: { "application/json": { schema: { $ref: "#/components/schemas/CompareResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -231,18 +292,21 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Monitoring"], summary: "Create Monitor", operationId: "createMonitor",
           description: `Create URL change monitor. Price: ${PRICING.monitor.setup}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MonitorCreateRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.monitor.setup),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MonitorCreateRequest" }, example: { url: "https://example.com/status", webhookUrl: "https://your-app.com/webhook" } } } },
           responses: { "200": { description: "Monitor created", content: { "application/json": { schema: { $ref: "#/components/schemas/MonitorCreateResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
       "/monitor/{id}": {
         get: {
           tags: ["Monitoring"], summary: "Get Monitor", operationId: "getMonitor",
+          security: [],
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Monitor status" }, "404": { description: "Not found" } },
         },
         delete: {
           tags: ["Monitoring"], summary: "Delete Monitor", operationId: "deleteMonitor",
+          security: [],
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Deleted" }, "404": { description: "Not found" } },
         },
@@ -251,6 +315,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Free"], summary: "Free Fetch", operationId: "freeFetch",
           description: "Fetch any webpage (content truncated to 2000 chars). Rate limited to 10/hour. No payment required.",
+          security: [],
           requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" }, timeout: { type: "integer" } } } } } },
           responses: { "200": { description: "Page content (truncated)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
         },
@@ -259,6 +324,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Free"], summary: "Free Search", operationId: "freeSearch",
           description: "Web search (max 3 results). Rate limited to 10/hour. No payment required.",
+          security: [],
           requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["query"], properties: { query: { type: "string" } } } } } },
           responses: { "200": { description: "Search results (max 3)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
         },
@@ -267,7 +333,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Intelligence"], summary: "Company Intelligence", operationId: "intelCompany",
           description: `Comprehensive company deep dive: tech stack, funding, team size, competitors, news. Chains search + batch fetch + AI extraction. Price: ${PRICING.intel.company}`,
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["target"], properties: { target: { type: "string", description: "Company name or domain" } } } } } },
+          "x-payment-info": fixedPayment(PRICING.intel.company),
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["target"], properties: { target: { type: "string", description: "Company name or domain" } } }, example: { target: "coinbase.com" } } } },
           responses: { "200": { description: "Company profile" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
@@ -275,7 +342,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Intelligence"], summary: "Market Research", operationId: "intelMarket",
           description: `AI-powered market research report with executive summary, key findings, trends, and data points. Price: ${PRICING.intel.market}`,
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, depth: { type: "string", enum: ["quick", "standard", "comprehensive"] }, focus: { type: "string" } } } } } },
+          "x-payment-info": fixedPayment(PRICING.intel.market),
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, depth: { type: "string", enum: ["quick", "standard", "comprehensive"] }, focus: { type: "string" } } }, example: { topic: "AI Agents", depth: "standard" } } } },
           responses: { "200": { description: "Market research report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
@@ -283,7 +351,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Intelligence"], summary: "Competitive Analysis", operationId: "intelCompetitive",
           description: `Full competitive analysis: feature matrix, pricing comparison, SWOT analysis, positioning summary. Price: ${PRICING.intel.competitive}`,
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["company"], properties: { company: { type: "string" }, maxCompetitors: { type: "integer", minimum: 1, maximum: 10 }, focus: { type: "string" } } } } } },
+          "x-payment-info": fixedPayment(PRICING.intel.competitive),
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["company"], properties: { company: { type: "string" }, maxCompetitors: { type: "integer", minimum: 1, maximum: 10 }, focus: { type: "string" } } }, example: { company: "Example Corp", maxCompetitors: 5 } } } },
           responses: { "200": { description: "Competitive analysis report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
@@ -291,7 +360,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Intelligence"], summary: "Site Audit", operationId: "intelSiteAudit",
           description: `Comprehensive SEO, performance, and security audit with scoring and recommendations. Price: ${PRICING.intel.siteAudit}`,
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" } } } } } },
+          "x-payment-info": fixedPayment(PRICING.intel.siteAudit),
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" } } }, example: { url: "https://example.com" } } } },
           responses: { "200": { description: "Site audit report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
@@ -299,7 +369,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Memory"], summary: "Store Value", operationId: "memorySet",
           description: `Store in key-value storage. Price: ${PRICING.memory.write}`,
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MemorySetRequest" } } } },
+          "x-payment-info": fixedPayment(PRICING.memory.write),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MemorySetRequest" }, example: { key: "user_prefs", value: { theme: "dark" } } } } },
           responses: { "200": { description: "Stored", content: { "application/json": { schema: { $ref: "#/components/schemas/MemorySetResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -307,6 +378,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["Memory"], summary: "Get Value", operationId: "memoryGet",
           description: `Retrieve stored value. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header). Price: ${PRICING.memory.read}`,
+          security: [],
           parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Value retrieved" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
         },
@@ -315,6 +387,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         delete: {
           tags: ["Memory"], summary: "Delete Value", operationId: "memoryDelete",
           description: "Delete a stored value. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header).",
+          security: [],
           parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "Deleted" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
         },
@@ -323,6 +396,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["Memory"], summary: "List Keys", operationId: "memoryList",
           description: `List all keys for the authenticated wallet. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header).`,
+          security: [],
           responses: { "200": { description: "Keys list" }, "401": { description: "Unauthorized — wallet auth required" } },
         },
       },
@@ -330,6 +404,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["System"], summary: "MCP JSON-RPC", operationId: "mcpPost",
           description: "Model Context Protocol endpoint for AI agents. Supports tools/list and tools/call methods.",
+          security: [],
           requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { jsonrpc: { type: "string" }, method: { type: "string" }, params: { type: "object" }, id: { type: "string" } } } } } },
           responses: { "200": { description: "JSON-RPC response" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
@@ -338,6 +413,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["System"], summary: "MCP Server Info", operationId: "mcpInfo",
           description: "Get MCP server information including available tools and pricing.",
+          security: [],
           responses: { "200": { description: "Server info with tools list" } },
         },
       },
@@ -479,7 +555,7 @@ WebLens provides AI-powered web scraping, research, and data extraction services
 - **AI-optimized**: Designed for autonomous agents with structured outputs
 - **Instant settlement**: Payments settle in ~1-2 seconds on Base
 - **No fees**: x402 protocol has 0 platform fees
-- **Bazaar listed**: Discoverable via Coinbase Bazaar for AI agents
+- **Discoverable**: Indexed in the PayAI facilitator discovery catalog; standard x402 discovery at /.well-known/x402 and OpenAPI at /openapi.json
 
 ## Try It Now (Zero-Friction Reader)
 
@@ -534,39 +610,45 @@ Token: USDC
 
 #### POST /fetch/basic
 Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering.
-- Price: $0.005
+- Price: ${PRICING.fetch.basic}
 - Body: \`{"url": "string", "timeout?": number, "cache?": boolean}\`
 - Returns: \`{"url", "title", "content", "metadata", "fetchedAt", "requestId"}\`
 
 #### POST /fetch/pro
 Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content.
-- Price: $0.015
+- Price: ${PRICING.fetch.pro}
 - Body: \`{"url": "string", "waitFor?": "string", "timeout?": number}\`
 - Returns: \`{"url", "title", "content", "metadata", "tier", "fetchedAt", "requestId"}\`
 
 #### POST /screenshot
 Capture a screenshot of any webpage. Returns base64 PNG.
-- Price: $0.02
+- Price: ${PRICING.screenshot}
 - Body: \`{"url": "string", "viewport?": {"width": number, "height": number}, "fullPage?": boolean, "selector?": "string"}\`
 - Returns: \`{"url", "image", "dimensions", "capturedAt", "requestId"}\`
 
 #### POST /batch/fetch
 Fetch multiple URLs in parallel. Efficient for bulk operations.
-- Price: $0.003 per URL (2-20 URLs)
+- Price: ${PRICING.batchFetch.perUrl} per URL (${PRICING.batchFetch.minUrls}-${PRICING.batchFetch.maxUrls} URLs)
 - Body: \`{"urls": ["string"], "tier?": "basic"|"pro", "timeout?": number}\`
 - Returns: \`{"results": [...], "summary", "totalPrice", "requestId"}\`
+
+#### POST /fetch/resilient
+Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Guarantees best-effort retrieval.
+- Price: ${PRICING.fetch.resilient}
+- Body: \`{"url": "string", "timeout?": number}\`
+- Returns: \`{"url", "content", "provider": {"id", "name"}, "tier", "fetchedAt", "requestId"}\`
 
 ### Search & Research
 
 #### POST /search
 Real-time web search. Returns titles, URLs, and snippets.
-- Price: $0.005
+- Price: ${PRICING.search}
 - Body: \`{"query": "string", "limit?": number}\`
 - Returns: \`{"query", "results": [{"title", "url", "snippet"}], "searchedAt", "requestId"}\`
 
 #### POST /research
 One-stop research: searches web, fetches top results, generates AI summary with key findings.
-- Price: $0.08
+- Price: ${PRICING.research}
 - Body: \`{"query": "string", "resultCount?": number, "includeRawContent?": boolean}\`
 - Returns: \`{"query", "sources", "summary", "keyFindings", "researchedAt", "requestId"}\`
 
@@ -574,25 +656,25 @@ One-stop research: searches web, fetches top results, generates AI summary with 
 
 #### POST /extract
 Extract structured data from webpages using JSON schema.
-- Price: $0.03
+- Price: ${PRICING.extract}
 - Body: \`{"url": "string", "schema": object, "instructions?": "string"}\`
 - Returns: \`{"url", "data", "extractedAt", "requestId"}\`
 
 #### POST /extract/smart
 AI-powered data extraction using natural language. Just describe what you want.
-- Price: $0.035
+- Price: ${PRICING.smartExtract}
 - Body: \`{"url": "string", "query": "string", "format?": "json"|"text"}\`
 - Returns: \`{"url", "query", "data", "explanation", "extractedAt", "requestId"}\`
 
 #### POST /pdf
 Extract text and metadata from PDF documents.
-- Price: $0.01
+- Price: ${PRICING.pdf}
 - Body: \`{"url": "string", "pages?": [number]}\`
 - Returns: \`{"url", "metadata", "pages", "fullText", "extractedAt", "requestId"}\`
 
 #### POST /compare
 Compare 2-3 webpages with AI-generated analysis of similarities and differences.
-- Price: $0.05
+- Price: ${PRICING.compare}
 - Body: \`{"urls": ["string"], "focus?": "string"}\`
 - Returns: \`{"sources", "comparison": {"summary", "similarities", "differences"}, "comparedAt", "requestId"}\`
 
@@ -600,7 +682,7 @@ Compare 2-3 webpages with AI-generated analysis of similarities and differences.
 
 #### POST /monitor/create
 Create a URL monitor for change detection.
-- Price: $0.01
+- Price: ${PRICING.monitor.setup}
 - Body: \`{"url": "string", "webhookUrl": "string", "checkInterval?": number, "notifyOn?": "any"|"content"|"status"}\`
 - Returns: \`{"monitorId", "url", "webhookUrl", "checkInterval", "nextCheckAt", "createdAt", "requestId"}\`
 
@@ -618,48 +700,46 @@ These endpoints chain multiple tools and AI synthesis. They're the highest-value
 
 #### POST /intel/company
 Comprehensive company deep dive: tech stack, funding, team, competitors, recent news. Chains search + batch fetch + Claude.
-- Price: $0.50
-- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Price: ${PRICING.intel.company}
+- Body: \`{"target": "string"}\` (company name or domain)
 - Returns: \`{"name", "domain", "funding", "summary", "requestId"}\`
 
 #### POST /intel/market
 Market research report: executive summary, market size, growth, key trends, key players, recommendations.
-- Price: $2.00
-- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Price: ${PRICING.intel.market}
+- Body: \`{"topic": "string", "depth?": "quick"|"standard"|"comprehensive", "focus?": "string"}\`
 - Returns: \`{"topic", "executiveSummary", "marketSize", "growthRate", "keyTrends", "keyPlayers", "recommendations", "requestId"}\`
 
 #### POST /intel/competitive
 Competitive analysis: feature matrix, pricing comparison, SWOT, positioning.
-- Price: $3.00
-- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Price: ${PRICING.intel.competitive}
+- Body: \`{"company": "string", "maxCompetitors?": number, "focus?": "string"}\`
 - Returns: \`{"company", "competitors", "featureMatrix", "pricing", "swot", "positioning", "requestId"}\`
 
 #### POST /intel/site-audit
 Full site audit: SEO, performance, security, accessibility scoring with actionable recommendations.
-- Price: $0.30
-- Body: \`{"param": "string", "depth?": "basic"|"deep"}\`
+- Price: ${PRICING.intel.siteAudit}
+- Body: \`{"url": "string"}\`
 - Returns: \`{"url", "scores": {"seo", "performance", "security", "accessibility"}, "issues", "recommendations", "requestId"}\`
 
 ### Memory (Key-Value Storage)
 
 #### POST /memory/set
 Store a value in persistent key-value storage.
-- Price: $0.001
+- Price: ${PRICING.memory.write}
 - Body: \`{"key": "string", "value": any, "ttl?": number}\`
 - Returns: \`{"key", "stored", "expiresAt", "requestId"}\`
 
-#### GET /memory/get/{key}
-Retrieve a stored value by key.
-- Price: $0.0005
+#### GET /memory/get?key={key}
+Retrieve a stored value by key. Requires wallet auth.
 - Returns: \`{"key", "value", "storedAt", "expiresAt", "requestId"}\`
 
 #### GET /memory/list
-List all stored keys for the current wallet.
-- Price: $0.0005
+List all stored keys for the authenticated wallet.
 - Returns: \`{"keys": ["string"], "count", "requestId"}\`
 
-#### DELETE /memory/{key}
-Delete a stored value. (Free)
+#### DELETE /memory/delete?key={key}
+Delete a stored value. Requires wallet auth.
 - Returns: \`{"key", "deleted", "requestId"}\`
 
 ### System
@@ -716,33 +796,23 @@ For AI agents using Model Context Protocol:
 
 ## Available MCP Tools
 
-- \`fetch_webpage\` - Fetch webpage as markdown (basic) — $0.005
-- \`fetch_webpage_pro\` - Fetch with JS rendering — $0.015
-- \`fetch_resilient\` - Resilient fetch with provider fallback — $0.025
-- \`screenshot\` - Capture webpage screenshot — $0.02
-- \`search_web\` - Real-time web search — $0.005
-- \`extract_data\` - Extract structured data with JSON schema — $0.03
-- \`smart_extract\` - AI-powered natural-language extraction — $0.035
-- \`research\` - Search + fetch + AI summary — $0.08
-- \`batch_fetch\` - Fetch multiple URLs in parallel — $0.003/URL
-- \`extract_pdf\` - Extract text from PDFs — $0.01
-- \`compare_urls\` - Compare 2-3 webpages — $0.05
-- \`monitor_create\` - Create URL change monitor — $0.01
-- \`memory_set\` - Persistent key-value storage — $0.001
-- \`intel_company\` - Company deep dive (AI-powered) — $0.50
-- \`intel_market\` - Market research report — $2.00
-- \`intel_competitive\` - Competitive analysis — $3.00
-- \`intel_site_audit\` - SEO/performance/security audit — $0.30
-
-## Endpoints
-
-### Core Endpoints
-
-#### POST /fetch/resilient
-Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Guarantees best-effort retrieval.
-- Price: $0.025
-- Body: \`{"url": "string", "timeout?": number}\`
-- Returns: \`{"url", "content", "provider": {"id", "name"}, "tier", "fetchedAt", "requestId"}\`
+- \`fetch_webpage\` - Fetch webpage as markdown (basic) — ${PRICING.fetch.basic}
+- \`fetch_webpage_pro\` - Fetch with JS rendering — ${PRICING.fetch.pro}
+- \`fetch_resilient\` - Resilient fetch with provider fallback — ${PRICING.fetch.resilient}
+- \`screenshot\` - Capture webpage screenshot — ${PRICING.screenshot}
+- \`search_web\` - Real-time web search — ${PRICING.search}
+- \`extract_data\` - Extract structured data with JSON schema — ${PRICING.extract}
+- \`smart_extract\` - AI-powered natural-language extraction — ${PRICING.smartExtract}
+- \`research\` - Search + fetch + AI summary — ${PRICING.research}
+- \`batch_fetch\` - Fetch multiple URLs in parallel — ${PRICING.batchFetch.perUrl}/URL
+- \`extract_pdf\` - Extract text from PDFs — ${PRICING.pdf}
+- \`compare_urls\` - Compare 2-3 webpages — ${PRICING.compare}
+- \`monitor_create\` - Create URL change monitor — ${PRICING.monitor.setup}
+- \`memory_set\` - Persistent key-value storage — ${PRICING.memory.write}
+- \`intel_company\` - Company deep dive (AI-powered) — ${PRICING.intel.company}
+- \`intel_market\` - Market research report — ${PRICING.intel.market}
+- \`intel_competitive\` - Competitive analysis — ${PRICING.intel.competitive}
+- \`intel_site_audit\` - SEO/performance/security audit — ${PRICING.intel.siteAudit}
 
 ### Agent Credits (Prepaid)
 

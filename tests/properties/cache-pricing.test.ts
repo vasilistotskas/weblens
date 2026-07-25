@@ -1,9 +1,9 @@
 /**
  * Property-Based Tests for Cache Pricing
- * 
+ *
  * **Feature: weblens-phase1, Property 6: Cache hit returns reduced price**
  * **Validates: Requirements 3.2**
- * 
+ *
  * For any request with `cache=true` where a valid cached response exists,
  * the 402 Payment Required response SHALL contain a price that is 70% lower
  * than the standard price.
@@ -12,14 +12,17 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { PRICING } from "../../src/config";
-import {
-  getCachedPrice,
-  getBasePrice,
-  getEndpointPrice,
-  getDiscountAmount,
-  getCacheDiscountPercentage,
-  parsePrice
-} from "../../src/services/pricing";
+import { getCachedPrice, parsePrice } from "../../src/services/pricing";
+
+// Base prices for the cacheable/priced endpoints, straight from PRICING —
+// the single source of truth (getBasePrice/getEndpointPrice were removed).
+const ENDPOINT_PRICES: Record<string, string> = {
+  screenshot: PRICING.screenshot,
+  "fetch-basic": PRICING.fetch.basic,
+  "fetch-pro": PRICING.fetch.pro,
+  search: PRICING.search,
+  extract: PRICING.extract,
+};
 
 describe("Property 6: Cache hit returns reduced price", () => {
   /**
@@ -29,14 +32,14 @@ describe("Property 6: Cache hit returns reduced price", () => {
   it("cached price is exactly 70% lower than base price for all endpoints", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("screenshot", "fetch-basic", "fetch-pro", "search", "extract") as fc.Arbitrary<"screenshot" | "fetch-basic" | "fetch-pro" | "search" | "extract">,
+        fc.constantFrom(...Object.keys(ENDPOINT_PRICES)),
         (endpoint) => {
-          const basePrice = parsePrice(getBasePrice(endpoint));
-          const cachedPrice = parsePrice(getEndpointPrice(endpoint, true));
-          
+          const basePrice = parsePrice(ENDPOINT_PRICES[endpoint]);
+          const cachedPrice = parsePrice(getCachedPrice(ENDPOINT_PRICES[endpoint]));
+
           // Cached price should be 30% of base (70% discount)
           const expectedCachedPrice = basePrice * (1 - PRICING.cacheDiscount);
-          
+
           // Allow small floating point tolerance
           expect(Math.abs(cachedPrice - expectedCachedPrice)).toBeLessThan(0.0001);
         }
@@ -68,17 +71,18 @@ describe("Property 6: Cache hit returns reduced price", () => {
 
   /**
    * Property: Cache discount is consistently 70%
-   * For any price, the discount amount is exactly 70% of the base
+   * For any price, the discount (base minus cached) is exactly 70% of the base
    */
   it("cache discount is consistently 70% of base price", () => {
     fc.assert(
       fc.property(
         fc.double({ min: 0.001, max: 100, noNaN: true }),
         (amount) => {
+          const base = parseFloat(amount.toFixed(4));
           const priceStr = `$${amount.toFixed(4)}`;
-          const discount = getDiscountAmount(priceStr);
-          const expectedDiscount = amount * PRICING.cacheDiscount;
-          
+          const discount = base - parsePrice(getCachedPrice(priceStr));
+          const expectedDiscount = base * PRICING.cacheDiscount;
+
           // Allow small floating point tolerance
           expect(Math.abs(discount - expectedDiscount)).toBeLessThan(0.0001);
         }
@@ -88,55 +92,28 @@ describe("Property 6: Cache hit returns reduced price", () => {
   });
 
   /**
-   * Property: getCacheDiscountPercentage returns 70
-   * The discount percentage should always be 70%
+   * Property: The configured cache discount is 70%
    */
-  it("cache discount percentage is always 70%", () => {
-    fc.assert(
-      fc.property(
-        fc.constant(null),
-        () => {
-          expect(getCacheDiscountPercentage()).toBe(70);
-        }
-      ),
-      { numRuns: 100 }
-    );
+  it("cache discount rate is configured at 70%", () => {
+    expect(PRICING.cacheDiscount).toBe(0.7);
   });
 
   /**
    * Property: Cached price + discount = base price
-   * For any price, cached + discount should equal the original
+   * For any price, cached + (base * discount rate) should equal the original
    */
   it("cached price plus discount equals base price", () => {
     fc.assert(
       fc.property(
         fc.double({ min: 0.001, max: 100, noNaN: true }),
         (amount) => {
+          const base = parseFloat(amount.toFixed(4));
           const priceStr = `$${amount.toFixed(4)}`;
           const cachedPrice = parsePrice(getCachedPrice(priceStr));
-          const discount = getDiscountAmount(priceStr);
-          
-          // cached + discount should equal original (within tolerance)
-          expect(Math.abs((cachedPrice + discount) - amount)).toBeLessThan(0.0001);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
+          const discount = base * PRICING.cacheDiscount;
 
-  /**
-   * Property: getEndpointPrice with cached=false returns base price
-   * For any endpoint, non-cached price equals base price
-   */
-  it("non-cached endpoint price equals base price", () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom("screenshot", "fetch-basic", "fetch-pro", "search", "extract") as fc.Arbitrary<"screenshot" | "fetch-basic" | "fetch-pro" | "search" | "extract">,
-        (endpoint) => {
-          const basePrice = getBasePrice(endpoint);
-          const endpointPrice = getEndpointPrice(endpoint, false);
-          
-          expect(endpointPrice).toBe(basePrice);
+          // cached + discount should equal original (within tolerance)
+          expect(Math.abs((cachedPrice + discount) - base)).toBeLessThan(0.0001);
         }
       ),
       { numRuns: 100 }
@@ -150,10 +127,10 @@ describe("Property 6: Cache hit returns reduced price", () => {
   it("specific tier cached prices match expected values", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("fetch-basic", "fetch-pro") as fc.Arbitrary<"fetch-basic" | "fetch-pro">,
+        fc.constantFrom("fetch-basic", "fetch-pro"),
         (endpoint) => {
-          const cachedPrice = parsePrice(getEndpointPrice(endpoint, true));
-          
+          const cachedPrice = parsePrice(getCachedPrice(ENDPOINT_PRICES[endpoint]));
+
           if (endpoint === "fetch-basic") {
             // $0.005 * 0.3 = $0.0015
             expect(Math.abs(cachedPrice - 0.0015)).toBeLessThan(0.0001);

@@ -1,4 +1,4 @@
-import type { Env, ProofOfContext } from "../types";
+import type { Env } from "../types";
 import { createLogger } from "../utils/logger";
 
 const subtle = crypto.subtle;
@@ -77,18 +77,4 @@ export async function signContext(
         log.error("acv.signing_failed", { error: e instanceof Error ? e.message : String(e) });
         throw new Error("Internal signing error");
     }
-}
-
-/**
- * Create a full Proof of Context envelope
- */
-export async function createProofOfContext(
-    url: string,
-    content: string,
-    env: Env
-): Promise<ProofOfContext> {
-    const hash = await hashContent(content);
-    const timestamp = new Date().toISOString();
-    const { mac, keyId, alg } = await signContext(url, hash, timestamp, env);
-    return { hash, timestamp, alg, mac, keyId };
 }

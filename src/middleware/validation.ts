@@ -12,6 +12,12 @@ import type { Env, Variables } from "../types";
  */
 
 /**
+ * Maximum accepted request body size. Enforced before any JSON parsing — both
+ * here and in the cache-lookup middleware, whichever sees the body first.
+ */
+export const MAX_BODY_BYTES = 256 * 1024; // 256 KB
+
+/**
  * Create validation middleware that parses the request body against a Zod schema.
  * Sets `validatedBody` in Hono context on success; returns 400 on failure.
  */
@@ -38,7 +44,6 @@ export function validateRequest(schema: z.ZodType) {
             }
 
             // Reject oversized bodies before parsing to bound CPU/memory per request.
-            const MAX_BODY_BYTES = 256 * 1024; // 256 KB
             const contentLength = Number(c.req.header("Content-Length") ?? "0");
             if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
                 return c.json({

@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { cacheAwareCreditCost, cacheAwarePaymentPrice } from "../../src/middleware/cache";
+import { describe, it, expect, vi } from "vitest";
+import { cacheAwarePrice, cacheLookupMiddleware } from "../../src/middleware/cache";
 import { buildCacheKey, clampCacheTtl, getCached, setCached } from "../../src/services/cache";
+import { MAX_BODY_BYTES } from "../../src/middleware/validation";
 
 // Minimal in-memory KVNamespace stub (only get("json") + put are exercised).
 function createMockKV() {
@@ -22,8 +23,25 @@ function createMockKV() {
 // Minimal Hono context stub exposing only c.get("cacheHit").
 function ctxWithHit(hit: boolean) {
     return { get: (k: string) => (k === "cacheHit" ? hit : undefined) } as unknown as Parameters<
-        ReturnType<typeof cacheAwareCreditCost>
+        ReturnType<typeof cacheAwarePrice>
     >[0];
+}
+
+// Minimal Hono context stub for cacheLookupMiddleware: request headers,
+// requestId, env bindings, and a c.json that captures {body, status}.
+function ctxForLookup(options: { contentLength?: string; env?: Record<string, unknown> }) {
+    const vars = new Map<string, unknown>([["requestId", "wl_test_abc123"]]);
+    return {
+        req: {
+            header: (name: string) =>
+                name === "Content-Length" ? options.contentLength : undefined,
+            json: () => Promise.resolve({}),
+        },
+        env: options.env ?? {},
+        get: (k: string) => vars.get(k),
+        set: (k: string, v: unknown) => { vars.set(k, v); },
+        json: (body: unknown, status?: number) => ({ body, status }),
+    } as unknown as Parameters<ReturnType<typeof cacheLookupMiddleware>>[0];
 }
 
 describe("buildCacheKey", () => {
@@ -75,20 +93,56 @@ describe("KV get/set round-trip", () => {
     });
 });
 
-describe("cache-aware pricing (70% discount on hit)", () => {
-    it("credit cost discounts on hit, base price otherwise", () => {
-        expect(cacheAwareCreditCost("$0.005")(ctxWithHit(true))).toBe("$0.0015");
-        expect(cacheAwareCreditCost("$0.005")(ctxWithHit(false))).toBe("$0.005");
+describe("cacheAwarePrice (70% discount on hit)", () => {
+    it("discounts a fixed base price on hit, base price otherwise", async () => {
+        expect(await cacheAwarePrice("$0.005")(ctxWithHit(true))).toBe("$0.0015");
+        expect(await cacheAwarePrice("$0.005")(ctxWithHit(false))).toBe("$0.005");
     });
 
-    it("payment price discounts on hit, base price otherwise", async () => {
-        expect(await cacheAwarePaymentPrice("$0.015")(ctxWithHit(true))).toBe("$0.0045");
-        expect(await cacheAwarePaymentPrice("$0.015")(ctxWithHit(false))).toBe("$0.015");
+    it("discounts a higher fixed base price on hit, base price otherwise", async () => {
+        expect(await cacheAwarePrice("$0.015")(ctxWithHit(true))).toBe("$0.0045");
+        expect(await cacheAwarePrice("$0.015")(ctxWithHit(false))).toBe("$0.015");
     });
 
-    it("payment price resolves and discounts a dynamic base", async () => {
+    it("resolves and discounts a dynamic base", async () => {
         const dynamic = () => Promise.resolve("$0.0200");
-        expect(await cacheAwarePaymentPrice(dynamic)(ctxWithHit(true))).toBe("$0.0060");
-        expect(await cacheAwarePaymentPrice(dynamic)(ctxWithHit(false))).toBe("$0.0200");
+        expect(await cacheAwarePrice(dynamic)(ctxWithHit(true))).toBe("$0.0060");
+        expect(await cacheAwarePrice(dynamic)(ctxWithHit(false))).toBe("$0.0200");
+    });
+});
+
+describe("cacheLookupMiddleware body-size guard", () => {
+    it("returns 413 PAYLOAD_TOO_LARGE when Content-Length exceeds 256KB and does not call next", async () => {
+        const c = ctxForLookup({ contentLength: String(MAX_BODY_BYTES + 1) });
+        const next = vi.fn(() => Promise.resolve());
+
+        const result = (await cacheLookupMiddleware("fetch-basic")(c, next)) as unknown as {
+            body: { error: string; code: string; message: string; requestId: string };
+            status: number;
+        };
+
+        expect(result.status).toBe(413);
+        expect(result.body.code).toBe("PAYLOAD_TOO_LARGE");
+        expect(result.body.error).toBe("PAYLOAD_TOO_LARGE");
+        expect(result.body.requestId).toBe("wl_test_abc123");
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it("passes through (calls next) for small bodies", async () => {
+        const c = ctxForLookup({ contentLength: "128" });
+        const next = vi.fn(() => Promise.resolve());
+
+        await cacheLookupMiddleware("fetch-basic")(c, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes through when Content-Length is exactly the limit", async () => {
+        const c = ctxForLookup({ contentLength: String(MAX_BODY_BYTES) });
+        const next = vi.fn(() => Promise.resolve());
+
+        await cacheLookupMiddleware("fetch-basic")(c, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
     });
 });

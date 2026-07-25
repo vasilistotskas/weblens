@@ -17,6 +17,7 @@ import type { FetchRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, FetchResponse, ProofOfContext } from "../types";
+import { hardenPage } from "../utils/browser-guard";
 import { createLogger } from "../utils/logger";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 
@@ -106,6 +107,11 @@ async function fetchProPageInternal(
 
   try {
     const page = await browser.newPage();
+
+    // Re-validate every request the browser makes (redirect hops,
+    // subresources) against the SSRF rules — page.goto follows redirects
+    // internally, bypassing safeFetch's per-hop revalidation.
+    await hardenPage(page);
 
     // Set viewport to default dimensions
     await page.setViewport({

@@ -180,10 +180,3 @@ export function validateURL(input: string): URLValidationResult {
     };
   }
 }
-
-/**
- * Check if a URL is valid (convenience function)
- */
-export function isValidURL(input: string): boolean {
-  return validateURL(input).valid;
-}

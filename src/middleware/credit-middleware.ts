@@ -2,9 +2,15 @@
  * Credit Middleware
  *
  * Intercepts requests with X-CREDIT-WALLET header.
- * Checks for sufficient balance in CREDITS KV.
- * If balance exists, debits account and marks request as paid (bypassing x402).
+ * Verifies the wallet signature, then debits the CreditAccountDO balance and
+ * marks the request as paid (bypassing x402).
  * If balance is insufficient or header missing, falls through to standard x402 flow.
+ *
+ * Refund semantics: handlers report failures by *returning* JSON error
+ * envelopes (they catch their own errors), not by throwing. So a debit is
+ * refunded both when `next()` throws AND when the final response status is
+ * an error (>= 400) — otherwise credit users would be charged for timeouts,
+ * provider failures, and other requests that delivered nothing.
  */
 
 import type { Context, MiddlewareHandler } from "hono";
@@ -28,7 +34,7 @@ function getLog(c: Context): Logger {
  * @param description Description of what is being paid for
  */
 export function createCreditMiddleware(
-    cost: string | ((c: Context) => string),
+    cost: string | ((c: Context) => string | Promise<string>),
     description: string,
 ): MiddlewareHandler<{ Bindings: Env }> {
     return async (c, next) => {
@@ -37,7 +43,8 @@ export function createCreditMiddleware(
         const timestamp = c.req.header("X-CREDIT-TIMESTAMP");
 
         // No credit wallet → not a credit-paid request, fall through to x402.
-        if (!creditWallet || !c.env.CREDIT_MANAGER) {
+        const creditManager = c.env.CREDIT_MANAGER;
+        if (!creditWallet || !creditManager) {
             await next(); return;
         }
 
@@ -88,14 +95,44 @@ export function createCreditMiddleware(
         }
 
         const requestId = c.get("requestId") || generateRequestId();
-        const costStr = typeof cost === "function" ? cost(c) : cost;
+        const costStr = typeof cost === "function" ? await cost(c) : cost;
         const amountUsd = parseFloat(costStr.replace("$", ""));
+
+        // Refund a completed debit. Idempotent via the `refund:` externalId,
+        // so the throw path and the error-status path can never double-refund.
+        const refundDebit = async (reason: string): Promise<void> => {
+            try {
+                await refundCredits(
+                    creditManager,
+                    creditWallet,
+                    amountUsd,
+                    `Refund: ${reason} for ${description}`,
+                    `refund:${requestId}`,
+                );
+                getLog(c).warn("credit.refund", {
+                    wallet: mask(creditWallet),
+                    cost: costStr,
+                    requestId,
+                    reason,
+                    description,
+                });
+            } catch (refundErr) {
+                // Refund itself failed — log but never mask the original failure.
+                // Operator action required: inspect /credits/history for the wallet.
+                getLog(c).error("credit.refund_failed", {
+                    wallet: mask(creditWallet),
+                    cost: costStr,
+                    requestId,
+                    error: refundErr instanceof Error ? refundErr.message : String(refundErr),
+                });
+            }
+        };
 
         let debited = false;
         try {
             // Attempt to debit credits
             await deductCredits(
-                c.env.CREDIT_MANAGER,
+                creditManager,
                 creditWallet,
                 amountUsd,
                 description,
@@ -117,42 +154,26 @@ export function createCreditMiddleware(
 
             await next();
 
-            // Custom response headers indicating that the request was paid
-            // via a prepaid credit account rather than per-request x402.
-            c.header("Payment-Method", "Credits");
-            c.header("Credit-Cost", costStr);
+            // Handlers catch their own errors and *return* JSON envelopes,
+            // so a resolved next() is not proof of success — check the
+            // status. Any error response means the caller got no data and
+            // must not be charged.
+            if (c.res.status >= 400) {
+                await refundDebit("error_response");
+                c.header("Payment-Method", "Credits");
+                c.header("Credit-Refunded", costStr);
+            } else {
+                // Custom response headers indicating that the request was paid
+                // via a prepaid credit account rather than per-request x402.
+                c.header("Payment-Method", "Credits");
+                c.header("Credit-Cost", costStr);
+            }
 
         } catch (error) {
             if (debited) {
-                // Debit succeeded but handler failed — refund the debit so
-                // the user isn't charged for data they didn't receive. The
-                // refund is itself idempotent via externalId, so if this
-                // path is somehow retried the second refund is a no-op.
-                try {
-                    await refundCredits(
-                        c.env.CREDIT_MANAGER,
-                        creditWallet,
-                        amountUsd,
-                        `Refund: handler failure for ${description}`,
-                        `refund:${requestId}`,
-                    );
-                    getLog(c).warn("credit.refund", {
-                        wallet: mask(creditWallet),
-                        cost: costStr,
-                        requestId,
-                        reason: "handler_failure",
-                        description,
-                    });
-                } catch (refundErr) {
-                    // Refund itself failed — log but still propagate the original error.
-                    // Operator action required: inspect /credits/history for the wallet.
-                    getLog(c).error("credit.refund_failed", {
-                        wallet: mask(creditWallet),
-                        cost: costStr,
-                        requestId,
-                        error: refundErr instanceof Error ? refundErr.message : String(refundErr),
-                    });
-                }
+                // Debit succeeded but the handler threw — refund, then let
+                // the global error handler render the envelope.
+                await refundDebit("handler_failure");
                 throw error;
             }
             // Insufficient funds or debit error — fall through to standard payment (x402)

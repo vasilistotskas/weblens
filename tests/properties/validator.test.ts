@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { validateURL, isValidURL } from "../../src/services/validator";
+import { validateURL } from "../../src/services/validator";
 
 describe("Property 11: Error response format consistency (URL Validation)", () => {
   /**
@@ -144,10 +144,10 @@ describe("Property 11: Error response format consistency (URL Validation)", () =
   });
 
   /**
-   * Property: isValidURL is consistent with validateURL
-   * For any input, isValidURL(x) === validateURL(x).valid
+   * Property: validateURL never throws — it always returns a result object
+   * For any input, validateURL(x) resolves to { valid: boolean, ... }
    */
-  it("isValidURL is consistent with validateURL", () => {
+  it("validateURL always returns a boolean verdict without throwing", () => {
     fc.assert(
       fc.property(
         fc.oneof(
@@ -159,8 +159,7 @@ describe("Property 11: Error response format consistency (URL Validation)", () =
         ),
         (input) => {
           const validationResult = validateURL(input);
-          const isValid = isValidURL(input);
-          expect(isValid).toBe(validationResult.valid);
+          expect(typeof validationResult.valid).toBe("boolean");
         }
       ),
       { numRuns: 100 }
