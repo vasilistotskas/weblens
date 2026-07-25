@@ -23,6 +23,9 @@ export function getLandingPageHTML(baseUrl: string): string {
 <meta name="twitter:title" content="WebLens — Web Intelligence API for AI Agents">
 <meta name="twitter:description" content="Web scraping, search, and extraction API. No accounts, just pay per request with USDC.">
 <link rel="canonical" href="${baseUrl}">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/favicon.png">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0a;color:#e0e0e0;line-height:1.6}

@@ -657,6 +657,7 @@ export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env; Variables: Vari
       url: "/openapi.json",
       pageTitle: "WebLens API Documentation",
       theme: "kepler",
+      favicon: "/favicon.svg",
     })
   );
 

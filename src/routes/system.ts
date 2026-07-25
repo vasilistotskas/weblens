@@ -14,6 +14,7 @@ import {
 } from "../schemas";
 import { dashboardHandler } from "../tools/dashboard";
 import { discoveryHandler, wellKnownX402Handler } from "../tools/discovery";
+import { faviconSvgHandler, faviconIcoHandler, faviconPngHandler } from "../tools/favicon";
 import { health } from "../tools/health";
 import { getLandingPageHTML } from "../tools/landing";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "../tools/mcp";
@@ -36,6 +37,11 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     app.get("/.well-known/x402", wellKnownX402Handler);
     app.get("/health", health);
     app.get("/dashboard", dashboardHandler);
+
+    // Favicons — probed by x402scan's origin checker and used by /docs + landing
+    app.get("/favicon.svg", faviconSvgHandler);
+    app.get("/favicon.ico", faviconIcoHandler);
+    app.get("/favicon.png", faviconPngHandler);
 
     // SEO: robots.txt + sitemap.xml
     app.get("/robots.txt", (c) => {
