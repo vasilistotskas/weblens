@@ -32,29 +32,29 @@
   "dependencies": {
     "@cloudflare/puppeteer": "^1.1.0",
     "@coinbase/x402": "^2.1.0",
-    "@scalar/hono-api-reference": "^0.10.19",
-    "@x402/axios": "^2.13.0",
-    "@x402/core": "^2.13.0",
-    "@x402/evm": "^2.13.0",
-    "@x402/extensions": "^2.13.0",
-    "@x402/hono": "^2.13.0",
-    "hono": "^4.12.23",
+    "@scalar/hono-api-reference": "^0.11.11",
+    "@x402/axios": "^2.19.0",
+    "@x402/core": "^2.19.0",
+    "@x402/evm": "^2.19.0",
+    "@x402/extensions": "^2.19.0",
+    "@x402/hono": "^2.19.0",
+    "hono": "^4.12.32",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.16.10",
-    "@cloudflare/workers-types": "^4.20260526.1",
+    "@cloudflare/vitest-pool-workers": "^0.18.8",
+    "@cloudflare/workers-types": "^5.20260724.1",
     "@coinbase/agentkit": "^0.10.4",
-    "@hono/eslint-config": "^2.1.0",
-    "@types/node": "^25.9.1",
-    "axios": "^1.16.1",
-    "eslint": "10.4.0",
-    "fast-check": "^4.8.0",
+    "@hono/eslint-config": "^2.1.1",
+    "@types/node": "^26.1.1",
+    "axios": "^1.18.1",
+    "eslint": "10.8.0",
+    "fast-check": "^4.9.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.0",
-    "viem": "^2.51.0",
-    "vitest": "^4.1.7",
-    "wrangler": "^4.94.0"
+    "typescript-eslint": "^8.65.0",
+    "viem": "^2.55.8",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.114.0"
   },
-  "packageManager": "pnpm@11.3.0"
+  "packageManager": "pnpm@11.17.0"
 }

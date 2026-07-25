@@ -104,3 +104,4 @@ minimumReleaseAgeExclude:
   - miniflare@4.20260526.0
   - workerd@1.20260526.1
   - wrangler@4.95.0
+  - eslint@10.8.0
