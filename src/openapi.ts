@@ -74,6 +74,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { name: "Free", description: "Free tier endpoints — no payment required" },
       { name: "Core", description: "Core web fetching and screenshot endpoints" },
       { name: "Search", description: "Web search capabilities" },
+      { name: "Social", description: "Social platform data (YouTube transcripts)" },
       { name: "Extraction", description: "Data extraction endpoints" },
       { name: "Research", description: "AI-powered research tools" },
       { name: "Intelligence", description: "Premium AI-powered intelligence products" },
@@ -173,10 +174,103 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       "/search": {
         post: {
           tags: ["Search"], summary: "Web Search", operationId: "searchWeb",
-          description: `Real-time web search. Price: ${PRICING.search}`,
-          "x-payment-info": fixedPayment(PRICING.search),
+          description: `Real-time web search. Price: ${PRICING.search} base; set includeContent to also fetch the top result pages as markdown in the same call (+${PRICING.contents.perUrl} per fetched result, up to 10)`,
+          "x-payment-info": dynamicPayment(parsePrice(PRICING.search), parsePrice(PRICING.search) + 10 * parsePrice(PRICING.contents.perUrl)),
           requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SearchRequest" }, example: { query: "x402 payment protocol", limit: 10 } } } },
           responses: { "200": { description: "Search results", content: { "application/json": { schema: { $ref: "#/components/schemas/SearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/news": {
+        post: {
+          tags: ["Search"], summary: "News Search", operationId: "searchNews",
+          description: `Real-time news search via Google News. Returns ranked articles with source, date, and thumbnail. Price: ${PRICING.searchVerticals.news}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.news),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/VerticalSearchRequest" }, example: { query: "artificial intelligence", limit: 10 } } } },
+          responses: { "200": { description: "News results", content: { "application/json": { schema: { $ref: "#/components/schemas/NewsSearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/images": {
+        post: {
+          tags: ["Search"], summary: "Image Search", operationId: "searchImages",
+          description: `Google Images search. Returns direct image URLs with dimensions, thumbnails, and source pages. Price: ${PRICING.searchVerticals.images}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.images),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/VerticalSearchRequest" }, example: { query: "golden gate bridge", limit: 10 } } } },
+          responses: { "200": { description: "Image results", content: { "application/json": { schema: { $ref: "#/components/schemas/ImageSearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/places": {
+        post: {
+          tags: ["Search"], summary: "Places Search", operationId: "searchPlaces",
+          description: `Local business search via Google Local. Returns names, addresses, ratings, reviews, phone numbers, websites, and coordinates. Price: ${PRICING.searchVerticals.places}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.places),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/PlacesSearchRequest" }, example: { query: "coffee shops", location: "Austin, Texas", limit: 10 } } } },
+          responses: { "200": { description: "Place results", content: { "application/json": { schema: { $ref: "#/components/schemas/PlacesSearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/shopping": {
+        post: {
+          tags: ["Search"], summary: "Shopping Search", operationId: "searchShopping",
+          description: `Google Shopping product search. Returns products with prices, sellers, ratings, and links. Price: ${PRICING.searchVerticals.shopping}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.shopping),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/VerticalSearchRequest" }, example: { query: "mechanical keyboard", limit: 10 } } } },
+          responses: { "200": { description: "Product results", content: { "application/json": { schema: { $ref: "#/components/schemas/ShoppingSearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/scholar": {
+        post: {
+          tags: ["Search"], summary: "Scholar Search", operationId: "searchScholar",
+          description: `Google Scholar academic search. Returns papers with snippets, publication info, and citation counts. Price: ${PRICING.searchVerticals.scholar}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.scholar),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/VerticalSearchRequest" }, example: { query: "transformer attention mechanisms", limit: 10 } } } },
+          responses: { "200": { description: "Paper results", content: { "application/json": { schema: { $ref: "#/components/schemas/ScholarSearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/autocomplete": {
+        post: {
+          tags: ["Search"], summary: "Autocomplete", operationId: "searchAutocomplete",
+          description: `Google Autocomplete suggestions for a partial query. Useful for keyword research and intent discovery. Price: ${PRICING.searchVerticals.autocomplete}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.autocomplete),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/VerticalSearchRequest" }, example: { query: "how to deploy cloudf", limit: 10 } } } },
+          responses: { "200": { description: "Suggestions", content: { "application/json": { schema: { $ref: "#/components/schemas/AutocompleteResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/search/trends": {
+        post: {
+          tags: ["Search"], summary: "Trends", operationId: "searchTrends",
+          description: `Google Trends interest-over-time for a query. Returns a timeline of relative search interest. Price: ${PRICING.searchVerticals.trends}`,
+          "x-payment-info": fixedPayment(PRICING.searchVerticals.trends),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/TrendsRequest" }, example: { query: "cloudflare workers" } } } },
+          responses: { "200": { description: "Trend timeline", content: { "application/json": { schema: { $ref: "#/components/schemas/TrendsResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/social/youtube/transcript": {
+        post: {
+          tags: ["Social"], summary: "YouTube Transcript", operationId: "youtubeTranscript",
+          description: `Full transcript of any YouTube video with timestamps. Accepts a video ID or any YouTube URL (watch, shorts, youtu.be). Price: ${PRICING.youtubeTranscript}`,
+          "x-payment-info": fixedPayment(PRICING.youtubeTranscript),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/YoutubeTranscriptRequest" }, example: { videoId: "dQw4w9WgXcQ" } } } },
+          responses: { "200": { description: "Transcript", content: { "application/json": { schema: { $ref: "#/components/schemas/YoutubeTranscriptResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/contents": {
+        post: {
+          tags: ["Core"], summary: "Bulk Page Contents", operationId: "getContents",
+          description: `Cheap bulk page text: fetch ${PRICING.contents.minUrls}-${PRICING.contents.maxUrls} URLs and get clean markdown, truncated to a per-page cap. Price: ${PRICING.contents.perUrl}/URL`,
+          "x-payment-info": dynamicPayment(
+            parsePrice(PRICING.contents.perUrl) * PRICING.contents.minUrls,
+            parsePrice(PRICING.contents.perUrl) * PRICING.contents.maxUrls,
+          ),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ContentsRequest" }, example: { urls: ["https://example.com/article"], maxChars: 20000 } } } },
+          responses: { "200": { description: "Per-URL contents", content: { "application/json": { schema: { $ref: "#/components/schemas/ContentsResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/answer": {
+        post: {
+          tags: ["Research"], summary: "Grounded Answer", operationId: "answerQuestion",
+          description: `Grounded answer with inline [n] citations: searches the web, fetches sources, and answers strictly from them. Price: ${PRICING.answer}`,
+          "x-payment-info": fixedPayment(PRICING.answer),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/AnswerRequest" }, example: { query: "What is the x402 payment protocol?", sources: 3 } } } },
+          responses: { "200": { description: "Cited answer", content: { "application/json": { schema: { $ref: "#/components/schemas/AnswerResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
       "/extract": {
@@ -452,8 +546,33 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             requestId: { type: "string" }
           },
         },
-        SearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, limit: { type: "integer" } } },
+        SearchRequest: {
+          type: "object", required: ["query"],
+          properties: {
+            query: { type: "string" },
+            limit: { type: "integer" },
+            includeContent: { type: "boolean", description: `Also fetch the top result pages as markdown (+${PRICING.contents.perUrl} per fetched result)` },
+            contentResults: { type: "integer", minimum: 1, maximum: 10, description: "How many top results to fetch content for (default 5)" },
+            contentChars: { type: "integer", minimum: 500, maximum: 20000, description: "Per-page content character cap (default 8000)" },
+          },
+        },
         SearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object" } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        VerticalSearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 20 } } },
+        NewsSearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object", properties: { position: { type: "integer" }, title: { type: "string" }, url: { type: "string" }, source: { type: "string" }, date: { type: "string" }, isoDate: { type: "string" }, thumbnail: { type: "string" } } } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        ImageSearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object", properties: { position: { type: "integer" }, title: { type: "string" }, imageUrl: { type: "string" }, thumbnail: { type: "string" }, sourcePage: { type: "string" }, source: { type: "string" }, width: { type: "integer" }, height: { type: "integer" } } } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        PlacesSearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, location: { type: "string", description: "Free-text location bias, e.g. \"Austin, Texas\"" }, limit: { type: "integer", minimum: 1, maximum: 20 } } },
+        PlacesSearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object", properties: { position: { type: "integer" }, name: { type: "string" }, address: { type: "string" }, rating: { type: "number" }, reviews: { type: "integer" }, priceLevel: { type: "string" }, category: { type: "string" }, phone: { type: "string" }, website: { type: "string" }, description: { type: "string" }, placeId: { type: "string" }, coordinates: { type: "object" } } } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        ShoppingSearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object", properties: { position: { type: "integer" }, title: { type: "string" }, url: { type: "string" }, price: { type: "string" }, extractedPrice: { type: "number" }, source: { type: "string" }, rating: { type: "number" }, reviews: { type: "integer" }, thumbnail: { type: "string" } } } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        ScholarSearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object", properties: { position: { type: "integer" }, title: { type: "string" }, url: { type: "string" }, snippet: { type: "string" }, publicationInfo: { type: "string" }, citedBy: { type: "integer" } } } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        AutocompleteResponse: { type: "object", properties: { query: { type: "string" }, suggestions: { type: "array", items: { type: "string" } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        TrendsRequest: { type: "object", required: ["query"], properties: { query: { type: "string", description: "Topic to get trend data for" } } },
+        TrendsResponse: { type: "object", properties: { query: { type: "string" }, timeline: { type: "array", items: { type: "object", properties: { date: { type: "string" }, timestamp: { type: "string" }, values: { type: "array", items: { type: "object" } } } } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
+        YoutubeTranscriptRequest: { type: "object", required: ["videoId"], properties: { videoId: { type: "string", example: "dQw4w9WgXcQ", description: "YouTube video ID (e.g. dQw4w9WgXcQ) or full video URL (watch, shorts, youtu.be)" }, lang: { type: "string", description: "Transcript language code (default: video default)" } } },
+        YoutubeTranscriptResponse: { type: "object", properties: { videoId: { type: "string" }, language: { type: "string" }, segments: { type: "array", items: { type: "object", properties: { startMs: { type: "integer" }, startTime: { type: "string" }, text: { type: "string" } } } }, fullText: { type: "string" }, fetchedAt: { type: "string" }, requestId: { type: "string" } } },
+        ContentsRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 1, maxItems: 20, example: ["https://example.com/article"] }, maxChars: { type: "integer", minimum: 500, maximum: 50000, description: "Per-page content character cap (default 20000)" }, timeout: { type: "integer", minimum: 5000, maximum: 30000 } } },
+        ContentsResponse: { type: "object", properties: { results: { type: "array", items: { type: "object", properties: { url: { type: "string" }, status: { type: "string" }, title: { type: "string" }, content: { type: "string" }, truncated: { type: "boolean" }, error: { type: "string" } } } }, summary: { type: "object", properties: { total: { type: "integer" }, successful: { type: "integer" }, failed: { type: "integer" } } }, fetchedAt: { type: "string" }, requestId: { type: "string" } } },
+        AnswerRequest: { type: "object", required: ["query"], properties: { query: { type: "string", description: "The question to answer" }, sources: { type: "integer", minimum: 1, maximum: 5, description: "Web sources to search, fetch, and cite (default 3)" } } },
+        AnswerResponse: { type: "object", properties: { query: { type: "string" }, answer: { type: "string", description: "Answer text with inline [n] citation markers" }, citations: { type: "array", items: { type: "object", properties: { index: { type: "integer" }, url: { type: "string" }, title: { type: "string" } } } }, confidence: { type: "number" }, answeredAt: { type: "string" }, requestId: { type: "string" } } },
         ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string", format: "uri", example: "https://example.com/product" }, schema: { type: "object", example: { name: { type: "string" }, price: { type: "number" } } }, instructions: { type: "string" } } },
         ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, proof: { $ref: "#/components/schemas/ProofOfContext" }, requestId: { type: "string" } } },
         SmartExtractRequest: { type: "object", required: ["url", "query"], properties: { url: { type: "string", format: "uri", example: "https://example.com/contact" }, query: { type: "string", example: "find all email addresses" }, format: { type: "string" } } },
@@ -638,19 +757,81 @@ Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte).
 - Body: \`{"url": "string", "timeout?": number}\`
 - Returns: \`{"url", "content", "provider": {"id", "name"}, "tier", "fetchedAt", "requestId"}\`
 
+#### POST /contents
+Cheap bulk page text: fetch ${PRICING.contents.minUrls}-${PRICING.contents.maxUrls} URLs and get clean markdown, truncated to a per-page cap.
+- Price: ${PRICING.contents.perUrl} per URL (${PRICING.contents.minUrls}-${PRICING.contents.maxUrls} URLs)
+- Body: \`{"urls": ["string"], "maxChars?": number, "timeout?": number}\`
+- Returns: \`{"results": [{"url", "status", "title", "content", "truncated", "error?"}], "summary": {"total", "successful", "failed"}, "fetchedAt", "requestId"}\`
+
 ### Search & Research
 
 #### POST /search
-Real-time web search. Returns titles, URLs, and snippets.
-- Price: ${PRICING.search}
+Real-time web search. Returns titles, URLs, and snippets. Set includeContent to also fetch the top result pages as markdown in the same call.
+- Price: ${PRICING.search} base + contentResults x ${PRICING.contents.perUrl} when includeContent is set
+- Body: \`{"query": "string", "limit?": number, "includeContent?": boolean, "contentResults?": number (1-10, default 5), "contentChars?": number (500-20000, default 8000)}\`
+- Returns: \`{"query", "results": [{"title", "url", "snippet", "content?", "contentTruncated?"}], "searchedAt", "requestId"}\`
+
+#### POST /search/news
+Real-time news search via Google News with source, date, and thumbnail.
+- Price: ${PRICING.searchVerticals.news}
 - Body: \`{"query": "string", "limit?": number}\`
-- Returns: \`{"query", "results": [{"title", "url", "snippet"}], "searchedAt", "requestId"}\`
+- Returns: \`{"query", "results": [{"position", "title", "url", "source", "date", "isoDate", "thumbnail"}], "searchedAt", "requestId"}\`
+
+#### POST /search/images
+Google Images search with direct image URLs, dimensions, and source pages.
+- Price: ${PRICING.searchVerticals.images}
+- Body: \`{"query": "string", "limit?": number}\`
+- Returns: \`{"query", "results": [{"position", "title", "imageUrl", "thumbnail", "sourcePage", "source", "width", "height"}], "searchedAt", "requestId"}\`
+
+#### POST /search/places
+Local business search via Google Local: ratings, reviews, phone, website, coordinates.
+- Price: ${PRICING.searchVerticals.places}
+- Body: \`{"query": "string", "location?": "string", "limit?": number}\`
+- Returns: \`{"query", "results": [{"position", "name", "address", "rating", "reviews", "priceLevel", "category", "phone", "website", "placeId", "coordinates"}], "searchedAt", "requestId"}\`
+
+#### POST /search/shopping
+Google Shopping product search with prices, sellers, and ratings.
+- Price: ${PRICING.searchVerticals.shopping}
+- Body: \`{"query": "string", "limit?": number}\`
+- Returns: \`{"query", "results": [{"position", "title", "url", "price", "extractedPrice", "source", "rating", "reviews", "thumbnail"}], "searchedAt", "requestId"}\`
+
+#### POST /search/scholar
+Google Scholar academic search with publication info and citation counts.
+- Price: ${PRICING.searchVerticals.scholar}
+- Body: \`{"query": "string", "limit?": number}\`
+- Returns: \`{"query", "results": [{"position", "title", "url", "snippet", "publicationInfo", "citedBy"}], "searchedAt", "requestId"}\`
+
+#### POST /search/autocomplete
+Google Autocomplete suggestions for a partial query — keyword research and intent discovery.
+- Price: ${PRICING.searchVerticals.autocomplete}
+- Body: \`{"query": "string", "limit?": number}\`
+- Returns: \`{"query", "suggestions": ["string"], "searchedAt", "requestId"}\`
+
+#### POST /search/trends
+Google Trends interest-over-time timeline for a query.
+- Price: ${PRICING.searchVerticals.trends}
+- Body: \`{"query": "string"}\`
+- Returns: \`{"query", "timeline": [{"date", "timestamp", "values": [{"query", "value"}]}], "searchedAt", "requestId"}\`
+
+#### POST /answer
+Grounded answer with inline [n] citations: searches the web, fetches sources, and answers strictly from them.
+- Price: ${PRICING.answer}
+- Body: \`{"query": "string", "sources?": number (1-5, default 3)}\`
+- Returns: \`{"query", "answer", "citations": [{"index", "url", "title"}], "confidence?", "answeredAt", "requestId"}\`
 
 #### POST /research
 One-stop research: searches web, fetches top results, generates AI summary with key findings.
 - Price: ${PRICING.research}
 - Body: \`{"query": "string", "resultCount?": number, "includeRawContent?": boolean}\`
 - Returns: \`{"query", "sources", "summary", "keyFindings", "researchedAt", "requestId"}\`
+
+### Social Data
+
+#### POST /social/youtube/transcript
+Full transcript of any YouTube video with timestamps. Accepts a video ID or any YouTube URL (watch, shorts, youtu.be).
+- Price: ${PRICING.youtubeTranscript}
+- Body: \`{"videoId": "string (ID or URL)", "lang?": "string"}\`
+- Returns: \`{"videoId", "language?", "segments": [{"startMs", "startTime", "text"}], "fullText", "fetchedAt", "requestId"}\`
 
 ### Data Extraction
 
@@ -800,7 +981,17 @@ For AI agents using Model Context Protocol:
 - \`fetch_webpage_pro\` - Fetch with JS rendering — ${PRICING.fetch.pro}
 - \`fetch_resilient\` - Resilient fetch with provider fallback — ${PRICING.fetch.resilient}
 - \`screenshot\` - Capture webpage screenshot — ${PRICING.screenshot}
-- \`search_web\` - Real-time web search — ${PRICING.search}
+- \`search_web\` - Real-time web search (optional page content) — ${PRICING.search}
+- \`search_news\` - Google News search — ${PRICING.searchVerticals.news}
+- \`search_images\` - Google Images search — ${PRICING.searchVerticals.images}
+- \`search_places\` - Local business search (Google Local) — ${PRICING.searchVerticals.places}
+- \`search_shopping\` - Google Shopping product search — ${PRICING.searchVerticals.shopping}
+- \`search_scholar\` - Google Scholar academic search — ${PRICING.searchVerticals.scholar}
+- \`search_autocomplete\` - Query autocomplete suggestions — ${PRICING.searchVerticals.autocomplete}
+- \`search_trends\` - Google Trends interest over time — ${PRICING.searchVerticals.trends}
+- \`youtube_transcript\` - YouTube video transcript with timestamps — ${PRICING.youtubeTranscript}
+- \`get_contents\` - Bulk page contents (${PRICING.contents.minUrls}-${PRICING.contents.maxUrls} URLs) — ${PRICING.contents.perUrl}/URL
+- \`answer_question\` - Grounded answer with citations — ${PRICING.answer}
 - \`extract_data\` - Extract structured data with JSON schema — ${PRICING.extract}
 - \`smart_extract\` - AI-powered natural-language extraction — ${PRICING.smartExtract}
 - \`research\` - Search + fetch + AI summary — ${PRICING.research}

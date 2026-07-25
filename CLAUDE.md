@@ -50,18 +50,18 @@ wrangler secret put SERP_API_KEY
 Global middleware applied in this order, then route groups registered:
 
 1. Logger → CORS → Payment Debug → Request ID (also creates the request-scoped structured logger) → Security Headers → POST-only enforcement (for `PAID_ENDPOINTS` array). Global errors are caught by `app.onError(errorHandler)` (idiomatic Hono) — **not** a `*` middleware — and the 404 by `app.notFound`.
-2. Route groups registered in order: System → Free → Credits → Core → Advanced → Intel
+2. Route groups registered in order: System → Reader → Free → Credits → Core → Verticals → Advanced → Intel
 
 Durable Object classes (`CreditAccountDO`, `MonitorScheduler`) are re-exported from the entry point for Workers binding.
 
 ### Key Directories
-- **`src/routes/`** — Route registrars grouped by tier (system, free, core, advanced, intel, credits). Each function takes the Hono app and registers endpoints with their middleware stack.
+- **`src/routes/`** — Route registrars grouped by tier (system, reader, free, credits, core, verticals, advanced, intel). Each function takes the Hono app and registers endpoints with their middleware stack. `verticals.ts` holds the SERP verticals (`/search/news|images|places|shopping|scholar|autocomplete|trends`), `/social/youtube/transcript`, `/contents` (per-URL dynamic pricing), and `/answer`.
 - **`src/tools/`** — Endpoint handler implementations. Each tool is a Hono handler that reads `validatedBody` from context, calls services/external APIs, and returns a flat domain object plus `requestId` and a per-endpoint ISO timestamp field (`fetchedAt` / `searchedAt` / `extractedAt` / `analyzedAt` / etc.).
 - **`src/services/`** — Business logic layer (pricing, caching, credits DO proxy, scheduler DO, crypto/ACV proofs, AI/Anthropic integration, reputation).
 - **`src/middleware/`** — Middleware factories: payment (x402 lazy-init singleton), credit-middleware (wallet signature auth + debit), validation (Zod), rate-limit (IP-based via KV), cache, security, error handler.
 - **`src/durable_objects/`** — Cloudflare Durable Objects. `CreditAccountDO` manages atomic credit transactions via key-value Durable Object storage (`ctx.storage.get/put` — not the SQL API), exposes `/deposit`, `/spend`, `/balance`, `/history` internal endpoints. Keeps max 100 transactions (LIFO).
 - **`src/schemas.ts`** — All Zod request validation schemas. Reusable primitives: `urlSchema`, `timeoutSchema`, `limitSchema`. Includes bounds (viewport 320-3840px, timeout 5-30s, cache TTL 60-86400s).
-- **`src/config.ts`** — Centralized pricing, network/facilitator config, cache settings, viewport bounds, timeouts. All prices defined here.
+- **`src/config.ts`** — Centralized pricing, network/facilitator config, cache settings, viewport bounds, timeouts. All prices defined here. **Pricing floor rule:** every SerpAPI-backed endpoint (search family, verticals, transcript) costs $0.009–$0.015 upstream per call depending on plan tier — never price those below $0.015. `/answer` bundles a SerpAPI call + a capped Haiku call (~$0.026 worst case) — keep its price ≥ 2x that.
 - **`src/types.ts`** — All TypeScript interfaces: `Env` (Worker bindings), `Variables` (Hono context vars), request/response types, `ErrorCode` enum, `ProofOfContext`.
 - **`src/openapi.ts`** — OpenAPI 3.1 spec generation, Scalar UI at `/docs`, `/llms.txt` endpoint with LLM-optimized API guide. The spec doubles as the **x402scan discovery document** (`/openapi.json`): `info.x-guidance`, per-op `x-payment-info` (fixed or dynamic price mode, derived from `PRICING`/`MAX_COMPLEXITY_MULTIPLIER` — never hardcoded), `security: []` on free/auth-gated ops, and request `example`s so registration probes can reach the 402 challenge. All `llms.txt` prices interpolate `PRICING` too.
 

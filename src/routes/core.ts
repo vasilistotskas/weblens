@@ -17,7 +17,7 @@ import {
 } from "../schemas";
 
 // Tool Handlers
-import { calculatePrice } from "../services/pricing";
+import { calculatePrice, parsePrice } from "../services/pricing";
 import { getDiscount } from "../services/reputation";
 import { extractData } from "../tools/extract-data";
 import { fetchBasic } from "../tools/fetch-basic";
@@ -236,19 +236,34 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     // /search
     // ============================================
+    // Base price + $0.002 per fetched-content result when includeContent is
+    // set. Shared by credit AND x402 so the two paths can never diverge.
+    const searchPrice = (c: AppContext): string => {
+        const body = c.get("validatedBody") as
+            | { includeContent?: boolean; contentResults?: number }
+            | undefined;
+        const base = parsePrice(PRICING.search);
+        const addon = body?.includeContent
+            ? (body.contentResults ?? 5) * parsePrice(PRICING.contents.perUrl)
+            : 0;
+        return `$${(base + addon).toFixed(4)}`;
+    };
     app.use(
         "/search",
         validateRequest(SearchRequestSchema),
-        createCreditMiddleware(PRICING.search, "Web Search"),
+        createCreditMiddleware((c) => searchPrice(c as AppContext), "Web Search"),
         createLazyPaymentMiddleware(
             "/search",
-            PRICING.search,
-            "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets.",
+            (c) => Promise.resolve(searchPrice(c)),
+            "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Set includeContent to also fetch the top result pages as markdown in the same call.",
             { query: "x402 payment protocol", limit: 10 },
             {
                 properties: {
                     query: { type: "string", description: "Search query" },
                     limit: { type: "number", description: "Number of results to return (default: 10, max: 20)", maximum: 20 },
+                    includeContent: { type: "boolean", description: "Also fetch top result pages as markdown (+$0.002/result)" },
+                    contentResults: { type: "number", description: "How many top results to fetch content for (default 5, max 10)", maximum: 10 },
+                    contentChars: { type: "number", description: "Per-page content character cap (default 8000)" },
                 },
                 required: ["query"],
             },

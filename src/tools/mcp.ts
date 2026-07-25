@@ -17,7 +17,7 @@ const MCP_VERSION = "2025-03-26";
 const TOOLS = [
   {
     name: "fetch_webpage",
-    description: "Fetch and convert a webpage to clean markdown. Fast, no JavaScript rendering. Price: $0.005",
+    description: `Fetch and convert a webpage to clean markdown. Fast, no JavaScript rendering. Price: ${PRICING.fetch.basic}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -30,7 +30,7 @@ const TOOLS = [
   },
   {
     name: "fetch_webpage_pro",
-    description: "Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content. Price: $0.015",
+    description: `Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content. Price: ${PRICING.fetch.pro}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -42,7 +42,7 @@ const TOOLS = [
   },
   {
     name: "screenshot",
-    description: "Capture a screenshot of a webpage. Returns base64 PNG image. Price: $0.02",
+    description: `Capture a screenshot of a webpage. Returns base64 PNG image. Price: ${PRICING.screenshot}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -57,19 +57,143 @@ const TOOLS = [
 
   {
     name: "search_web",
-    description: "Search the web and get real-time results with snippets. Price: $0.005",
+    description: `Search the web and get real-time results with snippets. Set includeContent to also fetch the top result pages as markdown (+${PRICING.contents.perUrl}/result). Price: ${PRICING.search}`,
     inputSchema: {
       type: "object",
       properties: {
         query: { type: "string", description: "Search query" },
         limit: { type: "number", description: "Number of results (default: 10)" },
+        includeContent: { type: "boolean", description: `Also fetch top result pages as markdown (+${PRICING.contents.perUrl}/result)` },
+        contentResults: { type: "number", description: "How many top results to fetch content for (1-10, default: 5)" },
+        contentChars: { type: "number", description: "Per-page content character cap (500-20000, default: 8000)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_news",
+    description: `Search Google News for real-time articles with source, date, and thumbnail. Price: ${PRICING.searchVerticals.news}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "News search query" },
+        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_images",
+    description: `Search Google Images for direct image URLs with dimensions, thumbnails, and source pages. Price: ${PRICING.searchVerticals.images}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Image search query" },
+        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_places",
+    description: `Search local businesses via Google Local: names, addresses, ratings, reviews, phone, website, coordinates. Price: ${PRICING.searchVerticals.places}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "What to search for (e.g. coffee shops)" },
+        location: { type: "string", description: "Free-text location bias, e.g. \"Austin, Texas\"" },
+        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_shopping",
+    description: `Search Google Shopping for products with prices, sellers, ratings, and links. Price: ${PRICING.searchVerticals.shopping}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Product search query" },
+        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_scholar",
+    description: `Search Google Scholar for academic papers with snippets, publication info, and citation counts. Price: ${PRICING.searchVerticals.scholar}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Academic search query" },
+        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_autocomplete",
+    description: `Get Google Autocomplete suggestions for a partial query — keyword research and intent discovery. Price: ${PRICING.searchVerticals.autocomplete}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Partial query to complete" },
+        limit: { type: "number", description: "Max suggestions (default: 10, max: 20)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_trends",
+    description: `Get Google Trends interest-over-time timeline for a query. Price: ${PRICING.searchVerticals.trends}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Topic to get trend data for" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "youtube_transcript",
+    description: `Get the full transcript of a YouTube video with timestamps. Accepts a video ID or any YouTube URL. Price: ${PRICING.youtubeTranscript}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        videoId: { type: "string", description: "YouTube video ID (e.g. dQw4w9WgXcQ) or full video URL" },
+        lang: { type: "string", description: "Transcript language code (default: video default)" },
+      },
+      required: ["videoId"],
+    },
+  },
+  {
+    name: "get_contents",
+    description: `Fetch 1-20 URLs and get clean markdown per page, truncated to a character cap. Price: ${PRICING.contents.perUrl}/URL`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        urls: { type: "array", items: { type: "string" }, description: "URLs to fetch (1-20)" },
+        maxChars: { type: "number", description: "Per-page content character cap (default: 20000)" },
+        timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
+      },
+      required: ["urls"],
+    },
+  },
+  {
+    name: "answer_question",
+    description: `Get a grounded answer with inline [n] citations: searches the web, fetches sources, and answers strictly from them. Price: ${PRICING.answer}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The question to answer" },
+        sources: { type: "number", description: "Web sources to search, fetch, and cite (1-5, default: 3)" },
       },
       required: ["query"],
     },
   },
   {
     name: "extract_data",
-    description: "Extract structured data from a webpage using a JSON schema. AI-powered extraction. Price: $0.03",
+    description: `Extract structured data from a webpage using a JSON schema. AI-powered extraction. Price: ${PRICING.extract}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -82,7 +206,7 @@ const TOOLS = [
   },
   {
     name: "smart_extract",
-    description: "Extract data using natural language. AI understands what you want. Price: $0.035",
+    description: `Extract data using natural language. AI understands what you want. Price: ${PRICING.smartExtract}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -94,7 +218,7 @@ const TOOLS = [
   },
   {
     name: "research",
-    description: "One-stop research: searches web, fetches top results, and summarizes findings. Price: $0.08",
+    description: `One-stop research: searches web, fetches top results, and summarizes findings. Price: ${PRICING.research}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -106,7 +230,7 @@ const TOOLS = [
   },
   {
     name: "extract_pdf",
-    description: "Extract text and metadata from a PDF document. Price: $0.01",
+    description: `Extract text and metadata from a PDF document. Price: ${PRICING.pdf}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -117,7 +241,7 @@ const TOOLS = [
   },
   {
     name: "compare_urls",
-    description: "Compare 2-3 webpages and get AI-generated analysis of differences. Price: $0.05",
+    description: `Compare 2-3 webpages and get AI-generated analysis of differences. Price: ${PRICING.compare}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -129,7 +253,7 @@ const TOOLS = [
   },
   {
     name: "batch_fetch",
-    description: "Fetch multiple URLs in parallel. Efficient for bulk operations. Price: $0.003/URL",
+    description: `Fetch multiple URLs in parallel. Efficient for bulk operations. Price: ${PRICING.batchFetch.perUrl}/URL`,
     inputSchema: {
       type: "object",
       properties: {
@@ -140,7 +264,7 @@ const TOOLS = [
   },
   {
     name: "fetch_resilient",
-    description: "Resilient multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte). Price: $0.025",
+    description: `Resilient multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte). Price: ${PRICING.fetch.resilient}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -152,7 +276,7 @@ const TOOLS = [
   },
   {
     name: "intel_company",
-    description: "Company intelligence deep dive: tech stack, funding, team, competitors, news. Price: $1.00",
+    description: `Company intelligence deep dive: tech stack, funding, team, competitors, news. Price: ${PRICING.intel.company}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -163,7 +287,7 @@ const TOOLS = [
   },
   {
     name: "intel_market",
-    description: "AI-powered market research report with trends, key players, and data points. Price: $5.00",
+    description: `AI-powered market research report with trends, key players, and data points. Price: ${PRICING.intel.market}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -176,7 +300,7 @@ const TOOLS = [
   },
   {
     name: "intel_competitive",
-    description: "Competitive analysis: feature matrix, pricing, SWOT analysis. Price: $8.00",
+    description: `Competitive analysis: feature matrix, pricing, SWOT analysis. Price: ${PRICING.intel.competitive}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -189,7 +313,7 @@ const TOOLS = [
   },
   {
     name: "intel_site_audit",
-    description: "Comprehensive SEO, performance, and security audit with scoring. Price: $0.75",
+    description: `Comprehensive SEO, performance, and security audit with scoring. Price: ${PRICING.intel.siteAudit}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -200,7 +324,7 @@ const TOOLS = [
   },
   {
     name: "monitor_create",
-    description: "Create a URL change detection monitor with webhook notifications. Price: $0.01",
+    description: `Create a URL change detection monitor with webhook notifications. Price: ${PRICING.monitor.setup}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -212,7 +336,7 @@ const TOOLS = [
   },
   {
     name: "memory_set",
-    description: "Store key-value data in persistent agent memory. Price: $0.001",
+    description: `Store key-value data in persistent agent memory. Price: ${PRICING.memory.write}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -236,6 +360,16 @@ const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: string;
   fetch_resilient:   { endpoint: "/fetch/resilient", method: "POST", price: PRICING.fetch.resilient },
   screenshot:        { endpoint: "/screenshot",      method: "POST", price: PRICING.screenshot },
   search_web:        { endpoint: "/search",          method: "POST", price: PRICING.search },
+  search_news:       { endpoint: "/search/news",     method: "POST", price: PRICING.searchVerticals.news },
+  search_images:     { endpoint: "/search/images",   method: "POST", price: PRICING.searchVerticals.images },
+  search_places:     { endpoint: "/search/places",   method: "POST", price: PRICING.searchVerticals.places },
+  search_shopping:   { endpoint: "/search/shopping", method: "POST", price: PRICING.searchVerticals.shopping },
+  search_scholar:    { endpoint: "/search/scholar",  method: "POST", price: PRICING.searchVerticals.scholar },
+  search_autocomplete: { endpoint: "/search/autocomplete", method: "POST", price: PRICING.searchVerticals.autocomplete },
+  search_trends:     { endpoint: "/search/trends",   method: "POST", price: PRICING.searchVerticals.trends },
+  youtube_transcript: { endpoint: "/social/youtube/transcript", method: "POST", price: PRICING.youtubeTranscript },
+  get_contents:      { endpoint: "/contents",        method: "POST", price: PRICING.contents.perUrl },
+  answer_question:   { endpoint: "/answer",          method: "POST", price: PRICING.answer },
   extract_data:      { endpoint: "/extract",         method: "POST", price: PRICING.extract },
   smart_extract:     { endpoint: "/extract/smart",   method: "POST", price: PRICING.smartExtract },
   research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
@@ -493,6 +627,16 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       "javascript-rendering",
       "screenshot-capture",
       "web-search",
+      "news-search",
+      "image-search",
+      "local-business-data",
+      "shopping-search",
+      "academic-search",
+      "keyword-autocomplete",
+      "trend-analysis",
+      "youtube-transcripts",
+      "grounded-answers",
+      "bulk-page-contents",
       "data-extraction",
       "ai-powered-analysis",
       "pdf-extraction",

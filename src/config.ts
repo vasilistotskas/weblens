@@ -13,7 +13,28 @@ export const PRICING = {
     pro: "$0.015",
     resilient: "$0.025", // Multi-provider fallback (Agent Prime)
   },
-  search: "$0.005",
+  // Search pricing floor: every SerpAPI-backed call costs $0.009-$0.015
+  // upstream depending on plan tier — prices below $0.015 would sell at a
+  // loss on the worst-case plan rate.
+  search: "$0.015",
+  searchVerticals: {
+    news: "$0.015",
+    images: "$0.015",
+    places: "$0.045",   // market anchor: StableEnrich sells Maps-backed places at $0.045
+    shopping: "$0.015",
+    scholar: "$0.015",
+    autocomplete: "$0.015",
+    trends: "$0.015",
+  },
+  // Per-result page-content addon for search (includeContent) and the
+  // standalone /contents endpoint. Native fetch has ~zero marginal cost.
+  contents: {
+    perUrl: "$0.002",
+    minUrls: 1,
+    maxUrls: 20,
+  },
+  youtubeTranscript: "$0.03", // 1 SerpAPI call upstream; StableSocial sells transcripts at $0.06
+  answer: "$0.05", // ~$0.026 worst-case upstream (1 SerpAPI call + capped Haiku tokens)
   extract: "$0.03",
   cacheDiscount: 0.7, // 70% off for cached responses
 

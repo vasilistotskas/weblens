@@ -35,6 +35,51 @@ export const ScreenshotRequestSchema = z.object({
 export const SearchRequestSchema = z.object({
     query: z.string().min(1).max(500),
     limit: limitSchema,
+    // Search-with-content: fetch the top-N result pages and include their
+    // markdown in the response. Priced per fetched result on top of the
+    // search base price.
+    includeContent: z.boolean().optional().default(false),
+    contentResults: z.number().min(1).max(10).optional().default(5)
+        .describe("How many top results to fetch content for (when includeContent)"),
+    contentChars: z.number().min(500).max(20000).optional().default(8000)
+        .describe("Per-page content character cap"),
+});
+
+// Shared by /search/news, /search/images, /search/shopping, /search/scholar,
+// /search/autocomplete — one SerpAPI call each.
+export const VerticalSearchRequestSchema = z.object({
+    query: z.string().min(1).max(500),
+    limit: limitSchema,
+});
+
+export const PlacesSearchRequestSchema = z.object({
+    query: z.string().min(1).max(500),
+    location: z.string().min(2).max(200).optional()
+        .describe("Free-text location bias, e.g. \"Austin, Texas\""),
+    limit: limitSchema,
+});
+
+export const TrendsRequestSchema = z.object({
+    query: z.string().min(1).max(500),
+});
+
+export const YoutubeTranscriptRequestSchema = z.object({
+    videoId: z.string().min(5).max(200)
+        .describe("YouTube video ID (e.g. dQw4w9WgXcQ) or full video URL"),
+    lang: z.string().min(2).max(10).optional().describe("Transcript language code (default: video default)"),
+});
+
+export const ContentsRequestSchema = z.object({
+    urls: z.array(urlSchema).min(1).max(20),
+    maxChars: z.number().min(500).max(50000).optional().default(20000)
+        .describe("Per-page content character cap"),
+    timeout: timeoutSchema,
+});
+
+export const AnswerRequestSchema = z.object({
+    query: z.string().min(1).max(500),
+    sources: z.number().min(1).max(5).optional().default(3)
+        .describe("How many web sources to search, fetch, and cite"),
 });
 
 export const ExtractRequestSchema = z.object({

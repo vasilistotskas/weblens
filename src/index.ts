@@ -23,6 +23,7 @@ import { registerFreeRoutes } from "./routes/free";
 import { registerIntelRoutes } from "./routes/intel";
 import { registerReaderRoutes } from "./routes/reader";
 import { registerSystemRoutes } from "./routes/system";
+import { registerVerticalRoutes } from "./routes/verticals";
 import type { Env, Variables } from "./types";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -93,7 +94,10 @@ const PAID_ENDPOINTS = [
     "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
     "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
     "/monitor/create", "/memory/set", "/credits/buy",
-    "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit"
+    "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit",
+    "/search/news", "/search/images", "/search/places", "/search/shopping",
+    "/search/scholar", "/search/autocomplete", "/search/trends",
+    "/social/youtube/transcript", "/contents", "/answer",
 ];
 
 app.use("*", async (c, next) => {
@@ -136,6 +140,9 @@ registerCreditsRoutes(app);
 
 // 4. Core Tools (Fetch, Screenshot, Search, Extract)
 registerCoreRoutes(app);
+
+// 4.5 Search Verticals, Social, Contents, Answer
+registerVerticalRoutes(app);
 
 // 5. Advanced Tools (Batch, Research, PDF, Compare)
 registerAdvancedRoutes(app);
