@@ -229,9 +229,9 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       "/credits/buy": {
         post: {
           tags: ["Credits"], summary: "Buy Credits", operationId: "buyCredits",
-          description: "Purchase agent credits with x402. Fixed $10 bundle implies 20% bonus.",
-          "x-payment-info": fixedPayment("$10.00"),
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { amount: { type: "string", example: "$10.00" } } }, example: { amount: "$10.00" } } } },
+          description: "Purchase agent credits with x402. Pay $2-$1000; deposit bonuses: 20% at $10+, 30% at $50+, 40% at $100+.",
+          "x-payment-info": dynamicPayment(2, 1000),
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["amount"], properties: { amount: { type: "number", minimum: 2, maximum: 1000, example: 10, description: "Amount in USD to purchase ($2-$1000)" } } }, example: { amount: 10 } } } },
           responses: { "200": { description: "Credits purchased" }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
@@ -361,7 +361,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           tags: ["Intelligence"], summary: "Site Audit", operationId: "intelSiteAudit",
           description: `Comprehensive SEO, performance, and security audit with scoring and recommendations. Price: ${PRICING.intel.siteAudit}`,
           "x-payment-info": fixedPayment(PRICING.intel.siteAudit),
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" } } }, example: { url: "https://example.com" } } } },
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" } } }, example: { url: "https://example.com" } } } },
           responses: { "200": { description: "Site audit report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
@@ -436,7 +436,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         },
         FetchRequest: {
           type: "object", required: ["url"],
-          properties: { url: { type: "string" }, timeout: { type: "integer" }, cache: { type: "boolean" }, cacheTtl: { type: "integer" }, waitFor: { type: "string" } },
+          properties: { url: { type: "string", format: "uri", example: "https://example.com/article" }, timeout: { type: "integer" }, cache: { type: "boolean" }, cacheTtl: { type: "integer" }, waitFor: { type: "string" } },
         },
         FetchResponse: {
           type: "object",
@@ -454,21 +454,21 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         },
         SearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, limit: { type: "integer" } } },
         SearchResponse: { type: "object", properties: { query: { type: "string" }, results: { type: "array", items: { type: "object" } }, searchedAt: { type: "string" }, requestId: { type: "string" } } },
-        ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string" }, schema: { type: "object" }, instructions: { type: "string" } } },
+        ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string", format: "uri", example: "https://example.com/product" }, schema: { type: "object", example: { name: { type: "string" }, price: { type: "number" } } }, instructions: { type: "string" } } },
         ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, proof: { $ref: "#/components/schemas/ProofOfContext" }, requestId: { type: "string" } } },
-        SmartExtractRequest: { type: "object", required: ["url", "query"], properties: { url: { type: "string" }, query: { type: "string" }, format: { type: "string" } } },
+        SmartExtractRequest: { type: "object", required: ["url", "query"], properties: { url: { type: "string", format: "uri", example: "https://example.com/contact" }, query: { type: "string", example: "find all email addresses" }, format: { type: "string" } } },
         SmartExtractResponse: { type: "object", properties: { url: { type: "string" }, query: { type: "string" }, data: { type: "array" }, explanation: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
-        BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 20 }, timeout: { type: "integer" }, tier: { type: "string" } } },
+        BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 20, example: ["https://example.com/1", "https://example.com/2"] }, timeout: { type: "integer" }, tier: { type: "string" } } },
         BatchFetchResponse: { type: "object", properties: { results: { type: "array" }, summary: { type: "object" }, totalPrice: { type: "string" }, requestId: { type: "string" } } },
-        ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string" }, timeout: { type: "integer" } } },
+        ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" }, timeout: { type: "integer" } } },
         ResilientFetchResponse: { type: "object", properties: { url: { type: "string" }, title: { type: "string" }, content: { type: "string" }, provider: { type: "object" }, tier: { type: "string" }, fetchedAt: { type: "string" }, requestId: { type: "string" } } },
         ResearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, resultCount: { type: "integer" }, includeRawContent: { type: "boolean" } } },
         ResearchResponse: { type: "object", properties: { query: { type: "string" }, sources: { type: "array" }, summary: { type: "string" }, keyFindings: { type: "array" }, researchedAt: { type: "string" }, requestId: { type: "string" } } },
-        PdfExtractRequest: { type: "object", required: ["url"], properties: { url: { type: "string" }, pages: { type: "array", items: { type: "integer" } } } },
+        PdfExtractRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com/document.pdf" }, pages: { type: "array", items: { type: "integer" } } } },
         PdfExtractResponse: { type: "object", properties: { url: { type: "string" }, metadata: { type: "object" }, pages: { type: "array" }, fullText: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
-        CompareRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 3 }, focus: { type: "string" } } },
+        CompareRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 3, example: ["https://product-a.com", "https://product-b.com"] }, focus: { type: "string" } } },
         CompareResponse: { type: "object", properties: { sources: { type: "array" }, comparison: { type: "object" }, comparedAt: { type: "string" }, requestId: { type: "string" } } },
-        MonitorCreateRequest: { type: "object", required: ["url", "webhookUrl"], properties: { url: { type: "string" }, webhookUrl: { type: "string" }, checkInterval: { type: "integer" }, notifyOn: { type: "string" } } },
+        MonitorCreateRequest: { type: "object", required: ["url", "webhookUrl"], properties: { url: { type: "string", format: "uri", example: "https://example.com/status" }, webhookUrl: { type: "string", format: "uri", example: "https://your-app.com/webhook" }, checkInterval: { type: "integer" }, notifyOn: { type: "string" } } },
         MonitorCreateResponse: { type: "object", properties: { monitorId: { type: "string" }, url: { type: "string" }, webhookUrl: { type: "string" }, checkInterval: { type: "integer" }, nextCheckAt: { type: "string" }, createdAt: { type: "string" }, requestId: { type: "string" } } },
         MemorySetRequest: { type: "object", required: ["key", "value"], properties: { key: { type: "string" }, value: {}, ttl: { type: "integer" } } },
         MemorySetResponse: { type: "object", properties: { key: { type: "string" }, stored: { type: "boolean" }, expiresAt: { type: "string" }, requestId: { type: "string" } } },
@@ -819,8 +819,8 @@ For AI agents using Model Context Protocol:
 Bypass per-request x402 signatures by pre-funding an account.
 
 #### POST /credits/buy
-Purchase credits with x402. Currently supports fixed $10 bundle (with 20% bonus = $12 credits).
-- Body: \`{"amount": "$10.00"}\`
+Purchase credits with x402. Pay $2-$1000; deposit bonuses: 20% at $10+, 30% at $50+, 40% at $100+.
+- Body: \`{"amount": 10}\` (USD, number, 2-1000)
 
 #### GET /credits/balance
 Check current credit balance.

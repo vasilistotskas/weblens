@@ -92,4 +92,46 @@ describe("openapi.json x402scan discovery contract", () => {
             expect(media?.example, `${name} has no request example`).toBeDefined();
         }
     });
+
+    // x402scan's registration prober builds a minimal body from the schema's
+    // REQUIRED properties (property-level example > format > bare "test").
+    // A required string without example/format samples as "test", which fails
+    // our Zod URL validation with 400 — so the prober never sees the 402 and
+    // the endpoint is skipped from the marketplace.
+    it("makes every required property of a paid op probe-sampleable", () => {
+        const components = (getOpenAPIDocument() as unknown as {
+            components: { schemas: Record<string, SchemaObject> };
+        }).components.schemas;
+
+        for (const [name, op] of allOperations()) {
+            if (!op["x-payment-info"] || !op.requestBody) { continue; }
+            let schema = op.requestBody.content?.["application/json"]?.schema as SchemaObject | undefined;
+            const ref = (schema as { $ref?: string } | undefined)?.$ref;
+            if (ref) { schema = components[ref.split("/").pop() as string]; }
+            expect(schema, `${name} has no request schema`).toBeDefined();
+
+            const required: string[] = (schema as { required?: string[] }).required ?? [];
+            const props = (schema as { properties?: Record<string, SchemaObject> }).properties ?? {};
+            for (const key of required) {
+                const prop = props[key] as {
+                    type?: string; example?: unknown; format?: string;
+                    enum?: unknown[]; const?: unknown; default?: unknown; minItems?: number;
+                };
+                expect(prop, `${name}.${key} is required but undeclared`).toBeDefined();
+                const hasLiteral = prop.example !== undefined || prop.const !== undefined
+                    || prop.default !== undefined || (prop.enum?.length ?? 0) > 0;
+                if (prop.type === "object" || prop.type === "array") {
+                    expect(hasLiteral, `${name}.${key}: required ${prop.type} needs an example`).toBe(true);
+                    if (prop.type === "array" && prop.minItems && Array.isArray(prop.example)) {
+                        expect(prop.example.length).toBeGreaterThanOrEqual(prop.minItems);
+                    }
+                } else if (prop.type === "string" && /url/iu.test(key)) {
+                    expect(hasLiteral || prop.format === "uri" || prop.format === "url",
+                        `${name}.${key}: URL field samples as "test" without example/format`).toBe(true);
+                }
+            }
+        }
+    });
 });
+
+type SchemaObject = Record<string, unknown>;
