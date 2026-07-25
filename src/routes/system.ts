@@ -133,15 +133,15 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     // ============================================
     app.get("/mcp/info", mcpInfoHandler);
     app.get("/mcp", mcpGetHandler);
-    app.post("/mcp", mcpPostHandler); // Should be protected?
+    app.post("/mcp", mcpPostHandler); // Public JSON-RPC transport — tool calls are paid at their own endpoints.
 
     // ============================================
     // Monitor Endpoints
     // ============================================
     app.use(
         "/monitor/create",
-        createCreditMiddleware(PRICING.monitor.setup, "URL Monitor Setup"),
         validateRequest(MonitorCreateRequestSchema),
+        createCreditMiddleware(PRICING.monitor.setup, "URL Monitor Setup"),
         createLazyPaymentMiddleware(
             "/monitor/create",
             PRICING.monitor.setup,
@@ -169,8 +169,8 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     // ============================================
     app.use(
         "/memory/set",
-        createCreditMiddleware(PRICING.memory.write, "Memory Write"),
         validateRequest(MemorySetRequestSchema),
+        createCreditMiddleware(PRICING.memory.write, "Memory Write"),
         createLazyPaymentMiddleware(
             "/memory/set",
             PRICING.memory.write,
@@ -184,8 +184,7 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     app.post("/memory/set", memorySetHandler);
 
     // Auth required for these
-    app.get("/memory/get", memoryGetHandler); // Should be POST? or query param?
-    // Handler expects query param 'key'
+    app.get("/memory/get", memoryGetHandler); // Reads ?key=; wallet auth is enforced inside the handler.
 
     app.delete("/memory/delete", memoryDeleteHandler);
     app.get("/memory/list", memoryListHandler);

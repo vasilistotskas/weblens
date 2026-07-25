@@ -63,8 +63,8 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     // ============================================
     app.use(
         "/intel/company",
-        createCreditMiddleware(PRICING.intel.company, "Company Intelligence"),
         validateRequest(companySchema),
+        createCreditMiddleware(PRICING.intel.company, "Company Intelligence"),
         createLazyPaymentMiddleware(
             "/intel/company",
             PRICING.intel.company,
@@ -97,8 +97,8 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     // ============================================
     app.use(
         "/intel/market",
-        createCreditMiddleware(PRICING.intel.market, "Market Intelligence"),
         validateRequest(marketSchema),
+        createCreditMiddleware(PRICING.intel.market, "Market Intelligence"),
         createLazyPaymentMiddleware(
             "/intel/market",
             PRICING.intel.market,
@@ -137,8 +137,8 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     // ============================================
     app.use(
         "/intel/competitive",
-        createCreditMiddleware(PRICING.intel.competitive, "Competitive Intelligence"),
         validateRequest(competitiveSchema),
+        createCreditMiddleware(PRICING.intel.competitive, "Competitive Intelligence"),
         createLazyPaymentMiddleware(
             "/intel/competitive",
             PRICING.intel.competitive,
@@ -191,8 +191,8 @@ export function registerIntelRoutes(app: Hono<{ Bindings: Env; Variables: Variab
     // ============================================
     app.use(
         "/intel/site-audit",
-        createCreditMiddleware(PRICING.intel.siteAudit, "Site Audit"),
         validateRequest(siteAuditSchema),
+        createCreditMiddleware(PRICING.intel.siteAudit, "Site Audit"),
         createLazyPaymentMiddleware(
             "/intel/site-audit",
             PRICING.intel.siteAudit,

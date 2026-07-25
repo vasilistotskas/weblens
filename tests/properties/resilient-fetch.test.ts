@@ -5,13 +5,10 @@
 import { describe, it, expect } from "vitest";
 import {
     selectProviderOrder,
-    calculateResilientPrice,
-    calculateProviderMargin,
     type ProviderConfig,
     type ProviderStats,
     PROVIDERS,
 } from "../../src/services/provider-registry";
-import { PRICING } from "../../src/config";
 
 describe("Provider selection logic", () => {
     it("always prioritizes lower priority value providers", () => {
@@ -85,24 +82,5 @@ describe("Provider selection logic", () => {
         // P2 should be first
         expect(ordered[0].id).toBe("p2");
         expect(ordered[1].id).toBe("p1");
-    });
-});
-
-describe("Margin calculations", () => {
-    it("agent price matches configuration regardless of proxy status", () => {
-        expect(calculateResilientPrice(true)).toBe(PRICING.fetch.resilient);
-        expect(calculateResilientPrice(false)).toBe(PRICING.fetch.resilient);
-    });
-
-    it("margin is positive for all external providers", () => {
-        const externalProviders = PROVIDERS.filter((p) => !p.isNative);
-
-        externalProviders.forEach((p) => {
-            if (p.baseCost) {
-                const margin = calculateProviderMargin(p.baseCost);
-                expect(margin).toBeGreaterThan(0);
-                expect(margin).toBeLessThan(0.025);
-            }
-        });
     });
 });

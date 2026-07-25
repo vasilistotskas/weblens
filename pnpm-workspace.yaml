@@ -7,13 +7,8 @@
 # scripts. Everything not listed is blocked from running build scripts.
 allowBuilds:
   '@coinbase/x402': true
-  '@opensea/seaport-js': true
-  bigint-buffer: true
   bufferutil: true
   esbuild: true
-  keccak: true
-  opensea-js: true
-  secp256k1: true
   sharp: true
   unrs-resolver: true
   utf-8-validate: true
@@ -34,47 +29,10 @@ blockExoticSubdeps: false
 # are verified working (pnpm run build + pnpm run lint both pass):
 #   - typescript 6 / eslint 10 — our chosen toolchain; many deps still declare
 #     ^5 / ^9 peers but work fine.
-#   - utf-8-validate 6 — optional perf dep for ws@7 (declares ^5.0.2).
-#   - @solana/* — pulled transitively by @coinbase/agentkit's Solana support,
-#     which this EVM/Base-only project never exercises; its internal peers
-#     (@solana/kit, @solana/sysvars) conflict among themselves upstream.
 peerDependencyRules:
   allowedVersions:
     typescript: '6'
     eslint: '10'
-    utf-8-validate: '6'
-  allowAny:
-    - '@solana/*'
-
-# --- Dedupe transitive version conflict --------------------------------------
-# @coinbase/agentkit (devDependency only — never bundled into the Worker) pulls
-# two copies of @solana-program/token-2022 (0.4.2 and 0.6.1) whose @solana/sysvars
-# peer ranges (^2.1.0 vs ^5.0) conflict. We don't use any Solana code path, so we
-# dedupe to the newer release that aligns with the rest of the @solana/* ^5 stack.
-overrides:
-  '@solana-program/token-2022': '0.6.1'
-
-# --- Deprecated transitive packages (reviewed, dev-only) ---------------------
-# Known-deprecated packages dragged in transitively by @coinbase/agentkit's web3
-# SDK tree (MetaMask/WalletConnect/Privy/OpenSea). They never reach the deployed
-# Worker. Acknowledged explicitly per-package so genuinely *new* deprecations
-# still warn. See https://pnpm.io/settings#alloweddeprecatedversions
-allowedDeprecatedVersions:
-  '@hey-api/client-fetch': '0.8.4'
-  '@metamask/sdk': '0.33.1'
-  '@metamask/sdk-analytics': '0.0.5'
-  '@metamask/sdk-communication-layer': '0.33.1'
-  '@metamask/sdk-install-modal-web': '0.32.1'
-  '@paulmillr/qr': '0.2.1'
-  '@privy-io/server-auth': '1.18.4'
-  '@safe-global/safe-gateway-typescript-sdk': '3.23.1'
-  '@simplewebauthn/types': '9.0.1 || 12.0.0'
-  '@simplewebauthn/typescript-types': '8.3.4'
-  '@walletconnect/ethereum-provider': '2.21.1'
-  '@walletconnect/sign-client': '2.21.0 || 2.21.1'
-  '@walletconnect/universal-provider': '2.21.0 || 2.21.1'
-  opensea-js: '7.4.0'
-  uuid: '8.3.2 || 9.0.1'
 
 # --- Supply-chain: minimum release age (pnpm-managed) ------------------------
 # pnpm 11 refuses very recently published versions by default; in loose mode it

@@ -63,8 +63,7 @@ Durable Object classes (`CreditAccountDO`, `MonitorScheduler`) are re-exported f
 - **`src/schemas.ts`** — All Zod request validation schemas. Reusable primitives: `urlSchema`, `timeoutSchema`, `limitSchema`. Includes bounds (viewport 320-3840px, timeout 5-30s, cache TTL 60-86400s).
 - **`src/config.ts`** — Centralized pricing, network/facilitator config, cache settings, viewport bounds, timeouts. All prices defined here.
 - **`src/types.ts`** — All TypeScript interfaces: `Env` (Worker bindings), `Variables` (Hono context vars), request/response types, `ErrorCode` enum, `ProofOfContext`.
-- **`src/openapi.ts`** — OpenAPI 3.0.3 spec generation, Scalar UI at `/docs`, `/llms.txt` endpoint with LLM-optimized API guide.
-- **`src/skills/`** — Coinbase AgentKit `ActionProvider` integration (`WebLensActionProvider.ts`) wrapping endpoints for autonomous agents.
+- **`src/openapi.ts`** — OpenAPI 3.1 spec generation, Scalar UI at `/docs`, `/llms.txt` endpoint with LLM-optimized API guide. The spec doubles as the **x402scan discovery document** (`/openapi.json`): `info.x-guidance`, per-op `x-payment-info` (fixed or dynamic price mode, derived from `PRICING`/`MAX_COMPLEXITY_MULTIPLIER` — never hardcoded), `security: []` on free/auth-gated ops, and request `example`s so registration probes can reach the 402 challenge. All `llms.txt` prices interpolate `PRICING` too.
 
 ### Hono Context Variables
 Middleware stores state in Hono context (`c.set()`/`c.get()`):
@@ -78,12 +77,12 @@ Middleware stores state in Hono context (`c.set()`/`c.get()`):
 ### Adding a New Endpoint
 Each paid endpoint follows this middleware composition pattern in a route registrar:
 ```
-app.use("/path", createCreditMiddleware(price, label))     // credit account check
 app.use("/path", validateRequest(ZodSchema))                // Zod validation → sets validatedBody
+app.use("/path", createCreditMiddleware(price, label))      // credit account check + debit
 app.use("/path", createLazyPaymentMiddleware(...))          // x402 payment wall
 app.post("/path", handlerFunction)                          // tool handler
 ```
-The order matters: credit check → validation → payment → handler. Handlers then read `c.get("validatedBody")` (no per-handler re-parse) and `c.get("requestId")`. Free endpoints use `rateLimitMiddleware` + `validateRequest` with their own free-tier schemas (exported from `src/tools/free.ts`). **Exception:** endpoints whose price is derived from the request body run validation *before* the credit middleware so the price function can read `validatedBody` — `/batch/fetch` (`src/routes/advanced.ts`) uses validation → credit → payment for per-URL pricing; `/fetch/pro` and `/extract` keep credit-first and re-read the body inside their dynamic price callback instead. Cacheable endpoints prepend `cacheLookupMiddleware` and append `cacheServeMiddleware` (see Caching).
+The order is **validation → credit → payment → handler** on every paid route: invalid bodies are rejected before any money moves, and both money middlewares can read `c.get("validatedBody")`. Handlers read `c.get("validatedBody")` (no per-handler re-parse) and `c.get("requestId")`. Free endpoints use `rateLimitMiddleware` + `validateRequest` with their own free-tier schemas (exported from `src/tools/free.ts`). Dynamically-priced endpoints (`/fetch/pro`, `/extract` complexity pricing in `src/routes/core.ts`; `/batch/fetch` per-URL in `src/routes/advanced.ts`) define ONE price resolver and pass it to BOTH `createCreditMiddleware` and `createLazyPaymentMiddleware` so the credit debit and the x402 challenge can never charge different amounts. Cacheable endpoints prepend `cacheLookupMiddleware` and append `cacheServeMiddleware` (see Caching); `cacheAwarePrice()` wraps the resolver for both money paths.
 
 ### Payment System (x402 Protocol)
 - Client sends POST without payment → gets 402 with price/network/address
@@ -96,7 +95,7 @@ The order matters: credit check → validation → payment → handler. Handlers
 
 ### Credit System (Alternative to Per-Request Payment)
 Three-layer architecture:
-1. **Credit middleware** (`src/middleware/credit-middleware.ts`) — intercepts `X-CREDIT-WALLET` header, verifies the EIP-191 wallet signature via `verifyWalletSignature()` (one-directional timestamp window: ≤5min old, ≤60s future skew) with KV-backed **replay protection** (each signature consumed once via a `sigreplay:` nonce in CACHE), then attempts debit. On insufficient funds, gracefully falls through to x402 payment.
+1. **Credit middleware** (`src/middleware/credit-middleware.ts`) — intercepts `X-CREDIT-WALLET` header, verifies the EIP-191 wallet signature via `verifyWalletSignature()` (one-directional timestamp window: ≤5min old, ≤60s future skew) with KV-backed **replay protection** (each signature consumed once via a `sigreplay:` nonce in CACHE), then attempts debit. On insufficient funds, gracefully falls through to x402 payment. **Refunds:** handlers report failures by returning JSON error envelopes (not throwing), so the middleware refunds the debit both when `next()` throws AND when the final `c.res.status >= 400` — refunds are idempotent via the `refund:${requestId}` externalId. Success responses carry `Payment-Method: Credits` + `Credit-Cost`; refunded ones carry `Payment-Method: Credits` + `Credit-Refunded`.
 2. **CreditAccountDO** (`src/durable_objects/CreditAccountDO.ts`) — atomic balance management per wallet. Tiers: standard → premium ($100 deposited) → enterprise ($1000). Transaction history capped at 100 entries.
 3. **Credit service** (`src/services/credits.ts`) — DO proxy functions. Bonus tiers: 20% at $10, 30% at $50, 40% at $100+ (descending sort for highest applicable match).
 
@@ -112,7 +111,8 @@ Three-layer architecture:
 ### URL Validation & SSRF (`src/services/validator.ts`, `src/utils/safe-fetch.ts`)
 - `validateURL()` **canonicalizes** IPv4 literals in any encoding (dotted/octal/hex/shorthand/bare-int) and range-checks against private blocks; also blocks non-canonical encodings, RFC1918/loopback/link-local/CGNAT, IPv6 loopback/ULA/link-local, embedded credentials, `.onion`, and non-HTTP(S) schemes. Returns `{valid, normalized?, error?}`.
 - `safeFetch()` re-validates **every redirect hop** (manual redirect) — use it for any fetch of a user-supplied URL (all fetch tools + provider-registry native path do).
-- The validation middleware rejects bodies over 256KB (`Content-Length`) before parsing.
+- Browser-rendered endpoints (`/fetch/pro`, `/screenshot`) can't use `safeFetch` — Chromium follows redirects itself — so `hardenPage()` (`src/utils/browser-guard.ts`) enables Puppeteer request interception and re-validates **every request the page makes** (navigation, redirect hops, subresources) against `validateURL()`. Any new Puppeteer usage must call `hardenPage(page)` right after `newPage()`.
+- The validation middleware rejects bodies over 256KB (`MAX_BODY_BYTES` in `src/middleware/validation.ts`) before parsing; `cacheLookupMiddleware` enforces the same bound because it parses the body first on cacheable routes.
 
 ### Caching
 - Opt-in via the `cache` body field (default `true`) on the fetch family (`/fetch/basic`, `/fetch/pro`, `/fetch/resilient`); implemented in `src/middleware/cache.ts` + `src/services/cache.ts`. On a hit the cached body is served (handler skipped) and the 70% discount applies to both the credit debit and the x402 challenge.
@@ -131,11 +131,11 @@ Three-layer architecture:
 
 ### Crypto & Proof of Context (`src/services/crypto.ts`)
 - `hashContent()` — SHA-256 via `crypto.subtle`
-- `createProofOfContext()` — ACV (Autonomous Context Verification) wrapping content with `{hash, timestamp, alg, mac, keyId}`. `mac` is a symmetric HMAC tag (a MAC), **not** a public-key signature — only the secret holder can verify it
+- `signContext()` — ACV (Autonomous Context Verification): handlers compose `hashContent` + `signContext` into a `ProofOfContext` `{hash, timestamp, alg, mac, keyId}`. `mac` is a symmetric HMAC tag (a MAC), **not** a public-key signature — only the secret holder can verify it
 - Uses HMAC-SHA256 keyed by `SIGNING_PRIVATE_KEY` (falls back to `CDP_API_KEY_SECRET`); since it is symmetric it is not third-party-verifiable — true ECDSA signing is a roadmap item
 
 ### Cloudflare Bindings (wrangler.toml)
-- **KV namespaces**: CACHE, MEMORY, MONITOR, CREDITS
+- **KV namespaces**: CACHE, MEMORY, MONITOR
 - **Durable Objects**: CREDIT_MANAGER (CreditAccountDO), MONITOR_SCHEDULER (MonitorScheduler with SQLite)
 - **Browser**: Cloudflare Browser Rendering binding (for `/fetch/pro`, `/screenshot`; requires paid Workers plan)
 - **Environments**: production (Base mainnet, custom domain `api.weblens.dev`) and testnet (Base Sepolia, `workers_dev = true`)
@@ -149,7 +149,8 @@ Three-layer architecture:
 ### MCP Integration (`src/tools/mcp.ts`)
 Model Context Protocol JSON-RPC handler at `/mcp` — enables AI agents to discover and use WebLens tools via MCP protocol.
 
-### Discovery & Bazaar (`src/tools/discovery.ts`)
+### Discovery & Bazaar (`src/tools/discovery.ts`, `src/openapi.ts`)
 - `/discovery` — machine-readable `SERVICE_CATALOG` for autonomous agent discovery
-- `/.well-known/x402` — standard x402 Bazaar discovery endpoint
-- Uses `@x402/extensions/bazaar` for automatic indexing
+- `/.well-known/x402` — standard x402 discovery endpoint
+- `/openapi.json` — x402scan discovery document (register at x402scan.com/resources/register; requires `info.x-guidance` + per-op `x-payment-info` + `security: []` on free ops per x402scan.com/discovery/spec)
+- Uses `@x402/extensions/bazaar` (`declareDiscoveryExtension` in `src/middleware/payment.ts`) — this got WebLens indexed in the **PayAI facilitator discovery catalog** (facilitator.payai.network/discovery/resources, 12 endpoints listed). The **CDP Bazaar** (api.cdp.coinbase.com …/x402/discovery/resources) indexes ONLY services whose payments the CDP facilitator itself settles — with PayAI as primary facilitator, CDP never settles, so WebLens is not in the CDP Bazaar. Flipping precedence would expose real payments to CDP's still-open Base-mainnet settle bug (x402-foundation/x402#1065); the indexing pipeline also has an open bug (#2112).

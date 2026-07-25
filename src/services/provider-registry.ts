@@ -3,13 +3,11 @@
  *
  * Routes fetch requests through a fallback chain of providers.
  * Tracks success rates per provider and selects the best option.
- * When we proxy through external providers (Firecrawl, Zyte), we add a margin.
  *
  * Architecture:
  *   WebLens native → Firecrawl (x402) → Zyte (x402)
  */
 
-import { PRICING } from "../config";
 import { safeFetch } from "../utils/safe-fetch";
 
 // ============================================
@@ -470,33 +468,4 @@ export async function resilientFetch(
     throw new Error(
         `All ${String(ordered.length)} providers failed for ${url}: ${errors.join("; ")}`,
     );
-}
-
-// ============================================
-// Margin Calculation
-// ============================================
-
-/**
- * Calculate the effective price for a resilient fetch.
- * If the result was proxied, the price includes the provider margin.
- */
-export function calculateResilientPrice(isProxied: boolean): string {
-    if (!isProxied) {
-        return PRICING.fetch.resilient;
-    }
-
-    // For proxied requests, the agent pays the resilient price
-    // We internally pay the provider's base cost and keep the margin
-    // The agent price is always PRICING.fetch.resilient regardless
-    return PRICING.fetch.resilient;
-}
-
-/**
- * Calculate our margin when proxying through an external provider.
- * Margin = resilient price - provider base cost
- */
-export function calculateProviderMargin(providerBaseCost: string): number {
-    const resilientPrice = parseFloat(PRICING.fetch.resilient.replace("$", ""));
-    const providerCost = parseFloat(providerBaseCost.replace("$", ""));
-    return resilientPrice - providerCost;
 }

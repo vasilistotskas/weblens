@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { generateRequestId, isValidRequestId } from "../../src/utils/requestId";
+import { generateRequestId } from "../../src/utils/requestId";
 import {
   getErrorCode,
   getHttpStatus,
@@ -52,13 +52,14 @@ describe("Property 10: Response header consistency", () => {
 
   /**
    * Property: Generated request IDs are valid
-   * For any generated request ID, isValidRequestId SHALL return true
+   * For any generated request ID, it SHALL match the documented
+   * wl_{base36 timestamp}_{1..12 base36 random} format.
    */
   it("generated request IDs are valid", () => {
     fc.assert(
       fc.property(fc.constant(null), () => {
         const requestId = generateRequestId();
-        expect(isValidRequestId(requestId)).toBe(true);
+        expect(requestId).toMatch(/^wl_[a-z0-9]+_[a-z0-9]{1,12}$/u);
       }),
       { numRuns: 100 }
     );

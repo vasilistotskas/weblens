@@ -63,9 +63,6 @@ export const PRICING = {
     siteAudit: "$0.75",     // Full site audit
   },
 
-  // Agent Prime: multi-provider routing
-  providerMargin: 0.15, // 15% margin on proxied requests
-
   // Agent Credit Accounts (Clearing House seed)
   credits: {
     tiers: [
@@ -86,9 +83,6 @@ export const FREE_TIER = {
   // Content limits
   fetchMaxContentLength: 2000, // chars
   searchMaxResults: 3,
-
-  // Available free endpoints
-  endpoints: ["/free/fetch", "/free/search"] as readonly string[],
 } as const;
 
 // List of all supported networks for 402 responses.
@@ -110,26 +104,3 @@ export const TIMEOUT_CONFIG = {
   min: 5000, // 5 seconds
   max: 30000, // 30 seconds
 } as const;
-
-// Type exports for configuration
-export type EndpointName =
-  | "screenshot"
-  | "fetch-basic"
-  | "fetch-pro"
-  | "search"
-  | "extract"
-  | "batch-fetch"
-  | "research"
-  | "smart-extract"
-  | "monitor"
-  | "pdf"
-  | "compare"
-  | "memory-read"
-  | "memory-write"
-  | "intel-company"
-  | "intel-market"
-  | "intel-competitive"
-  | "intel-site-audit"
-  | "fetch-resilient"
-  | "credits-buy"
-  | "credits-balance";

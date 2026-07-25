@@ -20,7 +20,6 @@ export interface Env {
   CACHE?: KVNamespace; // Cloudflare KV for caching
   MEMORY?: KVNamespace; // Cloudflare KV for agent memory
   MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
-  CREDITS?: KVNamespace; // Cloudflare KV for agent credit accounts
   CREDIT_MANAGER?: DurableObjectNamespace;
   MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
   // Optional API keys
@@ -103,14 +102,6 @@ export interface ScreenshotResponse {
 // Fetch Types (Requirement 2)
 // ============================================
 
-export interface FetchRequest {
-  url: string;
-  timeout?: number; // ms
-  cache?: boolean;
-  cacheTtl?: number; // seconds, 60-86400
-  waitFor?: string; // CSS selector to wait for (pro only)
-}
-
 interface PageMetadata {
   description?: string;
   author?: string;
@@ -166,11 +157,6 @@ export interface PaymentPayload {
 // Search Types
 // ============================================
 
-export interface SearchRequest {
-  query: string;
-  limit?: number; // default 10
-}
-
 interface SearchResult {
   title: string;
   url: string;
@@ -188,12 +174,6 @@ export interface SearchResponse {
 // ============================================
 // Extract Types
 // ============================================
-
-export interface ExtractRequest {
-  url: string;
-  schema: Record<string, unknown>; // JSON schema for extraction
-  instructions?: string; // Natural language instructions
-}
 
 export interface ExtractResponse {
   url: string;
@@ -311,12 +291,6 @@ export interface URLValidationResult {
 // Batch Fetch Types (Requirement 1)
 // ============================================
 
-export interface BatchFetchRequest {
-  urls: string[];           // 2-20 URLs
-  timeout?: number;         // Per-URL timeout, default 10000ms
-  tier?: "basic" | "pro";   // Fetch tier, default "basic"
-}
-
 export interface BatchFetchResult {
   url: string;
   status: "success" | "error";
@@ -342,12 +316,6 @@ export interface BatchFetchResponse {
 // Research Types (Requirement 2)
 // ============================================
 
-export interface ResearchRequest {
-  query: string;            // Research topic/question
-  resultCount?: number;     // 1-10, default 5
-  includeRawContent?: boolean; // Include full fetched content
-}
-
 export interface ResearchSource {
   url: string;
   title: string;
@@ -369,12 +337,6 @@ export interface ResearchResponse {
 // Smart Extraction Types (Requirement 3)
 // ============================================
 
-export interface SmartExtractRequest {
-  url: string;
-  query: string;            // e.g., "find all email addresses"
-  format?: "json" | "text"; // Output format, default "json"
-}
-
 interface ExtractedItem {
   value: unknown;           // Extracted value
   context?: string;         // Surrounding context
@@ -393,13 +355,6 @@ export interface SmartExtractResponse {
 // ============================================
 // Monitor Types (Requirement 4)
 // ============================================
-
-export interface MonitorCreateRequest {
-  url: string;
-  webhookUrl: string;
-  checkInterval?: number;   // Hours, 1-24, default 1
-  notifyOn?: "any" | "content" | "status"; // What triggers notification
-}
 
 export interface MonitorCreateResponse {
   monitorId: string;
@@ -446,11 +401,6 @@ export interface StoredMonitor {
 // PDF Extraction Types (Requirement 5)
 // ============================================
 
-export interface PdfExtractRequest {
-  url: string;
-  pages?: number[];         // Specific pages, or all if omitted
-}
-
 export interface PdfPage {
   pageNumber: number;
   content: string;
@@ -474,11 +424,6 @@ export interface PdfExtractResponse {
 // Compare Types (Requirement 6)
 // ============================================
 
-export interface CompareRequest {
-  urls: string[];           // 2-3 URLs
-  focus?: string;           // What to focus comparison on
-}
-
 export interface CompareSource {
   url: string;
   title: string;
@@ -499,12 +444,6 @@ export interface CompareResponse {
 // ============================================
 // Agent Memory Types (Requirement 7)
 // ============================================
-
-export interface MemorySetRequest {
-  key: string;              // Max 256 chars
-  value: unknown;           // JSON-serializable, max 100KB
-  ttl?: number;             // Hours, 1-720 (30 days), default 168 (7 days)
-}
 
 export interface MemorySetResponse {
   key: string;

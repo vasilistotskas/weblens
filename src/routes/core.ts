@@ -1,10 +1,9 @@
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { PRICING } from "../config";
 import {
     cacheLookupMiddleware,
     cacheServeMiddleware,
-    cacheAwareCreditCost,
-    cacheAwarePaymentPrice,
+    cacheAwarePrice,
 } from "../middleware/cache";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
@@ -29,7 +28,36 @@ import { searchWebHandler } from "../tools/search-web";
 import { smartExtractHandler } from "../tools/smart-extract";
 import type { Env, Variables } from "../types";
 
+type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
+
+/**
+ * Complexity-priced resolver shared by the credit debit AND the x402
+ * challenge, so the two payment paths can never charge different amounts.
+ * Runs after validateRequest, so `validatedBody` is always populated.
+ */
+function dynamicUrlPrice(
+    endpoint: "fetch-pro" | "extract",
+    fallback: string,
+): (c: AppContext) => Promise<string> {
+    return async (c) => {
+        try {
+            const body = c.get("validatedBody") as { url: string } | undefined
+                ?? await c.req.json<{ url: string }>();
+            const wallet = c.req.header("X-Wallet-Address") ?? c.req.header("X-CREDIT-WALLET");
+            return await calculatePrice(body.url, endpoint, getDiscount(wallet));
+        } catch (e) {
+            c.get("log").warn("pricing.dynamic_fallback", {
+                endpoint,
+                error: e instanceof Error ? e.message : String(e),
+            });
+            return fallback;
+        }
+    };
+}
+
 export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
+    const fetchProPrice = cacheAwarePrice(dynamicUrlPrice("fetch-pro", PRICING.fetch.pro));
+    const extractPrice = dynamicUrlPrice("extract", PRICING.extract);
 
     // ============================================
     // /fetch/basic - Basic tier fetch
@@ -37,11 +65,11 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     app.use(
         "/fetch/basic",
         cacheLookupMiddleware("fetch-basic"),
-        createCreditMiddleware(cacheAwareCreditCost(PRICING.fetch.basic), "Fetch Webpage (Basic)"),
-        validateRequest(FetchRequestSchema), // New Zod Validation
+        validateRequest(FetchRequestSchema),
+        createCreditMiddleware(cacheAwarePrice(PRICING.fetch.basic), "Fetch Webpage (Basic)"),
         createLazyPaymentMiddleware(
             "/fetch/basic",
-            cacheAwarePaymentPrice(PRICING.fetch.basic),
+            cacheAwarePrice(PRICING.fetch.basic),
             "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
             { url: "https://example.com/article", timeout: 10000, cache: true, cacheTtl: 3600 },
             {
@@ -82,27 +110,11 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     app.use(
         "/fetch/pro",
         cacheLookupMiddleware("fetch-pro"),
-        createCreditMiddleware(cacheAwareCreditCost(PRICING.fetch.pro), "Fetch Webpage (Pro)"),
         validateRequest(FetchRequestSchema),
+        createCreditMiddleware(fetchProPrice, "Fetch Webpage (Pro)"),
         createLazyPaymentMiddleware(
             "/fetch/pro",
-            cacheAwarePaymentPrice(async (c) => {
-                // Peek at the request body to get URL for pricing
-                try {
-                    // Use validatedBody if available to avoid re-parsing
-                    const validated = c.get("validatedBody") as { url: string } | undefined;
-                    const body: { url: string } = validated ?? await c.req.json();
-                    const walletAddress = c.req.header("X-Wallet-Address");
-                    const discount = getDiscount(walletAddress);
-                    return await calculatePrice(body.url, "fetch-pro", discount);
-                } catch (e) {
-                    c.get("log").warn("pricing.dynamic_fallback", {
-                        endpoint: "fetch-pro",
-                        error: e instanceof Error ? e.message : String(e),
-                    });
-                    return PRICING.fetch.pro;
-                }
-            }),
+            fetchProPrice,
             "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
             { url: "https://app.example.com", waitFor: ".content", timeout: 15000, cache: true },
             {
@@ -143,11 +155,11 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     app.use(
         "/fetch/resilient",
         cacheLookupMiddleware("fetch-resilient"),
-        createCreditMiddleware(cacheAwareCreditCost(PRICING.fetch.resilient), "Resilient Fetch (Agent Prime)"),
         validateRequest(FetchRequestSchema),
+        createCreditMiddleware(cacheAwarePrice(PRICING.fetch.resilient), "Resilient Fetch (Agent Prime)"),
         createLazyPaymentMiddleware(
             "/fetch/resilient",
-            cacheAwarePaymentPrice(PRICING.fetch.resilient),
+            cacheAwarePrice(PRICING.fetch.resilient),
             "Resilient fetch with automatic provider fallback. Tries WebLens native scraper first, then falls back to Firecrawl and Zyte via x402.",
             { url: "https://example.com", timeout: 10000 },
             {
@@ -187,8 +199,8 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/screenshot",
-        createCreditMiddleware(PRICING.screenshot, "Screenshot Capture"),
         validateRequest(ScreenshotRequestSchema),
+        createCreditMiddleware(PRICING.screenshot, "Screenshot Capture"),
         createLazyPaymentMiddleware(
             "/screenshot",
             PRICING.screenshot,
@@ -226,8 +238,8 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/search",
-        createCreditMiddleware(PRICING.search, "Web Search"),
         validateRequest(SearchRequestSchema),
+        createCreditMiddleware(PRICING.search, "Web Search"),
         createLazyPaymentMiddleware(
             "/search",
             PRICING.search,
@@ -265,25 +277,11 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/extract",
-        createCreditMiddleware(PRICING.extract, "Structured Data Extraction"),
         validateRequest(ExtractRequestSchema),
+        createCreditMiddleware(extractPrice, "Structured Data Extraction"),
         createLazyPaymentMiddleware(
             "/extract",
-            async (c) => {
-                try {
-                    const validated = c.get("validatedBody") as { url: string } | undefined;
-                    const body: { url: string } = validated ?? await c.req.json();
-                    const walletAddress = c.req.header("X-Wallet-Address");
-                    const discount = getDiscount(walletAddress);
-                    return await calculatePrice(body.url, "extract", discount);
-                } catch (e) {
-                    c.get("log").warn("pricing.dynamic_fallback", {
-                        endpoint: "extract",
-                        error: e instanceof Error ? e.message : String(e),
-                    });
-                    return PRICING.extract;
-                }
-            },
+            extractPrice,
             "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context.",
             { url: "https://example.com/product", schema: { name: { type: "string" }, price: { type: "number" } }, instructions: "Extract product details" },
             {
@@ -317,8 +315,8 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     app.use(
         "/extract/smart",
-        createCreditMiddleware(PRICING.smartExtract, "Smart Extraction (AI)"),
         validateRequest(SmartExtractRequestSchema),
+        createCreditMiddleware(PRICING.smartExtract, "Smart Extraction (AI)"),
         createLazyPaymentMiddleware(
             "/extract/smart",
             PRICING.smartExtract,

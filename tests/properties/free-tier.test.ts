@@ -25,12 +25,6 @@ describe("Free Tier: Configuration properties", () => {
     it("searchMaxResults is positive", () => {
         expect(FREE_TIER.searchMaxResults).toBeGreaterThan(0);
     });
-
-    it("all free endpoints start with /free/", () => {
-        for (const endpoint of FREE_TIER.endpoints) {
-            expect(endpoint.startsWith("/free/")).toBe(true);
-        }
-    });
 });
 
 describe("Free Tier: Content truncation properties", () => {

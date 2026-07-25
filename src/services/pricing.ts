@@ -4,7 +4,6 @@
  * cache discounts, batch pricing, and utility helpers.
  */
 
-import type { EndpointName } from "../config";
 import { PRICING } from "../config";
 
 // Complexity multipliers for dynamic pricing
@@ -14,6 +13,13 @@ const COMPLEXITY = {
     HIGH: 3.0,
     VERY_HIGH: 5.0,
 };
+
+/**
+ * Highest multiplier `getComplexityMultiplier` can return. Discovery surfaces
+ * (OpenAPI x-payment-info dynamic ranges) derive their advertised max from
+ * this so they can never drift from the actual pricing logic.
+ */
+export const MAX_COMPLEXITY_MULTIPLIER = COMPLEXITY.HIGH;
 
 // Known high-complexity domains (SPAs, bot protections, etc.)
 const HIGH_COMPLEXITY_DOMAINS = [
@@ -107,27 +113,6 @@ function formatPrice(amount: number, decimals: number = 4): string {
 }
 
 /**
- * Get the base price for an endpoint from PRICING config.
- * @returns Price string with $ prefix
- */
-export function getBasePrice(endpoint: EndpointName): string {
-    switch (endpoint) {
-        case "screenshot":
-            return PRICING.screenshot;
-        case "fetch-basic":
-            return PRICING.fetch.basic;
-        case "fetch-pro":
-            return PRICING.fetch.pro;
-        case "search":
-            return PRICING.search;
-        case "extract":
-            return PRICING.extract;
-        default:
-            throw new Error(`Unknown endpoint: ${endpoint}`);
-    }
-}
-
-/**
  * Calculate the cached price (70% discount from base price).
  * @returns Price string with $ prefix
  */
@@ -138,15 +123,6 @@ export function getCachedPrice(basePrice: string): string {
 }
 
 /**
- * Get the price for an endpoint, optionally with cache discount.
- * @returns Price string with $ prefix
- */
-export function getEndpointPrice(endpoint: EndpointName, cached: boolean = false): string {
-    const basePrice = getBasePrice(endpoint);
-    return cached ? getCachedPrice(basePrice) : basePrice;
-}
-
-/**
  * Calculate batch fetch price (linear: N URLs x per-URL rate).
  * @returns Price string with $ prefix
  */
@@ -154,21 +130,6 @@ export function getBatchFetchPrice(urlCount: number): string {
     const perUrlAmount = parsePrice(PRICING.batchFetch.perUrl);
     const totalAmount = urlCount * perUrlAmount;
     return `$${totalAmount.toFixed(3)}`;
-}
-
-/**
- * Calculate the discount amount for a cached response.
- */
-export function getDiscountAmount(basePrice: string): number {
-    const amount = parsePrice(basePrice);
-    return amount * PRICING.cacheDiscount;
-}
-
-/**
- * Get the cache discount percentage (0-100).
- */
-export function getCacheDiscountPercentage(): number {
-    return PRICING.cacheDiscount * 100;
 }
 
 /**
@@ -187,7 +148,7 @@ export function getPriceRange(): string {
     };
     for (const [key, value] of Object.entries(PRICING)) {
         // Skip deposit tiers and non-price scalars.
-        if (key === "credits" || key === "cacheDiscount" || key === "providerMargin") { continue; }
+        if (key === "credits" || key === "cacheDiscount") { continue; }
         collect(value);
     }
     const fmt = (n: number) => (n < 0.01 ? n.toFixed(4) : n.toFixed(2));
