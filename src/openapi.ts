@@ -62,6 +62,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         "Start with POST /fetch/basic {\"url\": \"...\"} for markdown scraping, POST /search {\"query\": \"...\"} " +
         "for web search, and POST /research {\"query\": \"...\"} for search + fetch + AI summary. " +
         "Use POST /fetch/pro for JavaScript-rendered pages and POST /extract to pull structured JSON from any page. " +
+        "Not sure an endpoint is worth its price? POST /preview {\"endpoint\": \"/answer\"} is free and returns the live " +
+        "price plus a real sample of the response shape before you pay. " +
         "Free, unauthenticated tries: GET /r/{url} and GET /s/{query} (rate limited).",
       contact: { name: "WebLens Support", url: "https://api.weblens.dev", email: "vassilistotskas@msn.com" },
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
@@ -81,6 +83,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { name: "Monitoring", description: "URL change monitoring" },
       { name: "Memory", description: "Persistent key-value storage for agents" },
       { name: "System", description: "Health and documentation endpoints" },
+      { name: "Discovery", description: "Free evaluation and ERC-8004 off-chain surfaces — previews, receipts, feedback" },
       { name: "Credits", description: "Prepaid credit system" },
     ],
     paths: {
@@ -463,6 +466,82 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Search results (max 3)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
         },
       },
+      "/preview": {
+        post: {
+          tags: ["Discovery"], summary: "Preview a Paid Endpoint", operationId: "previewEndpoint",
+          security: [],
+          description: "See what a paid endpoint costs and what it returns BEFORE paying. Free, rate limited to 10/hour per IP. Returns the live price (derived from the same PRICING source as the 402 challenge), a one-line summary, and a recorded sample of the exact response shape. A real, truncated LIVE preview runs only for endpoints whose marginal cost is a plain fetch (currently /fetch/basic, /contents, /map) and only when you pass a url; endpoints backed by a metered upstream (SerpAPI, Anthropic) never run live for free and return the recorded sample instead. Responds 404 for an endpoint that is not sold.",
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/PreviewRequest" }, example: { endpoint: "/answer" } } } },
+          responses: {
+            "200": { description: "Price, summary, recorded sample and (when available) a live truncated preview", content: { "application/json": { schema: { $ref: "#/components/schemas/PreviewResponse" } } } },
+            "400": { description: "Invalid body, or an unsafe/malformed url", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "404": { description: "Unknown endpoint — it is not one of the paid endpoints. See /discovery for the catalogue.", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "429": { description: "Rate limit exceeded (10/hour)" },
+          },
+        },
+      },
+      "/.well-known/agent-registration.json": {
+        get: {
+          tags: ["Discovery"], summary: "ERC-8004 Registration Document", operationId: "getAgentRegistration",
+          security: [],
+          description: "ERC-8004 (Trustless Agents) registration document: name, description, image, services, x402 support, payment info, and the feedback endpoints. WebLens hosts only the OFF-CHAIN half of ERC-8004 — it is not registered on-chain, holds no agent id, and writes nothing to any registry, so `registrations` stays empty until someone registers this URI on an Identity Registry. `supportedTrust` is [\"feedback\"]: no crypto-economic or TEE-attestation claims are made.",
+          responses: { "200": { description: "Registration document", content: { "application/json": { schema: { $ref: "#/components/schemas/AgentRegistration" } } } } },
+        },
+      },
+      "/receipts/{requestId}": {
+        get: {
+          tags: ["Discovery"], summary: "Get Call Receipt", operationId: "getReceipt",
+          security: [],
+          description: "Receipt for a paid call — endpoint, status, outcome, charged price, payment method, network and pay-to address. Every paid response carries `X-Receipt-Id` and `X-Receipt-Url` headers pointing here. Receipts are kept for 30 days. When signing is configured the receipt also carries `mac`/`keyId`/`alg`: a symmetric HMAC tag (the same construction as proof-of-context) that only a key holder can verify — it is NOT a third-party-verifiable signature.",
+          parameters: [{ name: "requestId", in: "path", required: true, schema: { type: "string" }, description: "The X-Request-Id / X-Receipt-Id of the paid call" }],
+          responses: {
+            "200": { description: "Receipt for the call", content: { "application/json": { schema: { $ref: "#/components/schemas/CallReceipt" } } } },
+            "404": { description: "No receipt for that request id (receipts are issued for paid calls and kept 30 days)", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          },
+        },
+      },
+      "/feedback": {
+        post: {
+          tags: ["Discovery"], summary: "Host an ERC-8004 Feedback Document", operationId: "submitFeedback",
+          security: [],
+          description: "Host a buyer-authored ERC-8004 feedback document and get back the (feedbackURI, feedbackHash) pair that `giveFeedback()` on a Reputation Registry expects. The document is stored verbatim and served back byte-for-byte from GET /feedback/{id}, so its keccak-256 hash matches the hash returned here. WebLens neither authors nor alters the document and never calls the registry — the buyer posts giveFeedback() themselves. Free, rate limited to 10/hour per IP.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/FeedbackDocument" },
+                example: {
+                  agentRegistry: "eip155:8453:0x0000000000000000000000000000000000000000",
+                  agentId: "42",
+                  clientAddress: "0x1234567890abcdef1234567890abcdef12345678",
+                  createdAt: "2026-07-31T12:00:00.000Z",
+                  value: 95,
+                  valueDecimals: 0,
+                  tag1: "quality",
+                  endpoint: "/answer",
+                },
+              },
+            },
+          },
+          responses: {
+            "201": { description: "Document hosted; use feedbackURI + feedbackHash in giveFeedback()", content: { "application/json": { schema: { $ref: "#/components/schemas/FeedbackHosted" } } } },
+            "400": { description: "Body is not an object, or is missing required ERC-8004 fields (the response names them)", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "429": { description: "Rate limit exceeded (10/hour)" },
+          },
+        },
+      },
+      "/feedback/{id}": {
+        get: {
+          tags: ["Discovery"], summary: "Get a Hosted Feedback Document", operationId: "getFeedbackDocument",
+          security: [],
+          description: "Serves a hosted feedback document verbatim — the bytes are exactly what was hashed, so keccak-256 of this response equals the feedbackHash returned by POST /feedback. This URL is the feedbackURI.",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, description: "Id from the feedbackURI returned by POST /feedback" }],
+          responses: {
+            "200": { description: "The stored document, byte-for-byte", content: { "application/json": { schema: { $ref: "#/components/schemas/FeedbackDocument" } } } },
+            "404": { description: "No feedback document with that id", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          },
+        },
+      },
       "/intel/company": {
         post: {
           tags: ["Intelligence"], summary: "Company Intelligence", operationId: "intelCompany",
@@ -699,6 +778,96 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         MemorySetRequest: { type: "object", required: ["key", "value"], properties: { key: { type: "string" }, value: {}, ttl: { type: "integer" } } },
         MemorySetResponse: { type: "object", properties: { key: { type: "string" }, stored: { type: "boolean" }, expiresAt: { type: "string" }, requestId: { type: "string" } } },
         ErrorResponse: { type: "object", properties: { error: { type: "string" }, code: { type: "string" }, message: { type: "string" }, requestId: { type: "string" } } },
+        PreviewRequest: {
+          type: "object", required: ["endpoint"],
+          properties: {
+            endpoint: { type: "string", minLength: 1, maxLength: 100, example: "/answer", description: "Paid endpoint path to preview, e.g. \"/answer\" (a leading slash is added if you omit it)" },
+            url: { type: "string", format: "uri", example: "https://example.com", description: "Fetch-backed endpoints only (/fetch/basic, /contents, /map): run a real truncated preview of this URL" },
+          },
+        },
+        PreviewResponse: {
+          type: "object",
+          properties: {
+            endpoint: { type: "string" },
+            method: { type: "string" },
+            price: { type: "string", description: "Human-readable price, resolved from the same PRICING source as the 402 challenge" },
+            currency: { type: "string" },
+            summary: { type: "string", description: "One line on what the paid call returns" },
+            sample: { type: "object", description: "Recorded example of the real response shape" },
+            sampleType: { type: "string", enum: ["recorded"] },
+            live: { type: "object", description: "Present only when a live preview ran: { url, title, content, truncatedAt, note } — or { error } if the fetch failed" },
+            livePreviewAvailable: { type: "boolean", description: "True only for endpoints with no paid upstream (currently /fetch/basic, /contents, /map)" },
+            livePreviewHint: { type: "string" },
+            docs: { type: "string" },
+            schema: { type: "string", description: "URL of the OpenAPI document" },
+            previewedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
+        AgentRegistration: {
+          type: "object",
+          properties: {
+            type: { type: "string", description: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1" },
+            name: { type: "string" },
+            description: { type: "string" },
+            image: { type: "string" },
+            active: { type: "boolean" },
+            x402Support: { type: "boolean" },
+            services: { type: "array", items: { type: "object", properties: { name: { type: "string" }, endpoint: { type: "string" }, version: { type: "string" } } } },
+            registrations: { type: "array", items: { type: "object", properties: { agentId: { type: "string" }, agentRegistry: { type: "string" } } }, description: "Empty: WebLens is not registered on-chain and holds no agent id" },
+            supportedTrust: { type: "array", items: { type: "string" }, description: "[\"feedback\"] — the only trust model actually supported today" },
+            payment: { type: "object", properties: { protocol: { type: "string" }, version: { type: "integer" }, networks: { type: "array", items: { type: "string" } }, asset: { type: "string" }, priceRange: { type: "string" } } },
+            feedback: { type: "object", properties: { receiptEndpoint: { type: "string" }, submitEndpoint: { type: "string" }, hashAlgorithm: { type: "string" } } },
+          },
+        },
+        CallReceipt: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["weblens-call-receipt-v1"] },
+            requestId: { type: "string" },
+            endpoint: { type: "string" },
+            method: { type: "string" },
+            status: { type: "integer", description: "HTTP status the caller received" },
+            outcome: { type: "string", enum: ["success", "error"] },
+            price: { type: "string", description: "Charged price, e.g. \"$0.015\". Absent when the call was not charged." },
+            currency: { type: "string", enum: ["USD"] },
+            paymentMethod: { type: "string", description: "\"x402\" or \"credits\"" },
+            network: { type: "string" },
+            payTo: { type: "string" },
+            servedAt: { type: "string" },
+            mac: { type: "string", description: "Symmetric HMAC tag over the receipt — verifiable only by the key holder, NOT a third-party-verifiable signature" },
+            keyId: { type: "string" },
+            alg: { type: "string" },
+          },
+        },
+        FeedbackDocument: {
+          type: "object",
+          required: ["agentRegistry", "agentId", "clientAddress", "createdAt", "value", "valueDecimals"],
+          description: "Buyer-authored ERC-8004 feedback document. Extra fields are preserved verbatim.",
+          properties: {
+            agentRegistry: { type: "string", description: "CAIP-10 style address of the Identity Registry the agentId belongs to" },
+            agentId: { type: "string" },
+            clientAddress: { type: "string", description: "Wallet posting giveFeedback()" },
+            createdAt: { type: "string" },
+            value: { type: "number", description: "Score, scaled by valueDecimals" },
+            valueDecimals: { type: "integer" },
+            tag1: { type: "string" },
+            tag2: { type: "string" },
+            endpoint: { type: "string", description: "WebLens endpoint the feedback is about" },
+            proofOfPayment: { type: "string", description: "e.g. the X-Receipt-Url of the paid call" },
+          },
+        },
+        FeedbackHosted: {
+          type: "object",
+          properties: {
+            feedbackURI: { type: "string", description: "Pass to giveFeedback() — GET it to retrieve the exact bytes that were hashed" },
+            feedbackHash: { type: "string", description: "keccak-256 of the canonical document bytes" },
+            storedAt: { type: "string" },
+            hashAlgorithm: { type: "string", enum: ["keccak256"] },
+            note: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
         ProofOfContext: {
           type: "object",
           required: ["hash", "timestamp", "alg", "mac", "keyId"],
@@ -795,8 +964,57 @@ Add ?format=text for plain output. Rate limited to 10/hour.
 Reader: content truncated to 2000 chars. Search: max 3 results.
 Upgrade to paid endpoints for full content and more results.
 
+## Preview Before You Pay (Free)
+
+Don't guess whether an endpoint is worth its price — ask:
+
+  POST /preview {"endpoint": "/answer"}
+
+Free (rate limited to 10/hour), and it returns the live price for that endpoint, a one-line
+summary, and a recorded \`sample\` showing the exact response shape you would get.
+
+LIVE vs RECORDED — the rule:
+- Endpoints whose marginal cost is a plain fetch (/fetch/basic, /contents, /map) can also run a
+  REAL truncated preview: pass a \`url\` and you get back a \`live\` block with the first 500
+  characters of the actual result. \`livePreviewAvailable\` is true for exactly these.
+- Every other endpoint is backed by a metered upstream (SerpAPI, Anthropic). Running those free
+  would burn upstream credits, so they never run live — you get the recorded sample instead, which
+  still shows every field name and type.
+
+Unknown or unsold endpoint → 404.
+
+## ERC-8004 (Trustless Agents) — Off-Chain Surfaces
+
+WebLens hosts the OFF-CHAIN half of ERC-8004, which is what a service operator can run without
+deploying a contract. WebLens is NOT registered on-chain, holds no agent id, and writes nothing to
+any registry.
+
+#### GET /.well-known/agent-registration.json
+The ERC-8004 registration document (type \`…eip-8004#registration-v1\`): name, description, image,
+services, active, x402Support, payment info, and the feedback endpoints. \`registrations\` is empty
+because there is no on-chain registration; \`supportedTrust\` is ["feedback"]. (Free)
+
+#### GET /receipts/{requestId}
+The receipt for a paid call — your payment evidence. Every paid response returns \`X-Receipt-Id\`
+and \`X-Receipt-Url\` headers pointing at it. Kept 30 days. (Free)
+- Returns: \`{"type": "weblens-call-receipt-v1", "requestId", "endpoint", "method", "status", "outcome", "price?", "currency", "paymentMethod", "network", "payTo", "servedAt", "mac?", "keyId?", "alg?"}\`
+- \`mac\` is a symmetric HMAC tag (same construction as proof-of-context): only a key holder can
+  verify it. It is NOT a third-party-verifiable signature — do not treat it as one.
+
+#### POST /feedback
+Host a feedback document YOU author, and get back the pair \`giveFeedback()\` wants. WebLens stores
+it verbatim and never edits or authors it; you post giveFeedback() yourself. (Free, rate limited)
+- Body must include: \`agentRegistry\`, \`agentId\`, \`clientAddress\`, \`createdAt\`, \`value\`, \`valueDecimals\` (optional: \`tag1\`, \`tag2\`, \`endpoint\`, \`proofOfPayment\`, …)
+- Returns 201: \`{"feedbackURI", "feedbackHash", "storedAt", "hashAlgorithm": "keccak256", "note", "requestId"}\`
+- Missing a required field → 400 naming exactly which ones.
+
+#### GET /feedback/{id}
+Serves the stored document byte-for-byte, so keccak-256 of the response equals the
+\`feedbackHash\` you were given. This URL is the \`feedbackURI\`. (Free)
+
 ## Quick Start for AI Agents
 
+0. Free evaluation: POST /preview {"endpoint": "/answer"} — see the price and response shape first
 1. Try the free reader: GET /r/https://example.com (no wallet needed!)
 2. For full access, call any paid endpoint (e.g., POST /fetch/basic with {"url": "https://example.com"})
 3. Receive 402 Payment Required — read the PAYMENT-REQUIRED response header (base64-encoded JSON) for amount, asset, payTo and accepts
@@ -808,8 +1026,12 @@ Upgrade to paid endpoints for full content and more results.
 
 - GET /r/{url} - Zero-friction reader (free, no auth needed)
 - GET /s/{query} - Zero-friction search (free, no auth needed)
+- POST /preview - Price + real response sample for any paid endpoint, before you pay (free)
 - GET /discovery - Full service catalog with all endpoints, pricing, and capabilities
 - GET /.well-known/x402 - Standard x402 discovery for Bazaar indexing
+- GET /.well-known/agent-registration.json - ERC-8004 registration document (off-chain)
+- GET /receipts/{requestId} - Receipt for a paid call (free)
+- POST /feedback, GET /feedback/{id} - Host/serve an ERC-8004 feedback document (free)
 - GET /mcp/info - MCP server information for AI agent integration
 
 ## API Base URL
@@ -1105,6 +1327,7 @@ For AI agents using Model Context Protocol:
 
 ## Available MCP Tools
 
+- \`preview_endpoint\` - Price + real response sample for any paid endpoint, before paying — free
 - \`fetch_webpage\` - Fetch webpage as markdown (basic) — ${PRICING.fetch.basic}
 - \`fetch_webpage_pro\` - Fetch with JS rendering — ${PRICING.fetch.pro}
 - \`fetch_resilient\` - Resilient fetch with provider fallback — ${PRICING.fetch.resilient}
@@ -1158,6 +1381,7 @@ All responses include:
 - \`X-Request-Id\` - Unique request identifier
 - \`X-Processing-Time\` - Processing time in milliseconds
 - \`PAYMENT-RESPONSE\` - Settlement proof (on a successful paid response)
+- \`X-Receipt-Id\` / \`X-Receipt-Url\` - Receipt for a paid call, fetchable at GET /receipts/{requestId} for 30 days
 
 ## Error Handling
 

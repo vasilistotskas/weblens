@@ -13,6 +13,7 @@ import { PAID_ENDPOINTS } from "./config";
 // Middleware
 import { errorHandler } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
+import { receiptMiddleware } from "./middleware/receipt";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { securityMiddleware } from "./middleware/security";
 
@@ -83,6 +84,9 @@ app.use("*", requestIdMiddleware);
 
 // Security headers
 app.use("*", securityMiddleware);
+
+// ERC-8004 receipts for paid calls (no-op for everything else)
+app.use("*", receiptMiddleware());
 
 
 // ============================================

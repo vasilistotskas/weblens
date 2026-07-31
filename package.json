@@ -1,7 +1,7 @@
 {
   "name": "weblens",
   "version": "2.0.0",
-  "description": "Premium Web Intelligence API with x402 micropayments — web scraping, screenshots, data extraction, AI research for autonomous agents",
+  "description": "Premium Web Intelligence API with x402 micropayments \u2014 web scraping, screenshots, data extraction, AI research for autonomous agents",
   "type": "module",
   "keywords": [
     "mcp",
@@ -39,6 +39,7 @@
     "@x402/extensions": "^2.19.0",
     "@x402/hono": "^2.19.0",
     "hono": "^4.12.32",
+    "viem": "^2.55.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -51,7 +52,6 @@
     "fast-check": "^4.9.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
-    "viem": "^2.55.8",
     "vitest": "^4.1.10",
     "wrangler": "^4.114.0"
   },

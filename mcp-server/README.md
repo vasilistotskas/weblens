@@ -2,6 +2,8 @@
 
 Give your AI agent web superpowers with WebLens. This MCP server lets Claude, Kiro, and other AI agents fetch and render webpages, take screenshots, search the web (plus news, images, places, shopping, scholar, trends), pull YouTube transcripts, extract structured data, answer questions with citations, run multi-step cited deep research, crawl and map sites, and run company/market intelligence - all with automatic x402 micropayments.
 
+**Don't pay to find out what you get.** `preview_endpoint` is free: it returns any paid endpoint's live price plus a real sample of its response shape, so an agent can decide before spending anything.
+
 ## Quick Setup
 
 ### Option 1: Remote HTTP Server (Recommended)
@@ -117,8 +119,20 @@ Or in JSON config:
 
 ## Available Tools
 
-30 tools, priced per call in USDC on Base. Prices below mirror the live API
-(`https://api.weblens.dev/openapi.json`).
+31 tools: one free evaluation tool plus 30 priced per call in USDC on Base. Prices below mirror
+the live API (`https://api.weblens.dev/openapi.json`).
+
+### Evaluation — free
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `preview_endpoint` | Live price, summary and a real sample of any paid endpoint's response shape, before you pay | free |
+
+> `preview_endpoint` runs a **real, truncated live preview** only for endpoints whose marginal cost
+> is a plain fetch — `/fetch/basic`, `/contents`, `/map` — and only when you pass a `url`. Every
+> other endpoint is backed by a metered upstream (SerpAPI, Anthropic), so a free live run would
+> burn upstream credits: those return a **recorded sample** instead, which still shows every field
+> name and type. An endpoint that isn't sold returns 404.
 
 ### Core — fetch, render, capture
 
@@ -206,6 +220,8 @@ Or in JSON config:
 ## Example Usage
 
 Once configured, your AI agent can use these tools naturally:
+
+> "Before you spend anything, preview what /answer costs and what it returns"
 
 > "Fetch the homepage of techcrunch.com and summarize the top stories"
 

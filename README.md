@@ -16,6 +16,68 @@ curl https://api.weblens.dev/r/https://example.com     # any page as markdown
 curl https://api.weblens.dev/s/cloudflare+workers      # web search
 ```
 
+## Preview before you pay (free)
+
+An agent shouldn't have to buy a call to learn what it returns. `POST /preview` is free and
+answers that up front — the live price, a one-line summary, and a real sample of the exact
+response shape:
+
+```bash
+curl -X POST https://api.weblens.dev/preview \
+  -H "Content-Type: application/json" \
+  -d '{"endpoint": "/answer"}'
+```
+
+```jsonc
+{
+  "endpoint": "/answer",
+  "price": "$0.05",
+  "currency": "USD",
+  "summary": "A direct answer with inline [n] citations to real sources.",
+  "sample": { "query": "...", "answer": "...", "citations": [], "confidence": 0.92 },
+  "sampleType": "recorded",
+  "livePreviewAvailable": false,
+  "livePreviewHint": "This endpoint calls a paid upstream provider, so free live previews are not offered — the recorded sample shows the exact response shape."
+}
+```
+
+**Live vs recorded.** A real, truncated live preview runs only for endpoints whose marginal cost
+is a plain fetch — currently `/fetch/basic`, `/contents` and `/map` — and only when you pass a
+`url`. Everything else is backed by a metered upstream (SerpAPI, Anthropic); running those free
+would burn upstream credits, so they return the recorded sample, which still shows every field
+name and type. An endpoint that isn't sold returns `404`.
+
+```bash
+# live: the first 500 chars of the real result, for free
+curl -X POST https://api.weblens.dev/preview \
+  -H "Content-Type: application/json" \
+  -d '{"endpoint": "/fetch/basic", "url": "https://example.com"}'
+```
+
+Rate limited to 10 requests/hour per IP like the rest of the free tier.
+
+## ERC-8004: receipts and feedback
+
+ERC-8004 (Trustless Agents) keeps compact signals on-chain and the detailed documents off-chain.
+WebLens hosts the **off-chain half** — the part a service operator can run without deploying a
+contract. To be precise about what that is and isn't: **WebLens is not registered on-chain, holds
+no agent id, and writes nothing to any registry.**
+
+| Endpoint | What it gives you |
+|----------|-------------------|
+| `GET /.well-known/agent-registration.json` | The ERC-8004 registration document: name, description, image, services, `x402Support`, payment info, feedback endpoints. `registrations` is empty (no on-chain registration) and `supportedTrust` is `["feedback"]`. |
+| `GET /receipts/{requestId}` | The receipt for a paid call — endpoint, status, outcome, price, payment method, network, pay-to. Every paid response returns `X-Receipt-Id` and `X-Receipt-Url` headers pointing here. Kept 30 days. |
+| `POST /feedback` | Host a feedback document *you* author; returns `{feedbackURI, feedbackHash}` (keccak-256), the pair `giveFeedback()` expects. Required fields: `agentRegistry`, `agentId`, `clientAddress`, `createdAt`, `value`, `valueDecimals` — a missing one returns `400` naming it. |
+| `GET /feedback/{id}` | Serves that document byte-for-byte, so its keccak-256 hash matches the `feedbackHash` you were given. This URL *is* the `feedbackURI`. |
+
+Two more things worth stating plainly:
+
+- A receipt's `mac` is a **symmetric HMAC tag** (the same construction as proof-of-context). Only a
+  holder of the key can verify it — it is not a third-party-verifiable signature, and nothing here
+  is trustless.
+- The **buyer** authors the feedback document and posts `giveFeedback()` themselves. WebLens only
+  hosts the document verbatim and returns its hash; it never authors, edits, or submits feedback.
+
 ## Endpoints
 
 All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
@@ -87,7 +149,7 @@ seconds**; `deep` (5 sub-questions, 12 sources, $0.35) takes longer. Set a gener
 | `/monitor/create` | URL change monitor with webhooks | $0.01 + $0.001/check |
 | `/credits/buy` | Prepay credits (bonus 20–40% at $10/$50/$100) | $2–$1000 |
 
-Free and unauthenticated: `/`, `/health`, `/docs`, `/openapi.json`, `/llms.txt`, `/discovery`, `/.well-known/x402`, `/mcp`, `/r/{url}`, `/s/{query}`, `/free/fetch`, `/free/search`.
+Free and unauthenticated: `/`, `/health`, `/docs`, `/openapi.json`, `/llms.txt`, `/discovery`, `/.well-known/x402`, `/mcp`, `/r/{url}`, `/s/{query}`, `/free/fetch`, `/free/search`, `/preview`, `/.well-known/agent-registration.json`, `/receipts/{requestId}`, `/feedback`, `/feedback/{id}`.
 
 Dynamically-priced endpoints (`/fetch/pro`, `/extract`) apply a complexity multiplier — up to 3× for bot-protected domains. Cached responses on the fetch family are **70% cheaper**. The exact price is always in the `402` challenge.
 

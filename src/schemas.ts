@@ -104,6 +104,13 @@ export const CrawlRequestSchema = z.object({
     timeout: timeoutSchema,
 });
 
+export const PreviewRequestSchema = z.object({
+    endpoint: z.string().min(1).max(100)
+        .describe("Paid endpoint path to preview, e.g. \"/answer\""),
+    url: urlSchema.optional()
+        .describe("For fetch-backed endpoints only: run a real truncated preview of this URL"),
+});
+
 export const DeepResearchRequestSchema = z.object({
     query: z.string().min(1).max(500).describe("The research question"),
     depth: z.enum(["standard", "deep"]).optional().default("standard")

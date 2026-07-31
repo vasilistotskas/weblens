@@ -37,6 +37,8 @@ const SERVICE_CATALOG = {
         "Bazaar listed - Discoverable via Coinbase Bazaar",
         "MCP support - Native Model Context Protocol integration",
         "Cache discount - 70% off for cached responses",
+        "Free previews - POST /preview returns the price and a real response sample before you pay",
+        "ERC-8004 ready - Off-chain registration document, per-call receipts, and hosted feedback documents",
     ],
     capabilities: [
         "web-scraping",
@@ -70,6 +72,11 @@ const SERVICE_CATALOG = {
         "web-intelligence",
         "cryptographic-proofs",
         "reputation-aware",
+        "free-previews",
+        "endpoint-previews",
+        "erc-8004",
+        "agent-reputation",
+        "call-receipts",
     ],
     useCases: [
         "AI agent web browsing and research",
@@ -83,6 +90,8 @@ const SERVICE_CATALOG = {
         "Document processing and extraction",
         "Multi-source comparison analysis",
         "Persistent agent memory across sessions",
+        "Evaluating an endpoint's price and response shape before paying",
+        "Citable payment receipts and ERC-8004 feedback for agent reputation",
     ],
     services: [
         {
@@ -470,6 +479,51 @@ const SERVICE_CATALOG = {
                 rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
                 tags: ["free", "search", "trial"],
             },
+            {
+                endpoint: "/preview",
+                method: "POST",
+                name: "Endpoint Preview",
+                description: "See a paid endpoint's live price and a real sample of its response shape before paying. Body: {endpoint, url?}. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; SerpAPI- and Anthropic-backed endpoints return the recorded sample instead, because free live runs there would burn upstream credits. 404 for an endpoint that is not sold.",
+                price: "free",
+                rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
+                tags: ["free", "free-previews", "endpoint-previews", "evaluation", "pricing"],
+            },
+            {
+                endpoint: "/.well-known/agent-registration.json",
+                method: "GET",
+                name: "ERC-8004 Registration Document",
+                description: "The ERC-8004 registration document (registration-v1): name, description, image, services, x402Support, payment, and feedback endpoints. Off-chain only — WebLens is not registered on-chain, holds no agent id, and writes nothing to any registry, so registrations is empty and supportedTrust is [\"feedback\"].",
+                price: "free",
+                rateLimit: "none",
+                tags: ["free", "erc-8004", "agent-reputation", "identity", "discovery"],
+            },
+            {
+                endpoint: "/receipts/{requestId}",
+                method: "GET",
+                name: "Call Receipt",
+                description: "Receipt for a paid call: endpoint, status, outcome, price, payment method, network, payTo. Paid responses carry X-Receipt-Id and X-Receipt-Url headers; receipts are kept 30 days. The mac field, when present, is a symmetric HMAC tag verifiable only by the key holder — not a third-party-verifiable signature.",
+                price: "free",
+                rateLimit: "none",
+                tags: ["free", "erc-8004", "call-receipts", "payment-evidence"],
+            },
+            {
+                endpoint: "/feedback",
+                method: "POST",
+                name: "Host ERC-8004 Feedback",
+                description: "Host a buyer-authored ERC-8004 feedback document and get back the (feedbackURI, feedbackHash) pair giveFeedback() expects. Required fields: agentRegistry, agentId, clientAddress, createdAt, value, valueDecimals. Stored verbatim — WebLens neither authors nor alters it and never calls the registry.",
+                price: "free",
+                rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
+                tags: ["free", "erc-8004", "agent-reputation", "feedback"],
+            },
+            {
+                endpoint: "/feedback/{id}",
+                method: "GET",
+                name: "Get Hosted Feedback",
+                description: "Serves a hosted feedback document byte-for-byte, so its keccak-256 hash matches the feedbackHash returned when it was stored. This URL is the feedbackURI.",
+                price: "free",
+                rateLimit: "none",
+                tags: ["free", "erc-8004", "agent-reputation", "feedback"],
+            },
         ],
         limits: {
             requestsPerHour: FREE_TIER.maxRequestsPerHour,
@@ -541,7 +595,8 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
             "headless-browser", "research-assistant", "news-search",
             "local-business-data", "youtube-transcripts", "grounded-answers",
             "deep-research", "cited-research",
-            "site-mapping", "sitemap-discovery", "web-crawling"
+            "site-mapping", "sitemap-discovery", "web-crawling",
+            "free-previews", "erc-8004", "agent-reputation", "call-receipts"
         ],
         capabilities: SERVICE_CATALOG.capabilities,
         endpoints: SERVICE_CATALOG.services.map(s => ({
@@ -569,7 +624,17 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
             searchReader: `${baseUrl}/s/cloudflare+workers`,
             fetch: `${baseUrl}/free/fetch`,
             search: `${baseUrl}/free/search`,
+            preview: `${baseUrl}/preview`,
             rateLimit: `${FREE_TIER.maxRequestsPerHour} requests/hour`,
+        },
+        erc8004: {
+            description: "Off-chain ERC-8004 surfaces only. WebLens is not registered on-chain, holds no agent id, and writes nothing to any registry.",
+            registration: `${baseUrl}/.well-known/agent-registration.json`,
+            receipt: `${baseUrl}/receipts/{requestId}`,
+            submitFeedback: `${baseUrl}/feedback`,
+            feedbackDocument: `${baseUrl}/feedback/{id}`,
+            hashAlgorithm: "keccak256",
+            supportedTrust: ["feedback"],
         },
     });
 }

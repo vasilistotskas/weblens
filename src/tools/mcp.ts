@@ -18,6 +18,18 @@ const MCP_VERSION = "2025-03-26";
 // inputSchema and asserts the endpoint's canonical Zod schema accepts it.
 export const TOOLS = [
   {
+    name: "preview_endpoint",
+    description: "FREE. See what a paid WebLens endpoint costs and what it returns before paying: the live price, a one-line summary, and a recorded sample of the exact response shape. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; SerpAPI- and Anthropic-backed endpoints return the recorded sample only, because free live runs there would burn upstream credits. Price: free",
+    inputSchema: {
+      type: "object",
+      properties: {
+        endpoint: { type: "string", description: "Paid endpoint path to preview, e.g. \"/answer\"" },
+        url: { type: "string", description: "Fetch-backed endpoints only (/fetch/basic, /contents, /map): run a real truncated preview of this URL" },
+      },
+      required: ["endpoint"],
+    },
+  },
+  {
     name: "fetch_webpage",
     description: `Fetch and convert a webpage to clean markdown. Fast, no JavaScript rendering. Price: ${PRICING.fetch.basic}`,
     inputSchema: {
@@ -404,6 +416,7 @@ export const TOOLS = [
 // `Partial<Record<...>>` lets us safely index by an unknown tool name and
 // branch on undefined for unknown tools.
 export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: string; price: string }>> = {
+  preview_endpoint:  { endpoint: "/preview",         method: "POST", price: "free" },
   fetch_webpage:     { endpoint: "/fetch/basic",     method: "POST", price: PRICING.fetch.basic },
   fetch_webpage_pro: { endpoint: "/fetch/pro",       method: "POST", price: PRICING.fetch.pro },
   fetch_resilient:   { endpoint: "/fetch/resilient", method: "POST", price: PRICING.fetch.resilient },
@@ -675,6 +688,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
     protocolVersion: MCP_VERSION,
     transport: "streamable-http",
     capabilities: [
+      "free-previews",
       "web-scraping",
       "javascript-rendering",
       "screenshot-capture",

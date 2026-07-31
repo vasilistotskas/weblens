@@ -162,6 +162,37 @@ const searchLimitField = z
 const pathFilterField = z.array(z.string().min(1).max(200)).max(20).optional();
 
 // ============================================
+// Evaluation — free, no payment
+// ============================================
+
+// Tool: Preview a paid endpoint before paying for it
+server.registerTool(
+  "preview_endpoint",
+  {
+    description:
+      "FREE. See what a paid WebLens endpoint costs and what it returns before paying: the live price, a one-line summary, and a recorded sample of the exact response shape. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; SerpAPI- and Anthropic-backed endpoints return the recorded sample only, because free live runs there would burn upstream credits. Price: free",
+    inputSchema: z.object({
+      endpoint: z
+        .string()
+        .min(1)
+        .max(100)
+        .describe("Paid endpoint path to preview, e.g. \"/answer\""),
+      url: urlField
+        .optional()
+        .describe(
+          "Fetch-backed endpoints only (/fetch/basic, /contents, /map): run a real truncated preview of this URL"
+        ),
+    }),
+  },
+  async ({ endpoint, url }) =>
+    runTool("preview endpoint", async () => {
+      const res = await client.post("/preview", { endpoint, url });
+      requireField(res.data?.price, "price");
+      return jsonResult(res.data);
+    })
+);
+
+// ============================================
 // Core — fetch, render, capture
 // ============================================
 

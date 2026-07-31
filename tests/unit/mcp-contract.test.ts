@@ -35,12 +35,15 @@ import {
     MapRequestSchema,
     CrawlRequestSchema,
     DeepResearchRequestSchema,
+    PreviewRequestSchema,
 } from "../../src/schemas";
 import { TOOLS, TOOL_ENDPOINTS } from "../../src/tools/mcp";
 import { companySchema, marketSchema, competitiveSchema, siteAuditSchema } from "../../src/tools/intel";
 
 /** Endpoint path → the schema its route registers with validateRequest. */
 const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
+    // Free, but still contract-checked: the tool must match the route's schema.
+    "/preview": PreviewRequestSchema,
     "/fetch/basic": FetchRequestSchema,
     "/fetch/pro": FetchRequestSchema,
     "/fetch/resilient": FetchRequestSchema,
