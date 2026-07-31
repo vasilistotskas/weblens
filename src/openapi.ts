@@ -389,6 +389,21 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Research results", content: { "application/json": { schema: { $ref: "#/components/schemas/ResearchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
+      "/research/deep": {
+        post: {
+          tags: ["Research"], summary: "Deep Research (Cited)", operationId: "deepResearch",
+          description: `Multi-step cited research in ONE synchronous call — no async job, no polling. Plans sub-questions from your query, runs a web search per sub-question, fetches and dedupes the sources across them, then synthesizes an answer with inline [n] citations, key findings, and gaps. Price: ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources). LATENCY: this is a long-running call — a standard run typically takes 30-60 seconds and deep takes longer, so set a generous HTTP client timeout (120s recommended). Differs from POST /research (${PRICING.research}, a single search + AI summary) by decomposing the question into sub-questions and citing every claim inline.`,
+          "x-payment-info": dynamicPayment(parsePrice(PRICING.deepResearch.standard), parsePrice(PRICING.deepResearch.deep)),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/DeepResearchRequest" }, example: { query: "How are AI agents using micropayments in 2026?", depth: "standard" } } } },
+          responses: {
+            "200": { description: "Cited research report", content: { "application/json": { schema: { $ref: "#/components/schemas/DeepResearchResponse" } } } },
+            "402": { $ref: "#/components/responses/PaymentRequired" },
+            "404": { description: "No web sources found for this query — nothing was charged for a failed run.", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "502": { description: "Research failed or timed out before completing.", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "503": { description: "AI service unavailable", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          },
+        },
+      },
       "/pdf": {
         post: {
           tags: ["Extraction"], summary: "Extract PDF", operationId: "extractPdf",
@@ -653,6 +668,28 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         },
         ResearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, resultCount: { type: "integer" }, includeRawContent: { type: "boolean" } } },
         ResearchResponse: { type: "object", properties: { query: { type: "string" }, sources: { type: "array" }, summary: { type: "string" }, keyFindings: { type: "array" }, researchedAt: { type: "string" }, requestId: { type: "string" } } },
+        DeepResearchRequest: {
+          type: "object", required: ["query"],
+          properties: {
+            query: { type: "string", minLength: 1, maxLength: 500, example: "How are AI agents using micropayments in 2026?", description: "The research question (1-500 chars)" },
+            depth: { type: "string", enum: ["standard", "deep"], description: `Research tier: standard = 3 sub-questions / 8 sources (${PRICING.deepResearch.standard}); deep = 5 sub-questions / 12 sources (${PRICING.deepResearch.deep}). Default: standard.` },
+          },
+        },
+        DeepResearchResponse: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            depth: { type: "string", enum: ["standard", "deep"] },
+            subQuestions: { type: "array", items: { type: "string" }, description: "The sub-questions the query was decomposed into, one web search each" },
+            answer: { type: "string", description: "Synthesized answer with inline [n] citation markers" },
+            keyFindings: { type: "array", items: { type: "string" }, description: "Bullet-point findings drawn from the sources" },
+            citations: { type: "array", items: { type: "object", properties: { index: { type: "integer" }, url: { type: "string" }, title: { type: "string" }, subQuestion: { type: "string" } } }, description: "Sources behind the [n] markers, with the sub-question each answered" },
+            gaps: { type: "array", items: { type: "string" }, description: "What the sources did not establish" },
+            sourcesFetched: { type: "integer", description: "Sources whose full page was fetched (the rest fall back to their search snippet)" },
+            researchedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
         PdfExtractRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com/document.pdf" }, pages: { type: "array", items: { type: "integer" } } } },
         PdfExtractResponse: { type: "object", properties: { url: { type: "string" }, metadata: { type: "object" }, pages: { type: "array" }, fullText: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
         CompareRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 3, example: ["https://product-a.com", "https://product-b.com"] }, focus: { type: "string" } } },
@@ -908,6 +945,14 @@ One-stop research: searches web, fetches top results, generates AI summary with 
 - Body: \`{"query": "string", "resultCount?": number, "includeRawContent?": boolean}\`
 - Returns: \`{"query", "sources", "summary", "keyFindings", "researchedAt", "requestId"}\`
 
+#### POST /research/deep
+Multi-step cited research in ONE synchronous call: plans sub-questions, runs a web search per sub-question, fetches and dedupes sources across them, then synthesizes an answer with inline [n] citations, key findings, and gaps.
+- Price: ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources)
+- Body: \`{"query": "string (1-500 chars)", "depth?": "standard"|"deep" (default standard)}\`
+- Returns: \`{"query", "depth", "subQuestions": ["string"], "answer", "keyFindings": ["string"], "citations": [{"index", "url", "title", "subQuestion"}], "gaps": ["string"], "sourcesFetched", "researchedAt", "requestId"}\`
+- **SLOW — set a generous HTTP timeout.** A standard run takes roughly 30-60 seconds (measured ~35s); deep takes longer. 120s client timeout recommended. Do not retry on client timeout — you would pay twice.
+- vs /research (${PRICING.research}): /research runs ONE search and returns a prose summary; /research/deep decomposes the question into sub-questions, searches each, and cites every claim inline with [n] markers you can resolve via the citations array.
+
 ### Social Data
 
 #### POST /social/youtube/transcript
@@ -1078,6 +1123,7 @@ For AI agents using Model Context Protocol:
 - \`extract_data\` - Extract structured data with JSON schema — ${PRICING.extract}
 - \`smart_extract\` - AI-powered natural-language extraction — ${PRICING.smartExtract}
 - \`research\` - Search + fetch + AI summary — ${PRICING.research}
+- \`deep_research\` - Multi-step cited research (sub-questions + inline [n] citations; 30-60s) — ${PRICING.deepResearch.standard} standard / ${PRICING.deepResearch.deep} deep
 - \`batch_fetch\` - Fetch multiple URLs in parallel — ${PRICING.batchFetch.perUrl}/URL
 - \`map_site\` - Discover a site's URLs via sitemap/robots/links — ${PRICING.map}
 - \`crawl_site\` - Bounded same-host crawl to markdown (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages} pages) — ${PRICING.crawl.perPage}/requested page

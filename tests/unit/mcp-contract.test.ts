@@ -34,6 +34,7 @@ import {
     AnswerRequestSchema,
     MapRequestSchema,
     CrawlRequestSchema,
+    DeepResearchRequestSchema,
 } from "../../src/schemas";
 import { TOOLS, TOOL_ENDPOINTS } from "../../src/tools/mcp";
 import { companySchema, marketSchema, competitiveSchema, siteAuditSchema } from "../../src/tools/intel";
@@ -58,6 +59,7 @@ const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
     "/extract": ExtractRequestSchema,
     "/extract/smart": SmartExtractRequestSchema,
     "/research": ResearchRequestSchema,
+    "/research/deep": DeepResearchRequestSchema,
     "/batch/fetch": BatchFetchRequestSchema,
     "/map": MapRequestSchema,
     "/crawl": CrawlRequestSchema,

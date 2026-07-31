@@ -48,6 +48,8 @@ const PRICE = {
   extract: "$0.03",
   smartExtract: "$0.035",
   research: "$0.08",
+  deepResearchStandard: "$0.20",
+  deepResearchDeep: "$0.35",
   pdf: "$0.01",
   compare: "$0.05",
   batchFetchPerUrl: "$0.003",
@@ -644,6 +646,51 @@ server.registerTool(
         includeRawContent,
       });
       return textResult(requireField(res.data?.summary, "summary"));
+    })
+);
+
+// Tool: Deep research (multi-step, cited)
+server.registerTool(
+  "deep_research",
+  {
+    description: `Multi-step cited research in one call: plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. Unlike \`research\` (${PRICE.research}, one search + summary) this decomposes the question and cites every claim. SLOW: a standard run takes ~30-60 seconds — use a generous client timeout and do not retry on timeout. Price: ${PRICE.deepResearchStandard} standard (3 sub-questions, 8 sources) / ${PRICE.deepResearchDeep} deep (5 sub-questions, 12 sources)`,
+    inputSchema: z.object({
+      query: queryField.describe("The research question (1-500 chars)"),
+      depth: z
+        .enum(["standard", "deep"])
+        .optional()
+        .describe(
+          `Research tier: standard = 3 sub-questions / 8 sources (${PRICE.deepResearchStandard}); deep = 5 / 12 (${PRICE.deepResearchDeep}). Default: standard`
+        ),
+    }),
+  },
+  async ({ query, depth }) =>
+    runTool("perform deep research", async () => {
+      const res = await client.post(
+        "/research/deep",
+        { query, depth },
+        // The pipeline runs several searches and fetches before synthesis;
+        // ~35s is typical for standard, so allow well beyond that.
+        { timeout: 180000 }
+      );
+      const answer = requireField(res.data?.answer, "answer");
+      return {
+        content: [
+          { type: "text", text: answer },
+          {
+            type: "text",
+            text: `Key findings:\n${JSON.stringify(res.data?.keyFindings ?? [], null, 2)}`,
+          },
+          {
+            type: "text",
+            text: `Citations:\n${JSON.stringify(res.data?.citations ?? [], null, 2)}`,
+          },
+          {
+            type: "text",
+            text: `Gaps:\n${JSON.stringify(res.data?.gaps ?? [], null, 2)}`,
+          },
+        ],
+      };
     })
 );
 

@@ -233,6 +233,18 @@ export const TOOLS = [
     },
   },
   {
+    name: "deep_research",
+    description: `Multi-step cited research in one call: plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. Unlike \`research\` (${PRICING.research}, one search + summary) this decomposes the question and cites every claim. SLOW: a standard run takes ~30-60 seconds — use a generous client timeout and do not retry on timeout. Price: ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources)`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The research question (1-500 chars)" },
+        depth: { type: "string", enum: ["standard", "deep"], description: `Research tier: standard = 3 sub-questions / 8 sources (${PRICING.deepResearch.standard}); deep = 5 / 12 (${PRICING.deepResearch.deep}). Default: standard` },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "extract_pdf",
     description: `Extract text and metadata from a PDF document. Price: ${PRICING.pdf}`,
     inputSchema: {
@@ -410,6 +422,7 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   extract_data:      { endpoint: "/extract",         method: "POST", price: PRICING.extract },
   smart_extract:     { endpoint: "/extract/smart",   method: "POST", price: PRICING.smartExtract },
   research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
+  deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
   batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
   map_site:          { endpoint: "/map",             method: "POST", price: PRICING.map },
   crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
@@ -675,6 +688,8 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       "trend-analysis",
       "youtube-transcripts",
       "grounded-answers",
+      "deep-research",
+      "cited-research",
       "bulk-page-contents",
       "site-mapping",
       "sitemap-discovery",

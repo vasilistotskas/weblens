@@ -61,7 +61,14 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 | `/pdf` | Extract text and metadata from a PDF | $0.01 |
 | `/answer` | Grounded answer with inline `[n]` citations | $0.05 |
 | `/research` | Search + fetch + AI summary with sources | $0.08 |
+| `/research/deep` | Multi-step cited research: sub-questions → search each → answer with inline `[n]` citations | $0.20–$0.35 |
 | `/compare` | Compare 2–3 webpages with AI analysis | $0.05 |
+
+`/research/deep` is the only long-running endpoint: it plans sub-questions, runs a web search per
+sub-question, fetches and dedupes the sources, then synthesizes a cited answer — all in one
+synchronous call. A `standard` run (3 sub-questions, 8 sources, $0.20) takes roughly **30–60
+seconds**; `deep` (5 sub-questions, 12 sources, $0.35) takes longer. Set a generous HTTP timeout
+(120s+) and don't retry on a client timeout, or you'll pay twice.
 
 ### Intelligence
 
@@ -130,6 +137,11 @@ curl -X POST https://api.weblens.dev/extract \
 curl -X POST https://api.weblens.dev/crawl \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com", "limit": 10, "maxDepth": 2}'
+
+# Deep research with inline citations (slow — 30-60s, so raise the client timeout)
+curl --max-time 120 -X POST https://api.weblens.dev/research/deep \
+  -H "Content-Type: application/json" \
+  -d '{"query": "How are AI agents using micropayments in 2026?", "depth": "standard"}'
 ```
 
 Each returns `402 Payment Required` with the price until you attach payment — see below.

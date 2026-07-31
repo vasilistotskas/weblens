@@ -1,6 +1,6 @@
 # WebLens MCP Server
 
-Give your AI agent web superpowers with WebLens. This MCP server lets Claude, Kiro, and other AI agents fetch and render webpages, take screenshots, search the web (plus news, images, places, shopping, scholar, trends), pull YouTube transcripts, extract structured data, answer questions with citations, crawl and map sites, and run company/market intelligence - all with automatic x402 micropayments.
+Give your AI agent web superpowers with WebLens. This MCP server lets Claude, Kiro, and other AI agents fetch and render webpages, take screenshots, search the web (plus news, images, places, shopping, scholar, trends), pull YouTube transcripts, extract structured data, answer questions with citations, run multi-step cited deep research, crawl and map sites, and run company/market intelligence - all with automatic x402 micropayments.
 
 ## Quick Setup
 
@@ -117,7 +117,7 @@ Or in JSON config:
 
 ## Available Tools
 
-29 tools, priced per call in USDC on Base. Prices below mirror the live API
+30 tools, priced per call in USDC on Base. Prices below mirror the live API
 (`https://api.weblens.dev/openapi.json`).
 
 ### Core — fetch, render, capture
@@ -165,7 +165,13 @@ Or in JSON config:
 |------|-------------|-------|
 | `answer_question` | Grounded answer with inline `[n]` citations, sourced from live web pages | $0.05 |
 | `research` | Search + fetch top results + AI summary with key findings | $0.08 |
+| `deep_research` | Multi-step cited research: sub-questions → a search each → dedupe sources → answer with inline `[n]` citations, key findings, gaps | $0.20 standard / $0.35 deep |
 | `compare_urls` | Compare 2-3 webpages, AI analysis of similarities and differences | $0.05 |
+
+> `deep_research` is **slow by design** — a `standard` run (3 sub-questions, 8 sources) takes
+> roughly 30-60 seconds and `deep` (5 sub-questions, 12 sources) takes longer. The tool waits
+> up to 180s; if your agent host has its own tool timeout, raise it. Never retry on a client
+> timeout — the request may still be settling and you would pay twice.
 
 ### Crawling
 
@@ -210,6 +216,8 @@ Once configured, your AI agent can use these tools naturally:
 > "Extract the product name, price and availability from this page as JSON"
 
 > "Answer with citations: what changed in the EU AI Act in 2026?"
+
+> "Do deep research on how AI agents are using micropayments in 2026 — cite your sources" (takes ~30-60s)
 
 > "Map every URL on docs.stripe.com, then crawl the 10 under /payments"
 

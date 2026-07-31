@@ -52,6 +52,8 @@ const SERVICE_CATALOG = {
         "trend-analysis",
         "youtube-transcripts",
         "grounded-answers",
+        "deep-research",
+        "cited-research",
         "bulk-page-contents",
         "site-mapping",
         "sitemap-discovery",
@@ -71,6 +73,7 @@ const SERVICE_CATALOG = {
     ],
     useCases: [
         "AI agent web browsing and research",
+        "Multi-step cited research with source attribution",
         "Automated fact-checking and verification",
         "Content aggregation and monitoring",
         "Whole-site crawling and knowledge base ingestion",
@@ -261,6 +264,16 @@ const SERVICE_CATALOG = {
             tags: ["research", "ai-summary", "analysis", "comprehensive"],
             latency: "10-30 seconds",
             rateLimit: "20/minute",
+        },
+        {
+            endpoint: "/research/deep",
+            method: "POST",
+            name: "Deep Research (Cited)",
+            description: `Multi-step cited research in one synchronous call — no async job or polling. Plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources). Long-running: use a generous client timeout.`,
+            price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}`,
+            tags: ["research", "deep-research", "cited-research", "citations", "ai-powered"],
+            latency: "30-60 seconds",
+            rateLimit: "10/minute",
         },
         {
             endpoint: "/batch/fetch",
@@ -527,6 +540,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
             "context-verification", "web-intelligence", "data-extraction",
             "headless-browser", "research-assistant", "news-search",
             "local-business-data", "youtube-transcripts", "grounded-answers",
+            "deep-research", "cited-research",
             "site-mapping", "sitemap-discovery", "web-crawling"
         ],
         capabilities: SERVICE_CATALOG.capabilities,

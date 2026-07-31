@@ -61,6 +61,18 @@ export const PRICING = {
   // Research endpoint
   research: "$0.08",
 
+  // Multi-step deep research (plan -> search per sub-question -> fetch ->
+  // cited synthesis). Worst-case upstream cost per tier, at SerpAPI's
+  // $0.015/search ceiling and Haiku 4.5 at $1/$5 per MTok:
+  //   standard: 3 searches ($0.045) + ~$0.02 AI = ~$0.065  -> $0.20 (3x)
+  //   deep:     5 searches ($0.075) + ~$0.03 AI = ~$0.105  -> $0.35 (3.3x)
+  // Changing DEEP_RESEARCH_TIERS in services/deep-research.ts changes those
+  // ceilings — reprice here if you do.
+  deepResearch: {
+    standard: "$0.20",
+    deep: "$0.35",
+  },
+
   // Smart extraction (AI-powered, higher cost)
   smartExtract: "$0.035",
 
@@ -119,7 +131,7 @@ export const PAID_ENDPOINTS: readonly string[] = [
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
   "/social/youtube/transcript", "/contents", "/answer",
-  "/map", "/crawl",
+  "/map", "/crawl", "/research/deep",
 ];
 
 // Free tier configuration - rate-limited access without payment

@@ -104,6 +104,12 @@ export const CrawlRequestSchema = z.object({
     timeout: timeoutSchema,
 });
 
+export const DeepResearchRequestSchema = z.object({
+    query: z.string().min(1).max(500).describe("The research question"),
+    depth: z.enum(["standard", "deep"]).optional().default("standard")
+        .describe("standard = 3 sub-questions / 8 sources; deep = 5 / 12"),
+});
+
 export const AnswerRequestSchema = z.object({
     query: z.string().min(1).max(500),
     sources: z.number().min(1).max(5).optional().default(3)

@@ -9,7 +9,8 @@ import {
     PdfRequestSchema,
     CompareRequestSchema,
     MapRequestSchema,
-    CrawlRequestSchema
+    CrawlRequestSchema,
+    DeepResearchRequestSchema
 } from "../schemas";
 import { getBatchFetchPrice, parsePrice } from "../services/pricing";
 
@@ -17,6 +18,7 @@ import { getBatchFetchPrice, parsePrice } from "../services/pricing";
 import { batchFetchHandler } from "../tools/batch-fetch";
 import { compareHandler } from "../tools/compare";
 import { crawlHandler } from "../tools/crawl";
+import { deepResearchHandler } from "../tools/deep-research";
 import { mapHandler } from "../tools/map";
 import { pdfHandler } from "../tools/pdf";
 import { researchHandler } from "../tools/research";
@@ -312,4 +314,59 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
         )
     );
     app.post("/crawl", crawlHandler);
+
+    // ============================================
+    // /research/deep — multi-step cited research
+    // ============================================
+    // Priced per depth tier. ONE resolver feeds both the credit debit and the
+    // x402 challenge so they can never diverge.
+    const deepResearchPrice = (c: AppContext): string => {
+        const body = c.get("validatedBody") as { depth?: string } | undefined;
+        return body?.depth === "deep" ? PRICING.deepResearch.deep : PRICING.deepResearch.standard;
+    };
+    app.use(
+        "/research/deep",
+        validateRequest(DeepResearchRequestSchema),
+        createCreditMiddleware((c) => deepResearchPrice(c as AppContext), "Deep Research"),
+        createLazyPaymentMiddleware(
+            "/research/deep",
+            (c) => Promise.resolve(deepResearchPrice(c)),
+            `Multi-step research in one call: plans sub-questions, searches each, fetches and dedupes sources, and synthesizes an answer with inline [n] citations, key findings, and gaps. ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources).`,
+            { query: "How are AI agents using micropayments in 2026?", depth: "standard" },
+            {
+                properties: {
+                    query: { type: "string", description: "The research question" },
+                    depth: { type: "string", enum: ["standard", "deep"], description: "standard = 3 sub-questions / 8 sources; deep = 5 / 12 (default: standard)" },
+                },
+                required: ["query"],
+            },
+            {
+                query: "How are AI agents using micropayments in 2026?",
+                depth: "standard",
+                subQuestions: ["x402 protocol adoption 2026", "AI agent payment volume statistics", "micropayment API pricing for agents"],
+                answer: "Agent micropayments consolidated around the x402 protocol in 2026 [1]. Transaction counts recovered sharply while average payment sizes fell [2][3].",
+                keyFindings: ["Transaction volume is dominated by a small number of gateways", "Median per-call price sits near $0.01"],
+                citations: [{ index: 1, url: "https://x402.org", title: "x402 Protocol", subQuestion: "x402 protocol adoption 2026" }],
+                gaps: ["Sources did not cover settlement failure rates"],
+                sourcesFetched: 8,
+                researchedAt: "2026-07-31T12:00:00.000Z",
+                requestId: "req_deepresearch123",
+            },
+            {
+                properties: {
+                    query: { type: "string" },
+                    depth: { type: "string" },
+                    subQuestions: { type: "array", description: "The sub-questions researched" },
+                    answer: { type: "string", description: "Synthesized answer with inline [n] citation markers" },
+                    keyFindings: { type: "array", description: "Bullet-point findings" },
+                    citations: { type: "array", description: "Citations with index, url, title, subQuestion" },
+                    gaps: { type: "array", description: "What the sources did not establish" },
+                    sourcesFetched: { type: "number" },
+                    researchedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/research/deep", deepResearchHandler);
 }
