@@ -4,8 +4,8 @@
  *
  * POST /fetch/resilient ($0.025)
  *
- * Tries WebLens native scraper first, falls back to Firecrawl → Zyte
- * via x402. Response includes which provider handled the request.
+ * Tries the native scraper first, falls back to headless Chromium.
+ * Response includes which tier handled the request.
  */
 
 import type { Context } from "hono";
@@ -46,7 +46,7 @@ export async function resilientFetchHandler(c: Context<{ Bindings: Env }>) {
         const normalizedUrl = urlValidation.normalized ?? url;
 
         // Execute resilient fetch with provider fallback chain
-        const result = await resilientFetch(normalizedUrl, timeout, c.env.CACHE);
+        const result = await resilientFetch(normalizedUrl, timeout, c.env.CACHE, c.env);
 
         return c.json({
             ...result,

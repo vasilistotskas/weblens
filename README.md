@@ -26,7 +26,7 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 |----------|-------------|-------|
 | `/fetch/basic` | Fetch a webpage as clean markdown | $0.005 |
 | `/fetch/pro` | Fetch with full JavaScript rendering (SPAs) | $0.015 |
-| `/fetch/resilient` | Multi-provider fallback (native → Firecrawl → Zyte) | $0.025 |
+| `/fetch/resilient` | Auto-fallback: native scraper → headless Chromium | $0.025 |
 | `/contents` | Bulk page text for 1–20 URLs | $0.002/URL |
 | `/screenshot` | Capture a webpage screenshot (PNG) | $0.02 |
 | `/batch/fetch` | Fetch 2–20 URLs in parallel | $0.003/URL |

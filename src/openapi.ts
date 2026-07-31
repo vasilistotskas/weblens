@@ -306,7 +306,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       "/fetch/resilient": {
         post: {
           tags: ["Core"], summary: "Resilient Fetch (Agent Prime)", operationId: "resilientFetch",
-          description: `Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Price: ${PRICING.fetch.resilient} (70% off on cache hits)`,
+          description: `Resilient fetch with automatic fallback: plain fetch first, then headless Chromium for client-rendered pages and sites that refuse bare HTTP clients. Price: ${PRICING.fetch.resilient} (70% off on cache hits)`,
           "x-payment-info": dynamicPayment(cachedMin(PRICING.fetch.resilient), parsePrice(PRICING.fetch.resilient)),
           requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchRequest" }, example: { url: "https://example.com" } } } },
           responses: { "200": { description: "Fetch results", content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
@@ -823,7 +823,7 @@ Fetch multiple URLs in parallel. Efficient for bulk operations.
 - Returns: \`{"results": [...], "summary", "totalPrice", "requestId"}\`
 
 #### POST /fetch/resilient
-Resilient fetch with automatic provider fallback (WebLens -> Firecrawl -> Zyte). Guarantees best-effort retrieval.
+Resilient fetch with automatic fallback: plain fetch first, then headless Chromium (JS rendering) when that fails. Best-effort retrieval in one call.
 - Price: ${PRICING.fetch.resilient}
 - Body: \`{"url": "string", "timeout?": number}\`
 - Returns: \`{"url", "content", "provider": {"id", "name"}, "tier", "fetchedAt", "requestId"}\`

@@ -5,9 +5,19 @@
  * Tracks success rates per provider and selects the best option.
  *
  * Architecture:
- *   WebLens native → Firecrawl (x402) → Zyte (x402)
+ *   WebLens native (plain fetch) → Cloudflare Browser Rendering (headless
+ *   Chromium). The browser tier recovers pages the plain fetch cannot get:
+ *   client-rendered SPAs, and sites that reject bare HTTP clients but serve
+ *   a real browser.
+ *
+ * History: this chain previously listed Firecrawl and Zyte "via x402", but
+ * those calls were never implemented (the code returned "not yet
+ * implemented" on 402) and both advertised endpoints 404. The endpoint was
+ * therefore charging a premium for plain fetch plus two doomed requests.
  */
 
+import type { Env } from "../types";
+import { hardenPage } from "../utils/browser-guard";
 import { safeFetch } from "../utils/safe-fetch";
 
 // ============================================
@@ -19,12 +29,8 @@ export interface ProviderConfig {
     readonly id: string;
     /** Human-readable name */
     readonly name: string;
-    /** Whether this is the native provider (no external x402 call) */
-    readonly isNative: boolean;
-    /** x402 endpoint URL for external providers */
-    readonly x402Endpoint?: string;
-    /** Base cost of external provider (used for margin calculation) */
-    readonly baseCost?: string;
+    /** Transport used to fetch: plain HTTP or headless Chromium. */
+    readonly transport: "native" | "browser";
     /** Provider capabilities */
     readonly capabilities: readonly ("basic" | "javascript" | "anti-bot" | "pdf")[];
     /** Priority order (lower = try first) */
@@ -88,27 +94,16 @@ export const PROVIDERS: readonly ProviderConfig[] = [
     {
         id: "weblens-native",
         name: "WebLens Native",
-        isNative: true,
+        transport: "native",
         capabilities: ["basic"],
         priority: 0,
     },
     {
-        id: "firecrawl-x402",
-        name: "Firecrawl",
-        isNative: false,
-        x402Endpoint: "https://api.firecrawl.dev/x402/scrape",
-        baseCost: "$0.01",
-        capabilities: ["basic", "javascript", "anti-bot"],
+        id: "weblens-browser",
+        name: "WebLens Browser",
+        transport: "browser",
+        capabilities: ["basic", "javascript"],
         priority: 1,
-    },
-    {
-        id: "zyte-x402",
-        name: "Zyte",
-        isNative: false,
-        x402Endpoint: "https://api.zyte.com/x402/fetch",
-        baseCost: "$0.015",
-        capabilities: ["basic", "javascript", "anti-bot", "pdf"],
-        priority: 2,
     },
 ] as const;
 
@@ -303,96 +298,67 @@ async function fetchViaNative(url: string, timeout: number): Promise<ProviderRes
 }
 
 /**
- * Attempt to fetch a URL via an external x402 provider.
- * In production, this would make an x402-signed HTTP request to the provider.
- * For now, we implement the interface and log the attempt.
+ * Attempt to fetch a URL via Cloudflare Browser Rendering (headless
+ * Chromium). Recovers client-rendered pages and sites that refuse bare HTTP
+ * clients. `hardenPage` re-validates every request the page makes, so
+ * redirects and subresources cannot reach internal addresses.
  */
-async function fetchViaExternal(
-    provider: ProviderConfig,
+async function fetchViaBrowser(
     url: string,
     timeout: number,
+    browser: Fetcher | undefined,
 ): Promise<ProviderResult> {
     const start = Date.now();
 
-    if (!provider.x402Endpoint) {
+    if (!browser) {
         return {
-            providerId: provider.id,
-            providerName: provider.name,
+            providerId: "weblens-browser",
+            providerName: "WebLens Browser",
             success: false,
             latencyMs: Date.now() - start,
-            error: "Provider has no x402 endpoint configured",
-            isProxied: true,
+            error: "Browser rendering is not available",
+            isProxied: false,
         };
     }
 
+    const puppeteer = (await import("@cloudflare/puppeteer")).default;
+    const instance = await puppeteer.launch(browser);
     try {
-        // Make x402 request to external provider
-        // The provider expects a POST with {url} and will return the fetched content
-        const response = await fetch(provider.x402Endpoint, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-            },
-            body: JSON.stringify({ url, timeout }),
-            signal: AbortSignal.timeout(timeout + 5000), // Extra buffer for x402 settlement
-        });
+        const page = await instance.newPage();
+        await hardenPage(page);
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout });
 
-        // If we get a 402, the external provider requires payment
-        // In the future, we'd sign and send an x402 payment here
-        if (response.status === 402) {
-            return {
-                providerId: provider.id,
-                providerName: provider.name,
-                success: false,
-                latencyMs: Date.now() - start,
-                error: "External provider requires x402 payment (not yet implemented for this provider)",
-                isProxied: true,
-            };
-        }
+        const html = await page.content();
+        const pageTitle = await page.title();
 
-        if (!response.ok) {
-            return {
-                providerId: provider.id,
-                providerName: provider.name,
-                success: false,
-                latencyMs: Date.now() - start,
-                error: `External provider returned HTTP ${String(response.status)}`,
-                isProxied: true,
-            };
-        }
-
-        interface ProviderResponse {
-            content?: unknown;
-            markdown?: unknown;
-            title?: unknown;
-            description?: unknown;
-        }
-
-         
-        const data: ProviderResponse = await response.json();
+        const { htmlToMarkdown, extractMetadata } = await import("../utils/parser");
+        const metadata = extractMetadata(html);
 
         return {
-            providerId: provider.id,
-            providerName: provider.name,
+            providerId: "weblens-browser",
+            providerName: "WebLens Browser",
             success: true,
-            content: typeof data.content === "string" ? data.content : typeof data.markdown === "string" ? data.markdown : "",
-            title: typeof data.title === "string" ? data.title : "",
+            content: htmlToMarkdown(html),
+            title: pageTitle !== "" ? pageTitle : metadata.title ?? "",
             metadata: {
-                description: typeof data.description === "string" ? data.description : undefined,
+                description: metadata.description,
+                author: metadata.author,
+                publishedAt: metadata.publishedAt,
             },
             latencyMs: Date.now() - start,
-            isProxied: true,
+            isProxied: false,
         };
     } catch (error) {
         return {
-            providerId: provider.id,
-            providerName: provider.name,
+            providerId: "weblens-browser",
+            providerName: "WebLens Browser",
             success: false,
             latencyMs: Date.now() - start,
             error: error instanceof Error ? error.message : "Unknown error",
-            isProxied: true,
+            isProxied: false,
         };
+    } finally {
+        await instance.close();
     }
 }
 
@@ -403,11 +369,12 @@ async function fetchViaProvider(
     provider: ProviderConfig,
     url: string,
     timeout: number,
+    env: Env | undefined,
 ): Promise<ProviderResult> {
-    if (provider.isNative) {
+    if (provider.transport === "native") {
         return fetchViaNative(url, timeout);
     }
-    return fetchViaExternal(provider, url, timeout);
+    return fetchViaBrowser(url, timeout, env?.BROWSER);
 }
 
 // ============================================
@@ -423,6 +390,7 @@ export async function resilientFetch(
     url: string,
     timeout: number,
     kv: KVNamespace | undefined,
+    env?: Env,
 ): Promise<ResilientFetchResult> {
     // Get stats for each provider
     const statsMap = new Map<string, ProviderStats>();
@@ -439,7 +407,7 @@ export async function resilientFetch(
 
     for (const provider of ordered) {
         attempts++;
-        const result = await fetchViaProvider(provider, url, timeout);
+        const result = await fetchViaProvider(provider, url, timeout, env);
 
         // Record outcome for stats tracking
         void recordProviderOutcome(kv, provider.id, result.success, result.latencyMs);

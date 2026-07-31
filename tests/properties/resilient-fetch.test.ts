@@ -29,11 +29,8 @@ describe("Provider selection logic", () => {
         expect(ordered[0].id).toBe("weblens-native");
         expect(ordered[0].priority).toBe(0);
 
-        expect(ordered[1].id).toBe("firecrawl-x402");
+        expect(ordered[1].id).toBe("weblens-browser");
         expect(ordered[1].priority).toBe(1);
-
-        expect(ordered[2].id).toBe("zyte-x402");
-        expect(ordered[2].priority).toBe(2);
     });
 
     it("sorts by success rate descending when priorities are equal", () => {
@@ -41,14 +38,14 @@ describe("Provider selection logic", () => {
             {
                 id: "p1",
                 name: "P1",
-                isNative: false,
+                transport: "browser",
                 capabilities: ["basic"],
                 priority: 1,
             },
             {
                 id: "p2",
                 name: "P2",
-                isNative: false,
+                transport: "browser",
                 capabilities: ["basic"],
                 priority: 1,
             },

@@ -106,7 +106,7 @@ const SERVICE_CATALOG = {
             endpoint: "/fetch/resilient",
             method: "POST",
             name: "Resilient Fetch (Agent Prime)",
-            description: "Multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte). Guarantees best-effort retrieval.",
+            description: "Multi-tier fetch with automatic fallback: native scraper, then headless Chromium for JS-rendered or bot-walled pages.",
             price: PRICING.fetch.resilient,
             tags: ["web-scraping", "resilient", "fallback", "premium"],
             latency: "2-10 seconds",

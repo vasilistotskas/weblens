@@ -169,7 +169,7 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
         createLazyPaymentMiddleware(
             "/fetch/resilient",
             cacheAwarePrice(PRICING.fetch.resilient),
-            "Resilient fetch with automatic provider fallback. Tries WebLens native scraper first, then falls back to Firecrawl and Zyte via x402.",
+            "Resilient fetch with automatic fallback. Tries the fast native scraper first, then re-fetches through headless Chromium for client-rendered pages and sites that refuse bare HTTP clients. The response reports which tier served it.",
             { url: "https://example.com", timeout: 10000 },
             {
                 properties: {

@@ -301,7 +301,7 @@ export const TOOLS = [
   },
   {
     name: "fetch_resilient",
-    description: `Resilient multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte). Price: ${PRICING.fetch.resilient}`,
+    description: `Resilient fetch with automatic fallback: native scraper first, then headless Chromium for JS-rendered or bot-walled pages. Price: ${PRICING.fetch.resilient}`,
     inputSchema: {
       type: "object",
       properties: {
