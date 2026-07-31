@@ -9,41 +9,25 @@
  */
 
 import type { Context } from "hono";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
+import type { FetchRequestSchema } from "../schemas";
 import { resilientFetch } from "../services/provider-registry";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
 
-const resilientFetchSchema = z.object({
-    url: z.url(),
-    timeout: z.number().min(1000).max(30000).default(10000),
-});
-
 /**
  * Resilient Fetch endpoint handler
  * POST /fetch/resilient
+ *
+ * Reads `validatedBody` like every other handler — the route registers
+ * validateRequest(FetchRequestSchema), so re-parsing here would duplicate
+ * work and (as it previously did) drift from the canonical bounds.
  */
 export async function resilientFetchHandler(c: Context<{ Bindings: Env }>) {
     const requestId = c.get("requestId");
 
     try {
-        const body: unknown = await c.req.json();
-        const parsed = resilientFetchSchema.safeParse(body);
-
-        if (!parsed.success) {
-            return c.json(
-                {
-                    error: "INVALID_REQUEST",
-                    code: "INVALID_REQUEST",
-                    message: "Invalid request parameters",
-                    requestId,
-                    details: parsed.error.issues,
-                },
-                400,
-            );
-        }
-
-        const { url, timeout } = parsed.data;
+        const { url, timeout } = c.get("validatedBody") as z.infer<typeof FetchRequestSchema>;
 
         // Validate URL
         const urlValidation = validateURL(url);

@@ -1,220 +1,216 @@
 # WebLens
 
-Premium Web Intelligence API with x402 micropayments. Give your AI agents web superpowers.
+Premium web intelligence API for AI agents, with x402 micropayments. No accounts, no API keys — pay per request in USDC on Base.
 
-🌐 **Live API:** https://api.weblens.dev  
-📖 **Docs:** https://api.weblens.dev/docs
+🌐 **Live API:** https://api.weblens.dev
+📖 **Interactive docs:** https://api.weblens.dev/docs
+🤖 **Agent guide:** https://api.weblens.dev/llms.txt
+🔎 **Marketplace:** [listed on x402scan](https://www.x402scan.com/server/529d8bbf-63d0-481c-93b2-21a92e2060d8)
 
-## Features
+## Try it free, right now
+
+No wallet, no signup — these are rate limited to 10 requests/hour per IP:
+
+```bash
+curl https://api.weblens.dev/r/https://example.com     # any page as markdown
+curl https://api.weblens.dev/s/cloudflare+workers      # web search
+```
+
+## Endpoints
+
+All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
+
+### Core
 
 | Endpoint | Description | Price |
 |----------|-------------|-------|
-| `/fetch/basic` | Fetch webpage as markdown | $0.005 |
-| `/fetch/pro` | Fetch with JavaScript rendering | $0.015 |
-| `/screenshot` | Capture webpage screenshot | $0.02 |
-| `/search` | Real-time web search | $0.005 |
-| `/extract` | Structured data extraction | $0.03 |
-| `/extract/smart` | AI-powered extraction | $0.035 |
-| `/research` | Search + fetch + summarize | $0.08 |
-| `/pdf` | Extract text from PDFs | $0.01 |
-| `/compare` | Compare 2-3 webpages | $0.05 |
-| `/batch/fetch` | Fetch multiple URLs | $0.003/URL |
+| `/fetch/basic` | Fetch a webpage as clean markdown | $0.005 |
+| `/fetch/pro` | Fetch with full JavaScript rendering (SPAs) | $0.015 |
+| `/fetch/resilient` | Multi-provider fallback (native → Firecrawl → Zyte) | $0.025 |
+| `/contents` | Bulk page text for 1–20 URLs | $0.002/URL |
+| `/screenshot` | Capture a webpage screenshot (PNG) | $0.02 |
+| `/batch/fetch` | Fetch 2–20 URLs in parallel | $0.003/URL |
+| `/map` | Discover a site's URLs (sitemaps + links, no page fetches) | $0.01 |
+| `/crawl` | Bounded whole-site crawl → markdown per page | $0.003/page |
 
-## Use with AI Agents (MCP)
+### Search
 
-**Option 1: Remote HTTP (no install needed)**
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `/search` | Real-time web search (`includeContent` adds page markdown, +$0.002/result) | $0.015 |
+| `/search/news` | Google News articles with source and date | $0.015 |
+| `/search/images` | Image results with dimensions and source pages | $0.015 |
+| `/search/places` | Local businesses: address, rating, phone, coordinates | $0.045 |
+| `/search/shopping` | Products with prices, sellers, ratings | $0.015 |
+| `/search/scholar` | Academic papers with citation counts | $0.015 |
+| `/search/autocomplete` | Query suggestions (keyword/intent research) | $0.015 |
+| `/search/trends` | Interest-over-time timeline | $0.015 |
+
+### Social
+
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `/social/youtube/transcript` | Full video transcript with timestamps | $0.03 |
+
+### Extraction & research
+
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `/extract` | Structured extraction against a JSON schema | $0.03 |
+| `/extract/smart` | Natural-language extraction (no schema needed) | $0.035 |
+| `/pdf` | Extract text and metadata from a PDF | $0.01 |
+| `/answer` | Grounded answer with inline `[n]` citations | $0.05 |
+| `/research` | Search + fetch + AI summary with sources | $0.08 |
+| `/compare` | Compare 2–3 webpages with AI analysis | $0.05 |
+
+### Intelligence
+
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `/intel/site-audit` | SEO / performance / security audit | $0.75 |
+| `/intel/company` | Company deep dive | $1.00 |
+| `/intel/market` | Market research report | $5.00 |
+| `/intel/competitive` | Competitive analysis with SWOT | $8.00 |
+
+### Utility
+
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `/memory/set` | Persistent key-value storage for agents | $0.001 |
+| `/monitor/create` | URL change monitor with webhooks | $0.01 + $0.001/check |
+| `/credits/buy` | Prepay credits (bonus 20–40% at $10/$50/$100) | $2–$1000 |
+
+Free and unauthenticated: `/`, `/health`, `/docs`, `/openapi.json`, `/llms.txt`, `/discovery`, `/.well-known/x402`, `/mcp`, `/r/{url}`, `/s/{query}`, `/free/fetch`, `/free/search`.
+
+Dynamically-priced endpoints (`/fetch/pro`, `/extract`) apply a complexity multiplier — up to 3× for bot-protected domains. Cached responses on the fetch family are **70% cheaper**. The exact price is always in the `402` challenge.
+
+## Use with AI agents (MCP)
+
+**Remote HTTP — nothing to install:**
 ```json
-{
-  "mcpServers": {
-    "weblens": {
-      "url": "https://api.weblens.dev/mcp"
-    }
-  }
-}
+{ "mcpServers": { "weblens": { "url": "https://api.weblens.dev/mcp" } } }
 ```
 
-**Option 2: Local with auto-payment**
+**Local with automatic payment:**
 ```json
 {
   "mcpServers": {
     "weblens": {
       "command": "npx",
       "args": ["-y", "@weblens/mcp"],
-      "env": {
-        "PRIVATE_KEY": "0xYourPrivateKeyHere"
-      }
+      "env": { "PRIVATE_KEY": "0xYourPrivateKeyHere" }
     }
   }
 }
 ```
 
-See [mcp-server/README.md](./mcp-server/README.md) for full setup instructions.
+See [mcp-server/README.md](./mcp-server/README.md) for the full tool list and setup.
 
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Set your wallet address
-cp .env.example .env
-# Edit .env with your wallet address
-
-# Run locally
-npm run dev
-
-# Deploy to Cloudflare Workers
-npm run deploy
-```
-
-## API Usage
-
-### Fetch Page
+## API usage
 
 ```bash
-curl -X POST http://localhost:8787/fetch \
+# Fetch a page as markdown
+curl -X POST https://api.weblens.dev/fetch/basic \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com"}'
+
+# Search, with page content included
+curl -X POST https://api.weblens.dev/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "latest AI news", "limit": 5, "includeContent": true}'
+
+# Structured extraction
+curl -X POST https://api.weblens.dev/extract \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/product",
+       "schema": {"title": {"type": "string"}, "price": {"type": "number"}},
+       "instructions": "Extract the product title and price"}'
+
+# Crawl a site (pay for the page budget you request)
+curl -X POST https://api.weblens.dev/crawl \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "limit": 10, "maxDepth": 2}'
 ```
 
-### Search Web
+Each returns `402 Payment Required` with the price until you attach payment — see below.
+
+## How payments work
+
+WebLens implements [x402](https://x402.org) v2:
+
+1. `POST` any paid endpoint with no payment.
+2. Get `402 Payment Required` with a `PAYMENT-REQUIRED` header carrying the price, network, asset, and pay-to address.
+3. Sign a USDC transfer authorization with your wallet.
+4. Retry the same request with a `Payment-Signature` header.
+5. The payment is verified on-chain and you get your data.
+
+Settlement runs through the [PayAI facilitator](https://facilitator.payai.network) on Base mainnet. Any x402 v2 client works — `@x402/axios`, `@x402/fetch`, or the bundled MCP server, which handles the whole flow for you.
+
+**Prepaid credits** are an alternative to per-request payment: buy credits with `/credits/buy`, then send `X-CREDIT-WALLET` / `X-CREDIT-SIGNATURE` / `X-CREDIT-TIMESTAMP` headers. Failed requests are refunded automatically.
+
+## Development
 
 ```bash
-curl -X POST http://localhost:8787/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "latest AI news", "limit": 5}'
+pnpm install
+pnpm run dev          # local dev server on :8787
+pnpm run build        # tsc --noEmit (type check)
+pnpm run lint         # eslint
+pnpm run test         # vitest (unit + property + workerd integration)
+pnpm run deploy       # wrangler deploy (production)
 ```
 
-### Extract Data
+Secrets are set with wrangler, never committed:
 
 ```bash
-curl -X POST http://localhost:8787/extract \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com/product",
-    "schema": {"price": "string", "title": "string"},
-    "instructions": "Extract the product price and title"
-  }'
+wrangler secret put SERP_API_KEY        # search + all verticals + transcripts
+wrangler secret put ANTHROPIC_API_KEY   # AI extraction, research, answers, intel
+wrangler secret put CDP_API_KEY_ID      # optional: CDP facilitator fallback
+wrangler secret put CDP_API_KEY_SECRET
 ```
 
-## Payment Flow
+| Variable | Purpose |
+|----------|---------|
+| `PAY_TO_ADDRESS` | Wallet that receives payments (`wrangler.toml` var) |
+| `NETWORK` | `base` (production) or `base-sepolia` (testnet) |
+| `SERP_API_KEY` | SerpAPI key — search, verticals, YouTube transcripts |
+| `ANTHROPIC_API_KEY` | Claude — extraction, research, answers, intel |
+| `SIGNING_PRIVATE_KEY` | Optional: HMAC key for proof-of-context tags |
+| `PAYAI_FACILITATOR_URL` | Optional: override the facilitator endpoint |
 
-1. Client makes request without payment
-2. Server responds with `402 Payment Required` + payment details
-3. Client signs payment with their wallet
-4. Client retries request with `X-PAYMENT` header
-5. Server verifies payment and returns data
+### Testing against testnet
 
-## Tech Stack
+```bash
+wrangler dev --env testnet          # Base Sepolia, fake USDC
+API_URL=http://localhost:8787 PRIVATE_KEY=0x... npx tsx scripts/test-payment-testnet.ts
+```
 
-- **Hono** - Ultrafast web framework
-- **x402** - Payment protocol
-- **Cloudflare Workers** - Edge deployment
-- **Zod** - Schema validation
+Get free testnet USDC from the [Circle faucet](https://faucet.circle.com/) on Base Sepolia.
 
-## Configuration
+### Discovery
 
-| Variable | Description |
-|----------|-------------|
-| `WALLET_ADDRESS` | Your wallet to receive payments |
-| `CDP_API_KEY_ID` | CDP API key for Bazaar discovery |
-| `CDP_API_KEY_SECRET` | CDP API secret |
-| `ANTHROPIC_API_KEY` | Optional: For AI extraction |
+```bash
+pnpm run verify-bazaar    # check the x402 discovery extension on every route
+```
 
-## How Payments Work
+`/openapi.json` doubles as the discovery document for [x402scan](https://www.x402scan.com/discovery/spec) — it carries `info.x-guidance`, per-operation `x-payment-info`, and `security: []` on free operations. WebLens is listed on x402scan and indexed in the PayAI facilitator catalog.
 
-WebLens uses the [x402 protocol](https://x402.org) for instant micropayments:
+> **Note on the Coinbase CDP Bazaar:** it only indexes services whose payments the CDP facilitator itself settles. WebLens uses PayAI as its primary facilitator (CDP has an open Base-mainnet settlement bug, [x402#1065](https://github.com/x402-foundation/x402/issues/1065)), so it does not appear there.
 
-1. Request any endpoint
-2. Get `402 Payment Required` with price
-3. Sign USDC payment with your wallet
-4. Retry with `X-PAYMENT` header
-5. Get your data (payment settles in ~1-2 seconds)
+## Tech stack
 
-No accounts. No API keys. No subscriptions. Just pay per use.
+- **Cloudflare Workers** — edge runtime, Durable Objects, KV, Browser Rendering
+- **Hono** — web framework
+- **x402** — HTTP-native micropayments
+- **Zod** — request validation
+- **Vitest** + fast-check — unit, property, and real-workerd integration tests
 
 ## Links
 
-- [API Documentation](https://api.weblens.dev/docs)
-- [x402 Protocol](https://x402.org)
-- [Bazaar Discovery](https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources)
+- [API documentation](https://api.weblens.dev/docs)
+- [LLM-optimized guide](https://api.weblens.dev/llms.txt)
+- [Service discovery](https://api.weblens.dev/discovery)
+- [x402 protocol](https://x402.org)
 
 ## License
 
 MIT
-
-
-## Testing & Validation
-
-### Run Unit Tests
-```bash
-npm test
-```
-
-### Validate Bazaar Discovery Configuration
-Check if all endpoints are properly configured for Coinbase Bazaar discovery:
-```bash
-npx tsx scripts/validate-bazaar.ts
-```
-
-This validates:
-- ✅ Bazaar extension structure
-- ✅ JSON Schema validity
-- ✅ Input/output examples
-- ✅ HTTP method declarations
-
-### Check Bazaar Listing Status
-See if WebLens is listed in the Coinbase Bazaar:
-```bash
-npx tsx scripts/check-bazaar-listing.ts
-```
-
-**Note:** Endpoints are automatically cataloged by the CDP facilitator when the first payment is processed. To get listed, someone needs to make a successful payment.
-
-### Test Payments (Production)
-Test with real USDC on Base mainnet:
-```bash
-$env:PRIVATE_KEY='0x...'  # Your wallet private key
-npx tsx scripts/test-payment.ts
-```
-
-**Requirements:**
-- Wallet must have USDC on Base mainnet
-- USDC contract: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
-- Estimated cost: ~$0.20 USDC for all endpoints
-
-### Test Payments (Testnet)
-Test with fake USDC on Base Sepolia testnet:
-```bash
-# Terminal 1: Start local testnet server
-npx wrangler dev --env testnet
-
-# Terminal 2: Run tests
-$env:API_URL='http://localhost:8787'
-$env:PRIVATE_KEY='0x...'
-npx tsx scripts/test-payment-testnet.ts
-```
-
-**Get testnet USDC:**
-- Faucet: https://faucet.circle.com/
-- Network: Base Sepolia
-- Free fake USDC for testing
-
-## Bazaar Discovery
-
-WebLens is configured for automatic discovery in the [Coinbase Bazaar](https://docs.cdp.coinbase.com/x402/bazaar), making it discoverable by AI agents.
-
-**How it works:**
-1. All endpoints include Bazaar discovery metadata
-2. CDP facilitator extracts metadata when processing payments
-3. Endpoints are automatically cataloged in the Bazaar
-4. AI agents can query `/discovery/resources` to find WebLens
-
-**Discovery metadata includes:**
-- Input schema (request parameters)
-- Output schema (response format)
-- Example requests and responses
-- Pricing information
-- Network support
-
-Run `npx tsx scripts/validate-bazaar.ts` to verify your configuration.

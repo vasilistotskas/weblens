@@ -14,7 +14,9 @@ import type { Env } from "../types";
 const MCP_VERSION = "2025-03-26";
 
 // Tool definitions for WebLens
-const TOOLS = [
+// Exported for the MCP-contract test, which samples each tool's declared
+// inputSchema and asserts the endpoint's canonical Zod schema accepts it.
+export const TOOLS = [
   {
     name: "fetch_webpage",
     description: `Fetch and convert a webpage to clean markdown. Fast, no JavaScript rendering. Price: ${PRICING.fetch.basic}`,
@@ -22,8 +24,9 @@ const TOOLS = [
       type: "object",
       properties: {
         url: { type: "string", description: "The URL to fetch" },
-        includeLinks: { type: "boolean", description: "Include links in output" },
-        includeImages: { type: "boolean", description: "Include image references" },
+        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Request timeout in ms (default 10000)" },
+        cache: { type: "boolean", description: "Serve from cache when available (default true; cached responses cost 70% less)" },
+        cacheTtl: { type: "number", minimum: 60, maximum: 86400, description: "Cache TTL in seconds (default 3600)" },
       },
       required: ["url"],
     },
@@ -35,7 +38,8 @@ const TOOLS = [
       type: "object",
       properties: {
         url: { type: "string", description: "The URL to fetch" },
-        waitFor: { type: "number", description: "Wait time in ms for JS to load" },
+        waitFor: { type: "string", description: "CSS selector to wait for before capturing content (e.g. \".content\")" },
+        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Request timeout in ms (default 15000)" },
       },
       required: ["url"],
     },
@@ -47,8 +51,8 @@ const TOOLS = [
       type: "object",
       properties: {
         url: { type: "string", description: "The URL to screenshot" },
-        width: { type: "number", description: "Viewport width (default: 1280)" },
-        height: { type: "number", description: "Viewport height (default: 720)" },
+        width: { type: "number", minimum: 320, maximum: 3840, description: "Viewport width (default 1280)" },
+        height: { type: "number", minimum: 240, maximum: 2160, description: "Viewport height (default 720)" },
         fullPage: { type: "boolean", description: "Capture full page scroll" },
       },
       required: ["url"],
@@ -65,7 +69,7 @@ const TOOLS = [
         limit: { type: "number", description: "Number of results (default: 10)" },
         includeContent: { type: "boolean", description: `Also fetch top result pages as markdown (+${PRICING.contents.perUrl}/result)` },
         contentResults: { type: "number", description: "How many top results to fetch content for (1-10, default: 5)" },
-        contentChars: { type: "number", description: "Per-page content character cap (500-20000, default: 8000)" },
+        contentChars: { type: "number", minimum: 500, maximum: 20000, description: "Per-page content character cap (default 8000)" },
       },
       required: ["query"],
     },
@@ -173,8 +177,8 @@ const TOOLS = [
       type: "object",
       properties: {
         urls: { type: "array", items: { type: "string" }, description: "URLs to fetch (1-20)" },
-        maxChars: { type: "number", description: "Per-page content character cap (default: 20000)" },
-        timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
+        maxChars: { type: "number", minimum: 500, maximum: 50000, description: "Per-page content character cap (default 20000)" },
+        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Per-URL timeout in ms (default 10000)" },
       },
       required: ["urls"],
     },
@@ -272,7 +276,7 @@ const TOOLS = [
         limit: { type: "number", description: "Maximum URLs to return (1-5000, default: 1000)" },
         include: { type: "array", items: { type: "string" }, description: "Only URLs whose path+query contains one of these substrings" },
         exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
-        timeout: { type: "number", description: "Timeout in ms (default: 10000)" },
+        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Timeout in ms (default 10000)" },
       },
       required: ["url"],
     },
@@ -289,8 +293,8 @@ const TOOLS = [
         include: { type: "array", items: { type: "string" }, description: "Only crawl URLs whose path+query contains one of these substrings" },
         exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
         respectRobots: { type: "boolean", description: "Honour robots.txt (default: true; disable only for sites you control)" },
-        maxChars: { type: "number", description: "Per-page content character cap (500-50000, default: 8000)" },
-        timeout: { type: "number", description: "Per-page timeout in ms (default: 10000)" },
+        maxChars: { type: "number", minimum: 500, maximum: 50000, description: "Per-page content character cap (default 8000)" },
+        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Per-page timeout in ms (default 10000)" },
       },
       required: ["url"],
     },
@@ -302,7 +306,7 @@ const TOOLS = [
       type: "object",
       properties: {
         url: { type: "string", description: "The URL to fetch" },
-        timeout: { type: "number", description: "Timeout in ms (default: 10000)" },
+        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Timeout in ms (default 10000)" },
       },
       required: ["url"],
     },
@@ -325,7 +329,7 @@ const TOOLS = [
       type: "object",
       properties: {
         topic: { type: "string", description: "Market or industry topic to research" },
-        depth: { type: "string", description: "Research depth: quick, standard, or comprehensive (default: standard)" },
+        depth: { type: "string", enum: ["quick", "standard", "comprehensive"], description: "Research depth (default standard)" },
         focus: { type: "string", description: "Optional focus area" },
       },
       required: ["topic"],
@@ -387,7 +391,7 @@ const TOOLS = [
 // the right HTTP endpoint) and `/mcp/info` (to expose structured pricing).
 // `Partial<Record<...>>` lets us safely index by an unknown tool name and
 // branch on undefined for unknown tools.
-const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: string; price: string }>> = {
+export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: string; price: string }>> = {
   fetch_webpage:     { endpoint: "/fetch/basic",     method: "POST", price: PRICING.fetch.basic },
   fetch_webpage_pro: { endpoint: "/fetch/pro",       method: "POST", price: PRICING.fetch.pro },
   fetch_resilient:   { endpoint: "/fetch/resilient", method: "POST", price: PRICING.fetch.resilient },

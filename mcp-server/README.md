@@ -1,6 +1,6 @@
 # WebLens MCP Server
 
-Give your AI agent web superpowers with WebLens. This MCP server lets Claude, Kiro, and other AI agents fetch webpages, take screenshots, search the web, and extract data - all with automatic x402 micropayments.
+Give your AI agent web superpowers with WebLens. This MCP server lets Claude, Kiro, and other AI agents fetch and render webpages, take screenshots, search the web (plus news, images, places, shopping, scholar, trends), pull YouTube transcripts, extract structured data, answer questions with citations, crawl and map sites, and run company/market intelligence - all with automatic x402 micropayments.
 
 ## Quick Setup
 
@@ -117,18 +117,85 @@ Or in JSON config:
 
 ## Available Tools
 
+29 tools, priced per call in USDC on Base. Prices below mirror the live API
+(`https://api.weblens.dev/openapi.json`).
+
+### Core — fetch, render, capture
+
 | Tool | Description | Price |
 |------|-------------|-------|
-| `fetch_webpage` | Fetch webpage as markdown (no JS) | $0.005 |
-| `fetch_webpage_pro` | Fetch with JavaScript rendering | $0.015 |
-| `screenshot` | Capture webpage screenshot | $0.02 |
-| `search_web` | Real-time web search | $0.005 |
-| `extract_data` | Extract data with CSS selectors | $0.03 |
-| `smart_extract` | AI-powered data extraction | $0.035 |
-| `research` | Search + fetch + AI summary | $0.08 |
-| `extract_pdf` | Extract text from PDFs | $0.01 |
-| `compare_urls` | Compare 2-3 webpages | $0.05 |
-| `batch_fetch` | Fetch multiple URLs | $0.003/URL |
+| `fetch_webpage` | Fetch a webpage as clean markdown (fast, no JS) | $0.005 |
+| `fetch_webpage_pro` | Fetch with full JavaScript rendering, optional CSS-selector wait | $0.015 |
+| `fetch_resilient` | Multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte) | $0.025 |
+| `screenshot` | Capture a webpage screenshot as a base64 PNG | $0.02 |
+
+> The three fetch tools accept `cache` / `cacheTtl`. A cache hit is billed at a 70% discount.
+
+### Search — web and SERP verticals
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `search_web` | Real-time web search; set `includeContent` to also fetch top result pages as markdown (+$0.002/result) | $0.015 |
+| `search_news` | Google News articles with source, date, thumbnail | $0.015 |
+| `search_images` | Google Images with direct URLs, dimensions, source pages | $0.015 |
+| `search_places` | Google Local businesses: address, rating, reviews, phone, coordinates | $0.045 |
+| `search_shopping` | Google Shopping products with prices, sellers, ratings | $0.015 |
+| `search_scholar` | Google Scholar papers with publication info and citation counts | $0.015 |
+| `search_autocomplete` | Google Autocomplete suggestions for keyword/intent research | $0.015 |
+| `search_trends` | Google Trends interest-over-time timeline | $0.015 |
+
+### Social
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `youtube_transcript` | Full YouTube transcript with timestamps (video ID or any YouTube URL) | $0.03 |
+
+### Extraction
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `get_contents` | Bulk page text: fetch 1-20 URLs, clean markdown per page | $0.002/URL |
+| `extract_data` | AI-powered structured extraction against a JSON schema you supply | $0.03 |
+| `smart_extract` | Extraction driven by a natural-language query (no schema needed) | $0.035 |
+| `extract_pdf` | Text and metadata from a PDF document | $0.01 |
+
+### Research & analysis
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `answer_question` | Grounded answer with inline `[n]` citations, sourced from live web pages | $0.05 |
+| `research` | Search + fetch top results + AI summary with key findings | $0.08 |
+| `compare_urls` | Compare 2-3 webpages, AI analysis of similarities and differences | $0.05 |
+
+### Crawling
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `batch_fetch` | Fetch 2-20 URLs in parallel | $0.003/URL |
+| `map_site` | Discover a site's URLs (robots.txt → sitemaps → link extraction), no page content | $0.01 |
+| `crawl_site` | Same-host BFS crawl, markdown for every page, one synchronous call | $0.003/page (1-25) |
+
+> `crawl_site` bills the **requested** page budget (`limit`), not the number of pages returned.
+
+### Intelligence
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `intel_company` | Company deep dive: tech stack, funding, team, competitors, news | $1.00 |
+| `intel_market` | Market research report: trends, key players, data points, actions | $5.00 |
+| `intel_competitive` | Competitive analysis: feature matrix, pricing, SWOT, positioning | $8.00 |
+| `intel_site_audit` | SEO, performance and security audit with scoring and recommendations | $0.75 |
+
+### Utility
+
+| Tool | Description | Price |
+|------|-------------|-------|
+| `monitor_create` | URL change monitor with webhook notifications (1-24h interval) | $0.01 |
+| `memory_set` | Store key-value data in persistent agent memory (TTL 1-720h) | $0.001 |
+
+> Prices for `fetch_webpage_pro` and `extract_data` are *base* prices — high-complexity
+> domains and deep URLs are quoted with a multiplier in the 402 challenge, which the
+> client pays automatically.
 
 ## Example Usage
 
@@ -140,9 +207,15 @@ Once configured, your AI agent can use these tools naturally:
 
 > "Search for 'best rust web frameworks 2025' and give me the top 5 results"
 
-> "Extract all product prices from this Amazon page"
+> "Extract the product name, price and availability from this page as JSON"
 
-> "Research the current state of AI regulation in the EU"
+> "Answer with citations: what changed in the EU AI Act in 2026?"
+
+> "Map every URL on docs.stripe.com, then crawl the 10 under /payments"
+
+> "Get the transcript of this YouTube video and pull out the three main claims"
+
+> "Give me a competitive analysis of Vercel"
 
 ## How Payments Work
 
