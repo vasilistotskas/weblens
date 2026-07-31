@@ -231,6 +231,8 @@ export type ErrorCode =
   // --- Routing (src/index.ts) ---
   | "METHOD_NOT_ALLOWED" // Non-POST on a POST-only paid endpoint (405)
   | "NOT_FOUND" // Unknown route (404)
+  // --- Crawl (tools/crawl.ts) ---
+  | "FORBIDDEN" // robots.txt disallows crawling the requested URL (403)
   // --- Free-tier reader/search (tools/reader.ts, tools/search-reader.ts) ---
   | "MISSING_URL" // Reader called without a URL (400)
   | "REDIRECT_BLOCKED" // Reader hit a blocked redirect target (400)

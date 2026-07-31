@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "./config";
+import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG, PRICING } from "./config";
 
 /**
  * WebLens API Schemas
@@ -72,6 +72,34 @@ export const YoutubeTranscriptRequestSchema = z.object({
 export const ContentsRequestSchema = z.object({
     urls: z.array(urlSchema).min(1).max(20),
     maxChars: z.number().min(500).max(50000).optional().default(20000)
+        .describe("Per-page content character cap"),
+    timeout: timeoutSchema,
+});
+
+// Path filters are plain substrings (not regex) so a caller cannot supply a
+// catastrophic-backtracking pattern.
+const pathFilterSchema = z.array(z.string().min(1).max(200)).max(20).optional().default([]);
+
+export const MapRequestSchema = z.object({
+    url: urlSchema,
+    limit: z.number().min(1).max(5000).optional().default(1000)
+        .describe("Maximum URLs to return"),
+    include: pathFilterSchema.describe("Only URLs whose path+query contains one of these"),
+    exclude: pathFilterSchema.describe("Skip URLs whose path+query contains one of these"),
+    timeout: timeoutSchema,
+});
+
+export const CrawlRequestSchema = z.object({
+    url: urlSchema,
+    limit: z.number().min(PRICING.crawl.minPages).max(PRICING.crawl.maxPages).optional().default(10)
+        .describe("Page budget — you are charged per requested page"),
+    maxDepth: z.number().min(0).max(3).optional().default(2)
+        .describe("Link depth from the start URL (0 = start page only)"),
+    include: pathFilterSchema.describe("Only crawl URLs whose path+query contains one of these"),
+    exclude: pathFilterSchema.describe("Skip URLs whose path+query contains one of these"),
+    respectRobots: z.boolean().optional().default(true)
+        .describe("Honour robots.txt (default true; disable only for sites you control)"),
+    maxChars: z.number().min(500).max(50000).optional().default(8000)
         .describe("Per-page content character cap"),
     timeout: timeoutSchema,
 });

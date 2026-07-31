@@ -263,6 +263,39 @@ const TOOLS = [
     },
   },
   {
+    name: "map_site",
+    description: `Discover a site's URLs without fetching page content — reads robots.txt sitemap directives, sitemap.xml and nested sitemap indexes, falling back to homepage link extraction. Price: ${PRICING.map}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "Site URL to map" },
+        limit: { type: "number", description: "Maximum URLs to return (1-5000, default: 1000)" },
+        include: { type: "array", items: { type: "string" }, description: "Only URLs whose path+query contains one of these substrings" },
+        exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
+        timeout: { type: "number", description: "Timeout in ms (default: 10000)" },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "crawl_site",
+    description: `Crawl a site and get clean markdown for every page in one synchronous call (no polling). Same-host BFS with depth and page-budget limits, robots.txt honoured by default. Price: ${PRICING.crawl.perPage} per requested page (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}) — you are billed for the requested budget, not the pages returned`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "Start URL — the crawl stays on this host" },
+        limit: { type: "number", description: `Page budget (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}, default: 10) — charged per requested page` },
+        maxDepth: { type: "number", description: "Link depth from the start URL (0-3, default: 2)" },
+        include: { type: "array", items: { type: "string" }, description: "Only crawl URLs whose path+query contains one of these substrings" },
+        exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
+        respectRobots: { type: "boolean", description: "Honour robots.txt (default: true; disable only for sites you control)" },
+        maxChars: { type: "number", description: "Per-page content character cap (500-50000, default: 8000)" },
+        timeout: { type: "number", description: "Per-page timeout in ms (default: 10000)" },
+      },
+      required: ["url"],
+    },
+  },
+  {
     name: "fetch_resilient",
     description: `Resilient multi-provider fetch with automatic fallback (WebLens → Firecrawl → Zyte). Price: ${PRICING.fetch.resilient}`,
     inputSchema: {
@@ -374,6 +407,8 @@ const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: string;
   smart_extract:     { endpoint: "/extract/smart",   method: "POST", price: PRICING.smartExtract },
   research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
   batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
+  map_site:          { endpoint: "/map",             method: "POST", price: PRICING.map },
+  crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
   extract_pdf:       { endpoint: "/pdf",             method: "POST", price: PRICING.pdf },
   compare_urls:      { endpoint: "/compare",         method: "POST", price: PRICING.compare },
   monitor_create:    { endpoint: "/monitor/create",  method: "POST", price: PRICING.monitor.setup },
@@ -637,6 +672,9 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
       "youtube-transcripts",
       "grounded-answers",
       "bulk-page-contents",
+      "site-mapping",
+      "sitemap-discovery",
+      "web-crawling",
       "data-extraction",
       "ai-powered-analysis",
       "pdf-extraction",

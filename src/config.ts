@@ -45,6 +45,19 @@ export const PRICING = {
     maxUrls: 20,
   },
 
+  // Site URL discovery (sitemap/robots/link based). A handful of subrequests
+  // regardless of site size, so a flat price stays profitable.
+  map: "$0.01",
+
+  // Bounded whole-site crawl. Priced per requested page (the page budget the
+  // caller reserves), consistent with batch fetch. Native fetch + markdown,
+  // so marginal cost is CPU only.
+  crawl: {
+    perPage: "$0.003",
+    minPages: 1,
+    maxPages: 25,
+  },
+
   // Research endpoint
   research: "$0.08",
 
@@ -106,6 +119,7 @@ export const PAID_ENDPOINTS: readonly string[] = [
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
   "/social/youtube/transcript", "/contents", "/answer",
+  "/map", "/crawl",
 ];
 
 // Free tier configuration - rate-limited access without payment
@@ -126,6 +140,18 @@ export const FREE_TIER = {
 // CDP_API_KEY_SECRET, FACILITATOR_URL, PAYAI_FACILITATOR_URL). See
 // getResourceServer() in payment.ts for the full branch logic.
 export const SUPPORTED_NETWORKS = ["base"] as const;
+
+// Crawl/map execution bounds. Workers on paid plans allow 10k subrequests per
+// invocation and bill CPU (not network wait), so these are set for predictable
+// latency rather than platform headroom.
+export const CRAWL_LIMITS = {
+  concurrency: 5,       // simultaneous page fetches per batch
+  maxQueued: 500,       // cap on the discovered-URL frontier
+  // Sitemap documents fetched per /map call. Real sites nest: both
+  // developers.cloudflare.com and x402.org serve a sitemap *index* whose
+  // children must be fetched, so this needs headroom above the index itself.
+  maxSitemapDocs: 10,
+} as const;
 
 // Viewport bounds for screenshots
 export const VIEWPORT_BOUNDS = {

@@ -312,6 +312,31 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Fetch results", content: { "application/json": { schema: { $ref: "#/components/schemas/ResilientFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
+      "/map": {
+        post: {
+          tags: ["Core"], summary: "Map Site URLs", operationId: "mapSite",
+          description: `Discover a site's URLs without fetching page content: robots.txt Sitemap: directives, then sitemap.xml and nested sitemap indexes, falling back to homepage link extraction. Price: ${PRICING.map}`,
+          "x-payment-info": fixedPayment(PRICING.map),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MapRequest" }, example: { url: "https://example.com", limit: 1000 } } } },
+          responses: { "200": { description: "Discovered URLs", content: { "application/json": { schema: { $ref: "#/components/schemas/MapResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/crawl": {
+        post: {
+          tags: ["Core"], summary: "Crawl Site", operationId: "crawlSite",
+          description: `Bounded same-host BFS crawl returning clean markdown for every page in ONE synchronous call — no async job, no polling. robots.txt is honoured by default. Price: ${PRICING.crawl.perPage} per requested page (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}) — you are charged for the page budget you request (limit), not for the pages actually returned.`,
+          "x-payment-info": dynamicPayment(
+            parsePrice(PRICING.crawl.perPage) * PRICING.crawl.minPages,
+            parsePrice(PRICING.crawl.perPage) * PRICING.crawl.maxPages,
+          ),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/CrawlRequest" }, example: { url: "https://example.com", limit: 10, maxDepth: 2 } } } },
+          responses: {
+            "200": { description: "Crawled pages as markdown", content: { "application/json": { schema: { $ref: "#/components/schemas/CrawlResponse" } } } },
+            "402": { $ref: "#/components/responses/PaymentRequired" },
+            "403": { description: "robots.txt disallows crawling the start URL. Set respectRobots=false only for sites you control.", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          },
+        },
+      },
       "/dashboard": {
         get: {
           tags: ["System"], summary: "Agent Dashboard", operationId: "getDashboard",
@@ -581,6 +606,51 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         BatchFetchResponse: { type: "object", properties: { results: { type: "array" }, summary: { type: "object" }, totalPrice: { type: "string" }, requestId: { type: "string" } } },
         ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" }, timeout: { type: "integer" } } },
         ResilientFetchResponse: { type: "object", properties: { url: { type: "string" }, title: { type: "string" }, content: { type: "string" }, provider: { type: "object" }, tier: { type: "string" }, fetchedAt: { type: "string" }, requestId: { type: "string" } } },
+        MapRequest: {
+          type: "object", required: ["url"],
+          properties: {
+            url: { type: "string", format: "uri", example: "https://example.com", description: "Site URL to map — the origin is used for robots.txt and sitemap lookups" },
+            limit: { type: "integer", minimum: 1, maximum: 5000, description: "Maximum URLs to return (default 1000)" },
+            include: { type: "array", items: { type: "string" }, description: "Only URLs whose path+query contains one of these substrings" },
+            exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
+            timeout: { type: "integer", minimum: 5000, maximum: 30000 },
+          },
+        },
+        MapResponse: {
+          type: "object",
+          properties: {
+            url: { type: "string" },
+            urls: { type: "array", items: { type: "string" }, description: "Discovered same-host URLs" },
+            total: { type: "integer" },
+            source: { type: "string", enum: ["sitemap", "links", "none"], description: "Where the URLs came from" },
+            sitemapsChecked: { type: "integer", description: "Sitemap documents fetched (including nested indexes)" },
+            mappedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
+        CrawlRequest: {
+          type: "object", required: ["url"],
+          properties: {
+            url: { type: "string", format: "uri", example: "https://example.com", description: "Start URL — the crawl stays on this host" },
+            limit: { type: "integer", minimum: PRICING.crawl.minPages, maximum: PRICING.crawl.maxPages, description: `Page budget (default 10) — you are charged ${PRICING.crawl.perPage} per requested page, not per page returned` },
+            maxDepth: { type: "integer", minimum: 0, maximum: 3, description: "Link depth from the start URL (0 = start page only, default 2)" },
+            include: { type: "array", items: { type: "string" }, description: "Only crawl URLs whose path+query contains one of these substrings" },
+            exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
+            respectRobots: { type: "boolean", description: "Honour robots.txt (default true; disable only for sites you control)" },
+            maxChars: { type: "integer", minimum: 500, maximum: 50000, description: "Per-page content character cap (default 8000)" },
+            timeout: { type: "integer", minimum: 5000, maximum: 30000 },
+          },
+        },
+        CrawlResponse: {
+          type: "object",
+          properties: {
+            url: { type: "string" },
+            pages: { type: "array", items: { type: "object", properties: { url: { type: "string" }, depth: { type: "integer" }, status: { type: "string", enum: ["success", "failed"] }, title: { type: "string" }, content: { type: "string", description: "Page as clean markdown" }, truncated: { type: "boolean" }, error: { type: "string" } } } },
+            summary: { type: "object", properties: { crawled: { type: "integer" }, successful: { type: "integer" }, failed: { type: "integer" }, discovered: { type: "integer" }, limit: { type: "integer" }, maxDepth: { type: "integer" }, robotsRespected: { type: "boolean" } } },
+            crawledAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
         ResearchRequest: { type: "object", required: ["query"], properties: { query: { type: "string" }, resultCount: { type: "integer" }, includeRawContent: { type: "boolean" } } },
         ResearchResponse: { type: "object", properties: { query: { type: "string" }, sources: { type: "array" }, summary: { type: "string" }, keyFindings: { type: "array" }, researchedAt: { type: "string" }, requestId: { type: "string" } } },
         PdfExtractRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com/document.pdf" }, pages: { type: "array", items: { type: "integer" } } } },
@@ -763,6 +833,18 @@ Cheap bulk page text: fetch ${PRICING.contents.minUrls}-${PRICING.contents.maxUr
 - Price: ${PRICING.contents.perUrl} per URL (${PRICING.contents.minUrls}-${PRICING.contents.maxUrls} URLs)
 - Body: \`{"urls": ["string"], "maxChars?": number, "timeout?": number}\`
 - Returns: \`{"results": [{"url", "status", "title", "content", "truncated", "error?"}], "summary": {"total", "successful", "failed"}, "fetchedAt", "requestId"}\`
+
+#### POST /map
+Discover a site's URLs without fetching page content: robots.txt Sitemap: directives, then sitemap.xml and nested sitemap indexes, falling back to homepage link extraction.
+- Price: ${PRICING.map}
+- Body: \`{"url": "string", "limit?": number (1-5000, default 1000), "include?": ["string"], "exclude?": ["string"], "timeout?": number}\`
+- Returns: \`{"url", "urls": ["string"], "total", "source": "sitemap"|"links"|"none", "sitemapsChecked", "mappedAt", "requestId"}\`
+
+#### POST /crawl
+Bounded same-host BFS crawl returning clean markdown for every page in ONE synchronous call — no async job, no polling. robots.txt honoured by default (403 FORBIDDEN if it disallows the start URL).
+- Price: ${PRICING.crawl.perPage} per requested page (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages}) — billed on the page budget you request (\`limit\`), not on pages actually returned
+- Body: \`{"url": "string", "limit?": number (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages}, default 10), "maxDepth?": number (0-3, default 2), "include?": ["string"], "exclude?": ["string"], "respectRobots?": boolean (default true), "maxChars?": number (500-50000, default 8000), "timeout?": number}\`
+- Returns: \`{"url", "pages": [{"url", "depth", "status", "title?", "content?", "truncated?", "error?"}], "summary": {"crawled", "successful", "failed", "discovered", "limit", "maxDepth", "robotsRespected"}, "crawledAt", "requestId"}\`
 
 ### Search & Research
 
@@ -997,6 +1079,8 @@ For AI agents using Model Context Protocol:
 - \`smart_extract\` - AI-powered natural-language extraction — ${PRICING.smartExtract}
 - \`research\` - Search + fetch + AI summary — ${PRICING.research}
 - \`batch_fetch\` - Fetch multiple URLs in parallel — ${PRICING.batchFetch.perUrl}/URL
+- \`map_site\` - Discover a site's URLs via sitemap/robots/links — ${PRICING.map}
+- \`crawl_site\` - Bounded same-host crawl to markdown (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages} pages) — ${PRICING.crawl.perPage}/requested page
 - \`extract_pdf\` - Extract text from PDFs — ${PRICING.pdf}
 - \`compare_urls\` - Compare 2-3 webpages — ${PRICING.compare}
 - \`monitor_create\` - Create URL change monitor — ${PRICING.monitor.setup}

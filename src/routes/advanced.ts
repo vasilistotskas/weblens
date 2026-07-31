@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { PRICING } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
@@ -7,16 +7,22 @@ import {
     BatchFetchRequestSchema,
     ResearchRequestSchema,
     PdfRequestSchema,
-    CompareRequestSchema
+    CompareRequestSchema,
+    MapRequestSchema,
+    CrawlRequestSchema
 } from "../schemas";
-import { getBatchFetchPrice } from "../services/pricing";
+import { getBatchFetchPrice, parsePrice } from "../services/pricing";
 
 // Tool Handlers
 import { batchFetchHandler } from "../tools/batch-fetch";
 import { compareHandler } from "../tools/compare";
+import { crawlHandler } from "../tools/crawl";
+import { mapHandler } from "../tools/map";
 import { pdfHandler } from "../tools/pdf";
 import { researchHandler } from "../tools/research";
 import type { Env, Variables } from "../types";
+
+type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
 export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
 
@@ -207,4 +213,103 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
         )
     );
     app.post("/compare", compareHandler);
+
+    // ============================================
+    // /map — site URL discovery
+    // ============================================
+    app.use(
+        "/map",
+        validateRequest(MapRequestSchema),
+        createCreditMiddleware(PRICING.map, "Site Map"),
+        createLazyPaymentMiddleware(
+            "/map",
+            PRICING.map,
+            "Discover a site's URLs without fetching page content. Reads robots.txt sitemap directives, sitemap.xml and nested sitemap indexes, falling back to homepage link extraction.",
+            { url: "https://example.com", limit: 1000 },
+            {
+                properties: {
+                    url: { type: "string", description: "Site URL to map" },
+                    limit: { type: "number", description: "Maximum URLs to return (default 1000, max 5000)", maximum: 5000 },
+                    include: { type: "array", description: "Only URLs whose path+query contains one of these substrings" },
+                    exclude: { type: "array", description: "Skip URLs whose path+query contains one of these substrings" },
+                },
+                required: ["url"],
+            },
+            {
+                url: "https://example.com",
+                urls: ["https://example.com/about", "https://example.com/blog/post-1"],
+                total: 2,
+                source: "sitemap",
+                sitemapsChecked: 1,
+                mappedAt: "2026-07-31T12:00:00.000Z",
+                requestId: "req_map123",
+            },
+            {
+                properties: {
+                    url: { type: "string" },
+                    urls: { type: "array", description: "Discovered URLs" },
+                    total: { type: "number" },
+                    source: { type: "string", description: "sitemap | links | none" },
+                    sitemapsChecked: { type: "number" },
+                    mappedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/map", mapHandler);
+
+    // ============================================
+    // /crawl — bounded whole-site crawl
+    // ============================================
+    // Priced on the requested page budget. ONE resolver feeds both the credit
+    // debit and the x402 challenge so they can never diverge.
+    const crawlPrice = (c: AppContext): string => {
+        const body = c.get("validatedBody") as { limit?: number } | undefined;
+        const pages = typeof body?.limit === "number" ? body.limit : 10;
+        return `$${(pages * parsePrice(PRICING.crawl.perPage)).toFixed(3)}`;
+    };
+    app.use(
+        "/crawl",
+        validateRequest(CrawlRequestSchema),
+        createCreditMiddleware((c) => crawlPrice(c as AppContext), "Site Crawl"),
+        createLazyPaymentMiddleware(
+            "/crawl",
+            (c) => Promise.resolve(crawlPrice(c)),
+            `Crawl a site and get clean markdown for every page, in one call. Same-host BFS with depth and page-budget limits, robots.txt honoured by default. ${PRICING.crawl.perPage} per requested page (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}).`,
+            { url: "https://example.com", limit: 10, maxDepth: 2 },
+            {
+                properties: {
+                    url: { type: "string", description: "Start URL" },
+                    limit: { type: "number", description: `Page budget, ${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)} (default 10)`, maximum: PRICING.crawl.maxPages },
+                    maxDepth: { type: "number", description: "Link depth from the start URL, 0-3 (default 2)", maximum: 3 },
+                    include: { type: "array", description: "Only crawl URLs whose path+query contains one of these substrings" },
+                    exclude: { type: "array", description: "Skip URLs whose path+query contains one of these substrings" },
+                    respectRobots: { type: "boolean", description: "Honour robots.txt (default true)" },
+                    maxChars: { type: "number", description: "Per-page content character cap (default 8000)" },
+                },
+                required: ["url"],
+            },
+            {
+                url: "https://example.com",
+                pages: [
+                    { url: "https://example.com", depth: 0, status: "success", title: "Example", content: "# Example\\n\\nWelcome...", truncated: false },
+                    { url: "https://example.com/about", depth: 1, status: "success", title: "About", content: "# About us...", truncated: false },
+                ],
+                summary: { crawled: 2, successful: 2, failed: 0, discovered: 5, limit: 10, maxDepth: 2, robotsRespected: true },
+                crawledAt: "2026-07-31T12:00:00.000Z",
+                requestId: "req_crawl123",
+            },
+            {
+                properties: {
+                    url: { type: "string" },
+                    pages: { type: "array", description: "Per-page results with url, depth, status, title, content, truncated, error" },
+                    summary: { type: "object", description: "crawled, successful, failed, discovered, limit, maxDepth, robotsRespected" },
+                    crawledAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/crawl", crawlHandler);
 }

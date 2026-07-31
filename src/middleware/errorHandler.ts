@@ -117,6 +117,8 @@ export function getHttpStatus(code: ErrorCode): number {
       return 401;
     case "PAYMENT_FAILED":
       return 402;
+    case "FORBIDDEN":
+      return 403;
     case "ELEMENT_NOT_FOUND":
     case "MONITOR_NOT_FOUND":
     case "MEMORY_KEY_NOT_FOUND":
