@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
+import { PAID_ENDPOINTS } from "./config";
 // Middleware
 import { errorHandler } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
@@ -90,16 +91,6 @@ app.use("*", securityMiddleware);
 
 // POST-only enforcement for paid endpoints
 // Must run BEFORE payment middleware to prevent 402 on GET requests
-const PAID_ENDPOINTS = [
-    "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
-    "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
-    "/monitor/create", "/memory/set", "/credits/buy",
-    "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit",
-    "/search/news", "/search/images", "/search/places", "/search/shopping",
-    "/search/scholar", "/search/autocomplete", "/search/trends",
-    "/social/youtube/transcript", "/contents", "/answer",
-];
-
 app.use("*", async (c, next) => {
     const path = c.req.path;
     const method = c.req.method;

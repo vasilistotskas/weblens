@@ -94,6 +94,20 @@ export const PRICING = {
   },
 } as const;
 
+// Paid POST endpoints. Used by the POST-only enforcement middleware
+// (src/index.ts) and by request validation: unauthenticated probes of these
+// paths fall through to the x402 402 challenge instead of a 400, so agents
+// that probe without reading the spec still discover a payable resource.
+export const PAID_ENDPOINTS: readonly string[] = [
+  "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
+  "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
+  "/monitor/create", "/memory/set", "/credits/buy",
+  "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit",
+  "/search/news", "/search/images", "/search/places", "/search/shopping",
+  "/search/scholar", "/search/autocomplete", "/search/trends",
+  "/social/youtube/transcript", "/contents", "/answer",
+];
+
 // Free tier configuration - rate-limited access without payment
 export const FREE_TIER = {
   // Rate limiting

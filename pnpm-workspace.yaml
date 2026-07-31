@@ -63,3 +63,6 @@ minimumReleaseAgeExclude:
   - workerd@1.20260526.1
   - wrangler@4.95.0
   - eslint@10.8.0
+
+patchedDependencies:
+  '@x402/extensions@2.19.0': patches/@x402__extensions@2.19.0.patch
