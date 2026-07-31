@@ -33,7 +33,13 @@ type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 /**
  * Complexity-priced resolver shared by the credit debit AND the x402
  * challenge, so the two payment paths can never charge different amounts.
- * Runs after validateRequest, so `validatedBody` is always populated.
+ *
+ * A valid body always populates `validatedBody`; the `c.req.json()` fallback
+ * covers unauthenticated probes, whose invalid bodies skip validation (see
+ * validation.ts `isUnpaidProbe`). When no usable URL is present we advertise
+ * the BASE price — `getComplexityMultiplier` treats an unparseable URL as
+ * medium complexity (1.5x), which would otherwise quote probing agents 1.5x
+ * the real price for the endpoint.
  */
 function dynamicUrlPrice(
     endpoint: "fetch-pro" | "extract",
@@ -41,12 +47,15 @@ function dynamicUrlPrice(
 ): (c: AppContext) => Promise<string> {
     return async (c) => {
         try {
-            const body = c.get("validatedBody") as { url: string } | undefined
-                ?? await c.req.json<{ url: string }>();
+            const body = c.get("validatedBody") as { url?: unknown } | undefined
+                ?? await c.req.json<{ url?: unknown }>();
+            if (typeof body.url !== "string" || body.url === "") {
+                return fallback;
+            }
             const wallet = c.req.header("X-Wallet-Address") ?? c.req.header("X-CREDIT-WALLET");
             return await calculatePrice(body.url, endpoint, getDiscount(wallet));
         } catch (e) {
-            c.get("log").warn("pricing.dynamic_fallback", {
+            c.get("log").debug("pricing.dynamic_fallback", {
                 endpoint,
                 error: e instanceof Error ? e.message : String(e),
             });
