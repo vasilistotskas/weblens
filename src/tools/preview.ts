@@ -140,19 +140,10 @@ export async function receiptHandler(c: AppContext) {
 export async function submitFeedbackHandler(c: AppContext) {
     const requestId = c.get("requestId");
 
-    let document: Record<string, unknown>;
-    try {
-        document = await c.req.json<Record<string, unknown>>();
-    } catch {
-        return c.json(createErrorResponse("INVALID_JSON", "Invalid JSON body", requestId), 400);
-    }
-
-    if (typeof document !== "object" || Array.isArray(document)) {
-        return c.json(
-            createErrorResponse("VALIDATION_ERROR", "Body must be an ERC-8004 feedback document object", requestId),
-            400,
-        );
-    }
+    // Shape, size and nesting depth are settled by validateRequest
+    // (FeedbackDocumentSchema); unknown keys survive it so the bytes we hash
+    // are the buyer's own.
+    const document = c.get("validatedBody") as Record<string, unknown>;
 
     const missing = missingFeedbackFields(document);
     if (missing.length > 0) {

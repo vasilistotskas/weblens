@@ -504,7 +504,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Discovery"], summary: "Host an ERC-8004 Feedback Document", operationId: "submitFeedback",
           security: [],
-          description: "Host a buyer-authored ERC-8004 feedback document and get back the (feedbackURI, feedbackHash) pair that `giveFeedback()` on a Reputation Registry expects. The document is stored verbatim and served back byte-for-byte from GET /feedback/{id}, so its keccak-256 hash matches the hash returned here. WebLens neither authors nor alters the document and never calls the registry — the buyer posts giveFeedback() themselves. Free, rate limited to 10/hour per IP.",
+          description: "Host a buyer-authored ERC-8004 feedback document and get back the (feedbackURI, feedbackHash) pair that `giveFeedback()` on a Reputation Registry expects. The document is stored verbatim and served back byte-for-byte from GET /feedback/{id}, so its keccak-256 hash matches the hash returned here. WebLens neither authors nor alters the document and never calls the registry — the buyer posts giveFeedback() themselves. Free, rate limited to 10/hour per IP. Limits: body ≤ 256KB, nesting ≤ 32 levels.",
           requestBody: {
             required: true,
             content: {
@@ -525,7 +525,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           },
           responses: {
             "201": { description: "Document hosted; use feedbackURI + feedbackHash in giveFeedback()", content: { "application/json": { schema: { $ref: "#/components/schemas/FeedbackHosted" } } } },
-            "400": { description: "Body is not an object, or is missing required ERC-8004 fields (the response names them)", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "400": { description: "Body is not a JSON object, nests deeper than 32 levels, or is missing required ERC-8004 fields (the response names them)", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+            "413": { description: "Body exceeds the 256KB limit", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
             "429": { description: "Rate limit exceeded (10/hour)" },
           },
         },
@@ -1007,6 +1008,7 @@ it verbatim and never edits or authors it; you post giveFeedback() yourself. (Fr
 - Body must include: \`agentRegistry\`, \`agentId\`, \`clientAddress\`, \`createdAt\`, \`value\`, \`valueDecimals\` (optional: \`tag1\`, \`tag2\`, \`endpoint\`, \`proofOfPayment\`, …)
 - Returns 201: \`{"feedbackURI", "feedbackHash", "storedAt", "hashAlgorithm": "keccak256", "note", "requestId"}\`
 - Missing a required field → 400 naming exactly which ones.
+- Limits: body ≤ 256KB (413 past that), nesting ≤ 32 levels. Unknown fields are kept — they are part of what gets hashed.
 
 #### GET /feedback/{id}
 Serves the stored document byte-for-byte, so keccak-256 of the response equals the

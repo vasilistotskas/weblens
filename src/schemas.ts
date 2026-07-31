@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG, PRICING } from "./config";
+import { MAX_DOCUMENT_DEPTH, exceedsDepth } from "./services/erc8004";
 
 /**
  * WebLens API Schemas
@@ -110,6 +111,21 @@ export const PreviewRequestSchema = z.object({
     url: urlSchema.optional()
         .describe("For fetch-backed endpoints only: run a real truncated preview of this URL"),
 });
+
+/**
+ * ERC-8004 feedback document (POST /feedback).
+ *
+ * The document is buyer-authored and hosted verbatim, so this must be the one
+ * schema in the app that PRESERVES unknown keys — stripping them would change
+ * the bytes we hash. It still has to be a JSON object (not null, not an
+ * array) and shallow enough for `canonicalJson` to hash without exhausting
+ * the stack. Required-field presence is reported field-by-field in the
+ * handler; see REQUIRED_FEEDBACK_FIELDS.
+ */
+export const FeedbackDocumentSchema = z.looseObject({}).refine(
+    (document) => !exceedsDepth(document),
+    { message: `Document nesting exceeds the ${String(MAX_DOCUMENT_DEPTH)} level limit` },
+);
 
 export const DeepResearchRequestSchema = z.object({
     query: z.string().min(1).max(500).describe("The research question"),

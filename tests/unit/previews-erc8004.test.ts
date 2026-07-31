@@ -13,11 +13,14 @@
 import { describe, expect, it } from "vitest";
 import { keccak256, stringToHex } from "viem";
 import { PAID_ENDPOINTS } from "../../src/config";
+import { FeedbackDocumentSchema } from "../../src/schemas";
 import {
     ERC8004_REGISTRATION_TYPE,
+    MAX_DOCUMENT_DEPTH,
     REQUIRED_FEEDBACK_FIELDS,
     buildRegistration,
     canonicalJson,
+    exceedsDepth,
     feedbackHash,
     missingFeedbackFields,
 } from "../../src/services/erc8004";
@@ -127,6 +130,77 @@ describe("canonical JSON", () => {
 
     it("distinguishes different documents", () => {
         expect(canonicalJson({ a: 1 })).not.toBe(canonicalJson({ a: 2 }));
+    });
+});
+
+/**
+ * A buyer-authored document reaches canonicalJson, so nesting is an input we
+ * do not control. Production accepted a 10KB body nested 5000 levels deep and
+ * answered 500 "Maximum call stack size exceeded" until this was bounded.
+ */
+describe("canonical JSON depth bound", () => {
+    /** Build a value nested `levels` deep without recursing to build it. */
+    function nest(levels: number): unknown {
+        let value: unknown = 1;
+        for (let i = 0; i < levels; i++) { value = [value]; }
+        return value;
+    }
+
+    it("refuses to hash a document nested past the limit", () => {
+        expect(() => canonicalJson(nest(MAX_DOCUMENT_DEPTH + 5))).toThrow(/nesting exceeds/u);
+    });
+
+    it("still hashes a document at the limit", () => {
+        expect(() => canonicalJson(nest(MAX_DOCUMENT_DEPTH - 1))).not.toThrow();
+    });
+
+    it("does not mistake an array index for depth", () => {
+        // Regression: `array.map(canonicalJson)` passes (item, index, array),
+        // so the index arrived as `depth` and any array longer than the limit
+        // threw. Width is not depth.
+        const wide = Array.from({ length: MAX_DOCUMENT_DEPTH * 4 }, (_, i) => ({ i }));
+        expect(() => canonicalJson(wide)).not.toThrow();
+        expect(canonicalJson(wide)).toBe(JSON.stringify(wide));
+    });
+
+    it("survives checking a hostile document without overflowing", () => {
+        // The guard must not itself recurse 5000 deep to discover it is deep.
+        expect(exceedsDepth(nest(5000))).toBe(true);
+        expect(exceedsDepth({ a: { b: { c: 1 } } })).toBe(false);
+    });
+});
+
+describe("FeedbackDocumentSchema", () => {
+    const valid = {
+        agentRegistry: "0xRegistry", agentId: "42", clientAddress: "0xClient",
+        createdAt: "2026-07-31T12:00:00.000Z", value: 100, valueDecimals: 2,
+    };
+
+    it("rejects a null body", () => {
+        // typeof null === "object", so a hand-rolled guard let this through
+        // and the handler threw a 500 on the first field read.
+        expect(FeedbackDocumentSchema.safeParse(null).success).toBe(false);
+    });
+
+    it("rejects arrays and scalars", () => {
+        for (const body of [[valid], "string", 42, true]) {
+            expect(FeedbackDocumentSchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
+        }
+    });
+
+    it("keeps unknown fields — they are part of what gets hashed", () => {
+        const parsed = FeedbackDocumentSchema.parse({ ...valid, tag1: "quality", custom: { note: "hi" } });
+        expect(parsed).toEqual({ ...valid, tag1: "quality", custom: { note: "hi" } });
+    });
+
+    it("rejects a document nested past the hashing limit", () => {
+        let deep: unknown = 1;
+        for (let i = 0; i < 100; i++) { deep = [deep]; }
+        expect(FeedbackDocumentSchema.safeParse({ ...valid, deep }).success).toBe(false);
+    });
+
+    it("accepts a document the hasher can handle", () => {
+        expect(FeedbackDocumentSchema.safeParse(valid).success).toBe(true);
     });
 });
 

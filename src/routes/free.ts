@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import { rateLimitMiddleware } from "../middleware/rate-limit";
 import { validateRequest } from "../middleware/validation";
-import { PreviewRequestSchema } from "../schemas";
+import { FeedbackDocumentSchema, PreviewRequestSchema } from "../schemas";
 
 // Tool handlers + their canonical free-tier request schemas
 import { freeFetch, freeSearch, freeFetchSchema, freeSearchSchema } from "../tools/free";
@@ -51,6 +51,7 @@ export function registerFreeRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // Host a buyer-authored feedback document and hand back the
     // (feedbackURI, feedbackHash) pair that giveFeedback() expects.
     app.use("/feedback", rateLimitMiddleware);
+    app.use("/feedback", validateRequest(FeedbackDocumentSchema));
     app.post("/feedback", submitFeedbackHandler);
     app.get("/feedback/:id", getFeedbackHandler);
 }
