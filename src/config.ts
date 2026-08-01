@@ -5,13 +5,34 @@
 
 // Unified pricing configuration for all endpoints
 // Requirements: 1.4, 2.6, 3.5, 4.2, 4.4, 5.4, 6.4, 7.2
+/**
+ * COST BASIS (verified against Cloudflare's published rates, 2026-08).
+ *
+ * Workers Standard bills requests at $0.30/million ($0.0000003 each) and CPU
+ * at $0.02/million CPU-ms ($0.00000002 each), and explicitly does NOT bill
+ * subrequests. So a native fetch endpoint costs us ~$0.000001-0.00002 per
+ * call: the price is essentially all margin, and the only real floor is what
+ * the market will bear.
+ *
+ * Browser Rendering bills $0.09 per browser-hour ($0.000025/browser-second)
+ * beyond 10 free hours/month, so a 5-20s render costs $0.000125-0.0005.
+ *
+ * The endpoints with a REAL cost floor are the ones calling a paid upstream:
+ * SerpAPI ($0.009-0.015/search) and Anthropic. Those keep their prices; see
+ * the search floor rule below.
+ *
+ * Market reference (2026): Exa $0.007/request, Tavily $0.0075-0.008, and
+ * Firecrawl ~$0.001/page but only on a $99/mo commitment. WebLens undercuts
+ * on the zero-cost endpoints while requiring no subscription at all.
+ */
 export const PRICING = {
-  // Core endpoints
-  screenshot: "$0.02",
+  // Core endpoints. Browser-backed prices (screenshot, fetch.pro) still clear
+  // their ~$0.0005 worst-case render cost by more than 10x.
+  screenshot: "$0.008",
   fetch: {
-    basic: "$0.005",
-    pro: "$0.015",
-    resilient: "$0.025", // Multi-provider fallback (Agent Prime)
+    basic: "$0.002",
+    pro: "$0.006",
+    resilient: "$0.008", // native first, Browser Rendering fallback
   },
   // Search pricing floor: every SerpAPI-backed call costs $0.009-$0.015
   // upstream depending on plan tier — prices below $0.015 would sell at a
@@ -29,7 +50,7 @@ export const PRICING = {
   // Per-result page-content addon for search (includeContent) and the
   // standalone /contents endpoint. Native fetch has ~zero marginal cost.
   contents: {
-    perUrl: "$0.002",
+    perUrl: "$0.0015",
     minUrls: 1,
     maxUrls: 20,
   },
@@ -40,20 +61,20 @@ export const PRICING = {
 
   // Batch fetch pricing
   batchFetch: {
-    perUrl: "$0.003",
+    perUrl: "$0.0015",
     minUrls: 2,
     maxUrls: 20,
   },
 
   // Site URL discovery (sitemap/robots/link based). A handful of subrequests
   // regardless of site size, so a flat price stays profitable.
-  map: "$0.01",
+  map: "$0.004",
 
   // Bounded whole-site crawl. Priced per requested page (the page budget the
   // caller reserves), consistent with batch fetch. Native fetch + markdown,
   // so marginal cost is CPU only.
   crawl: {
-    perPage: "$0.003",
+    perPage: "$0.0015",
     minPages: 1,
     maxPages: 25,
   },
@@ -84,8 +105,8 @@ export const PRICING = {
     maxInterval: 24,  // hours
   },
 
-  // PDF extraction
-  pdf: "$0.01",
+  // PDF extraction — native fetch + parse, no AI call (see tools/pdf.ts)
+  pdf: "$0.004",
 
   // URL comparison
   compare: "$0.05",

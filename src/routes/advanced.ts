@@ -269,7 +269,7 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     const crawlPrice = (c: AppContext): string => {
         const body = c.get("validatedBody") as { limit?: number } | undefined;
         const pages = typeof body?.limit === "number" ? body.limit : 10;
-        return `$${(pages * parsePrice(PRICING.crawl.perPage)).toFixed(3)}`;
+        return `$${(pages * parsePrice(PRICING.crawl.perPage)).toFixed(4)}`;
     };
     app.use(
         "/crawl",

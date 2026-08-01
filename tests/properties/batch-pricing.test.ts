@@ -27,7 +27,7 @@ describe("Property 2: Batch fetch pricing is linear", () => {
           const price = getBatchFetchPrice(urlCount);
           const perUrlAmount = parseFloat(PRICING.batchFetch.perUrl.replace("$", ""));
           const expectedAmount = urlCount * perUrlAmount;
-          const expectedPrice = `$${expectedAmount.toFixed(3)}`;
+          const expectedPrice = `$${expectedAmount.toFixed(4)}`;
           
           expect(price).toBe(expectedPrice);
         }
@@ -101,17 +101,30 @@ describe("Property 2: Batch fetch pricing is linear", () => {
    * Property: Minimum batch (2 URLs) has correct price
    * price(2) = $0.006
    */
-  it("minimum batch of 2 URLs costs $0.006", () => {
-    const price = getBatchFetchPrice(2);
-    expect(price).toBe("$0.006");
+  it("minimum batch of 2 URLs costs 2x the per-URL price", () => {
+    const perUrl = parseFloat(PRICING.batchFetch.perUrl.replace("$", ""));
+    expect(getBatchFetchPrice(2)).toBe(`$${(2 * perUrl).toFixed(4)}`);
+  });
+
+  /**
+   * Regression: at a sub-$0.001 per-URL price, 3-decimal formatting rounded
+   * odd counts up (3 x $0.0015 = $0.0045 -> "$0.005"), overcharging the caller
+   * and breaking the linearity property above.
+   */
+  it("does not round an odd URL count up", () => {
+    const perUrl = parseFloat(PRICING.batchFetch.perUrl.replace("$", ""));
+    for (const n of [3, 5, 7, 9]) {
+      const charged = parseFloat(getBatchFetchPrice(n).replace("$", ""));
+      expect(charged, `${String(n)} URLs`).toBeCloseTo(n * perUrl, 6);
+    }
   });
 
   /**
    * Property: Maximum batch (20 URLs) has correct price
    * price(20) = $0.060
    */
-  it("maximum batch of 20 URLs costs $0.060", () => {
-    const price = getBatchFetchPrice(20);
-    expect(price).toBe("$0.060");
+  it("maximum batch of 20 URLs costs 20x the per-URL price", () => {
+    const perUrl = parseFloat(PRICING.batchFetch.perUrl.replace("$", ""));
+    expect(getBatchFetchPrice(20)).toBe(`$${(20 * perUrl).toFixed(4)}`);
   });
 });

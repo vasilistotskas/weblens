@@ -28,15 +28,15 @@ describe("Property 3: Tier pricing consistency", () => {
   /**
    * Property: /fetch/basic is always priced at $0.005
    */
-  it("fetch/basic tier has the correct configured price ($0.005)", () => {
-    expect(PRICING.fetch.basic).toBe("$0.005");
+  it("fetch/basic tier has the correct configured price ($0.002)", () => {
+    expect(PRICING.fetch.basic).toBe("$0.002");
   });
 
   /**
    * Property: /fetch/pro is always priced at $0.015
    */
-  it("fetch/pro tier has the correct configured price ($0.015)", () => {
-    expect(PRICING.fetch.pro).toBe("$0.015");
+  it("fetch/pro tier has the correct configured price ($0.006)", () => {
+    expect(PRICING.fetch.pro).toBe("$0.006");
   });
 
   /**

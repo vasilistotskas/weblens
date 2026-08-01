@@ -11,7 +11,7 @@ import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
 // MCP Protocol version
-const MCP_VERSION = "2025-03-26";
+const MCP_VERSION = "2025-06-18";
 
 // Tool definitions for WebLens
 // Exported for the MCP-contract test, which samples each tool's declared
@@ -449,11 +449,11 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   intel_site_audit:  { endpoint: "/intel/site-audit", method: "POST", price: PRICING.intel.siteAudit },
 };
 
-// Server info
+// Server identity, as the `serverInfo` object the initialize result requires.
+// It must stay a nested object: clients read result.serverInfo.name.
 const SERVER_INFO = {
   name: "weblens",
-  version: "2.0.0",
-  protocolVersion: MCP_VERSION,
+  version: "2.1.0",
 };
 
 // Server capabilities
@@ -481,19 +481,26 @@ async function handleJsonRpc(request: JsonRpcRequest, c: Context<{ Bindings: Env
   const { method, id } = request;
   const params = request.params;
 
+  // A JSON-RPC request with no `id` is a notification and MUST NOT be
+  // answered. MCP clients send `notifications/initialized` immediately after
+  // the handshake; replying to it (previously with -32601, because only the
+  // bare name "initialized" was handled) is a protocol violation that breaks
+  // compliant clients. The caller turns null into a 202.
+  if (id === undefined) {
+    return null;
+  }
+
   switch (method) {
     case "initialize":
       return {
         jsonrpc: "2.0",
         id,
         result: {
-          ...SERVER_INFO,
+          protocolVersion: MCP_VERSION,
           capabilities: SERVER_CAPABILITIES,
+          serverInfo: SERVER_INFO,
         },
       };
-
-    case "initialized":
-      return null;
 
     case "tools/list":
       return {
@@ -682,9 +689,9 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
   
   return c.json({
     name: "WebLens MCP Server",
-    version: "2.0.0",
-    tagline: "Give your AI agents web superpowers",
-    description: "Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts - just pay per request with USDC on Base.",
+    version: "2.1.0",
+    tagline: "Scrape, crawl, map and extract the web — pay per call",
+    description: "Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts, no monthly minimum - just pay per request with USDC on Base.",
     protocolVersion: MCP_VERSION,
     transport: "streamable-http",
     capabilities: [

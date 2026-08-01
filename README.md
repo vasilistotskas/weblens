@@ -86,20 +86,20 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 
 | Endpoint | Description | Price |
 |----------|-------------|-------|
-| `/fetch/basic` | Fetch a webpage as clean markdown | $0.005 |
-| `/fetch/pro` | Fetch with full JavaScript rendering (SPAs) | $0.015 |
-| `/fetch/resilient` | Auto-fallback: native scraper → headless Chromium | $0.025 |
-| `/contents` | Bulk page text for 1–20 URLs | $0.002/URL |
-| `/screenshot` | Capture a webpage screenshot (PNG) | $0.02 |
-| `/batch/fetch` | Fetch 2–20 URLs in parallel | $0.003/URL |
-| `/map` | Discover a site's URLs (sitemaps + links, no page fetches) | $0.01 |
-| `/crawl` | Bounded whole-site crawl → markdown per page | $0.003/page |
+| `/fetch/basic` | Fetch a webpage as clean markdown | $0.002 |
+| `/fetch/pro` | Fetch with full JavaScript rendering (SPAs) | $0.006 |
+| `/fetch/resilient` | Auto-fallback: native scraper → headless Chromium | $0.008 |
+| `/contents` | Bulk page text for 1–20 URLs | $0.0015/URL |
+| `/screenshot` | Capture a webpage screenshot (PNG) | $0.008 |
+| `/batch/fetch` | Fetch 2–20 URLs in parallel | $0.0015/URL |
+| `/map` | Discover a site's URLs (sitemaps + links, no page fetches) | $0.004 |
+| `/crawl` | Bounded whole-site crawl → markdown per page | $0.0015/page |
 
 ### Search
 
 | Endpoint | Description | Price |
 |----------|-------------|-------|
-| `/search` | Real-time web search (`includeContent` adds page markdown, +$0.002/result) | $0.015 |
+| `/search` | Real-time web search (`includeContent` adds page markdown, +$0.0015/result) | $0.015 |
 | `/search/news` | Google News articles with source and date | $0.015 |
 | `/search/images` | Image results with dimensions and source pages | $0.015 |
 | `/search/places` | Local businesses: address, rating, phone, coordinates | $0.045 |
@@ -120,7 +120,7 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 |----------|-------------|-------|
 | `/extract` | Structured extraction against a JSON schema | $0.03 |
 | `/extract/smart` | Natural-language extraction (no schema needed) | $0.035 |
-| `/pdf` | Extract text and metadata from a PDF | $0.01 |
+| `/pdf` | Extract text and metadata from a PDF | $0.004 |
 | `/answer` | Grounded answer with inline `[n]` citations | $0.05 |
 | `/research` | Search + fetch + AI summary with sources | $0.08 |
 | `/research/deep` | Multi-step cited research: sub-questions → search each → answer with inline `[n]` citations | $0.20–$0.35 |

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "dev.weblens/weblens",
+  "title": "WebLens",
+  "description": "Scrape, crawl, map and extract the web. Fetch a page as markdown, crawl a whole site, list a site's URLs from its sitemap, or pull structured JSON out of any page. Pay per call in USDC on Base via x402 — no account, no API key, no monthly minimum.",
+  "version": "2.1.0",
+  "repository": {
+    "url": "https://github.com/vasilistotskas/weblens",
+    "source": "github"
+  },
+  "websiteUrl": "https://api.weblens.dev",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.weblens.dev/mcp"
+    }
+  ]
+}

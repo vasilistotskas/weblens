@@ -131,13 +131,10 @@ describe("Property 6: Cache hit returns reduced price", () => {
         (endpoint) => {
           const cachedPrice = parsePrice(getCachedPrice(ENDPOINT_PRICES[endpoint]));
 
-          if (endpoint === "fetch-basic") {
-            // $0.005 * 0.3 = $0.0015
-            expect(Math.abs(cachedPrice - 0.0015)).toBeLessThan(0.0001);
-          } else {
-            // $0.015 * 0.3 = $0.0045
-            expect(Math.abs(cachedPrice - 0.0045)).toBeLessThan(0.0001);
-          }
+          // Derived from config so a deliberate reprice does not need a
+          // second edit here — the property under test is the 70% discount.
+          const listPrice = parsePrice(ENDPOINT_PRICES[endpoint]);
+          expect(Math.abs(cachedPrice - listPrice * 0.3)).toBeLessThan(0.0001);
         }
       ),
       { numRuns: 100 }

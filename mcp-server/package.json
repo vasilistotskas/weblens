@@ -1,7 +1,8 @@
 {
   "name": "@weblens/mcp",
-  "version": "2.0.0",
-  "description": "MCP server for WebLens - Web Intelligence API with x402 payments",
+  "version": "2.1.0",
+  "mcpName": "dev.weblens/weblens",
+  "description": "MCP server for WebLens - scrape, crawl, map and extract the web, pay per call with x402",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,12 +22,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vassilistotskas/weblens.git",
+    "url": "git+https://github.com/vasilistotskas/weblens.git",
     "directory": "mcp-server"
   },
   "homepage": "https://api.weblens.dev",
   "bugs": {
-    "url": "https://github.com/vassilistotskas/weblens/issues"
+    "url": "https://github.com/vasilistotskas/weblens/issues"
   },
   "scripts": {
     "build": "tsc",

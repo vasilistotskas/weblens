@@ -129,7 +129,10 @@ export function getCachedPrice(basePrice: string): string {
 export function getBatchFetchPrice(urlCount: number): string {
     const perUrlAmount = parsePrice(PRICING.batchFetch.perUrl);
     const totalAmount = urlCount * perUrlAmount;
-    return `$${totalAmount.toFixed(3)}`;
+    // 4 decimals, like every other resolver: at a sub-$0.001 per-unit price
+    // 3 decimals rounds an odd unit count UP (3 x $0.0015 = $0.0045 -> $0.005),
+    // which overcharges and breaks linearity. USDC carries 6 decimals.
+    return `$${totalAmount.toFixed(4)}`;
 }
 
 /**

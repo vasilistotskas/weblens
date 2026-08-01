@@ -9,3 +9,7 @@ dist/
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# MCP Registry publishing key (DISTRIBUTION.md) — namespace credential
+key.pem
+*.pem

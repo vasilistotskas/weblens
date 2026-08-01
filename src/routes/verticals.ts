@@ -307,7 +307,7 @@ export function registerVerticalRoutes(app: Hono<{ Bindings: Env; Variables: Var
     const contentsPrice = (c: AppContext): string => {
         const body = c.get("validatedBody") as { urls?: unknown[] } | undefined;
         const n = Array.isArray(body?.urls) ? body.urls.length : PRICING.contents.minUrls;
-        return `$${(n * parsePrice(PRICING.contents.perUrl)).toFixed(3)}`;
+        return `$${(n * parsePrice(PRICING.contents.perUrl)).toFixed(4)}`;
     };
     app.use(
         "/contents",
