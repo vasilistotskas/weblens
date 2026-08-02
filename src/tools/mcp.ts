@@ -291,6 +291,17 @@ export const TOOLS = [
     },
   },
   {
+    name: "domain_intel",
+    description: `Everything about a domain in one call: who registered it and when, when it expires, its DNS records, the mail and DNS providers behind them, the SaaS vendors its TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, Okta, …), SPF/DMARC posture, and risk flags like newly-registered or no-registrar-lock. Use for vendor due diligence, security triage, phishing checks and prospect research. Price: ${PRICING.domain}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        domain: { type: "string", description: "Domain to inspect, e.g. \"stripe.com\". A full URL is reduced to its hostname." },
+      },
+      required: ["domain"],
+    },
+  },
+  {
     name: "map_site",
     description: `Discover a site's URLs without fetching page content — reads robots.txt sitemap directives, sitemap.xml and nested sitemap indexes, falling back to homepage link extraction. Price: ${PRICING.map}`,
     inputSchema: {
@@ -437,6 +448,7 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
   deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
   batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
+  domain_intel:      { endpoint: "/domain",          method: "POST", price: PRICING.domain },
   map_site:          { endpoint: "/map",             method: "POST", price: PRICING.map },
   crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
   extract_pdf:       { endpoint: "/pdf",             method: "POST", price: PRICING.pdf },

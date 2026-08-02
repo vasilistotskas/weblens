@@ -54,6 +54,7 @@ const PRICE = {
   compare: "$0.05",
   batchFetchPerUrl: "$0.0015",
   map: "$0.004",
+  domain: "$0.005",
   crawlPerPage: "$0.0015",
   monitorSetup: "$0.01",
   memoryWrite: "$0.001",
@@ -801,6 +802,36 @@ server.registerTool(
         urls,
         total: res.data?.total,
         source: res.data?.source,
+      });
+    })
+);
+
+// Tool: Domain intelligence
+server.registerTool(
+  "domain_intel",
+  {
+    description: `Everything about a domain in one call: who registered it and when, when it expires, its DNS records, the mail and DNS providers behind them, the SaaS vendors its TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, Okta, …), SPF/DMARC posture, and risk flags like newly-registered or no-registrar-lock. Use for vendor due diligence, security triage, phishing checks and prospect research. Price: ${PRICE.domain}`,
+    inputSchema: z.object({
+      domain: z
+        .string()
+        .min(3)
+        .max(253)
+        .describe("Domain to inspect, e.g. \"stripe.com\". A full URL is reduced to its hostname."),
+    }),
+  },
+  async ({ domain }) =>
+    runTool("domain intel", async () => {
+      const res = await client.post("/domain", { domain });
+      return jsonResult({
+        domain: res.data?.domain,
+        registration: res.data?.registration,
+        dns: res.data?.dns,
+        email: res.data?.email,
+        hosting: res.data?.hosting,
+        stack: res.data?.stack,
+        signals: res.data?.signals,
+        ageDays: res.data?.ageDays,
+        expiresInDays: res.data?.expiresInDays,
       });
     })
 );

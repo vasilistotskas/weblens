@@ -12,6 +12,7 @@ import type { Context } from "hono";
 import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { PreviewRequestSchema } from "../schemas";
+import { inspectDomain, normalizeDomain } from "../services/domain-intel";
 import {
     buildRegistration,
     getFeedback,
@@ -53,7 +54,7 @@ export async function previewHandler(c: AppContext) {
     const requestId = c.get("requestId");
 
     try {
-        const { endpoint, url } = c.get("validatedBody") as z.infer<typeof PreviewRequestSchema>;
+        const { endpoint, url, domain } = c.get("validatedBody") as z.infer<typeof PreviewRequestSchema>;
         const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
 
         if (!isPaidEndpoint(path)) {
@@ -69,7 +70,34 @@ export async function previewHandler(c: AppContext) {
         // Live preview only where the marginal cost is a plain fetch — never
         // for a SerpAPI- or Anthropic-backed endpoint.
         let live: Record<string, unknown> | undefined;
-        if (canLive && url) {
+
+        // /domain runs for real but returns findings as COUNTS. The lookup is
+        // free to us, so the point is to prove the data is real and worth
+        // $0.005 — not to be a free substitute for the endpoint.
+        if (path === "/domain" && domain) {
+            const normalized = normalizeDomain(domain);
+            if (!normalized) {
+                return c.json(
+                    createErrorResponse("INVALID_URL", "Provide a public domain name, e.g. \"stripe.com\"", requestId),
+                    400,
+                );
+            }
+            try {
+                const report = await inspectDomain(normalized, c.env);
+                live = {
+                    domain: report.domain,
+                    registeredAt: report.registration.registeredAt,
+                    ageDays: report.ageDays,
+                    emailProvider: report.email.provider,
+                    dnsProvider: report.hosting.dnsProvider,
+                    stackVendorsFound: report.stack.length,
+                    riskSignalsFound: report.signals.length,
+                    note: `This is a real lookup. The paid call names all ${String(report.stack.length)} SaaS vendor(s) and ${String(report.signals.length)} risk signal(s), plus full RDAP registration and every DNS record.`,
+                };
+            } catch (e) {
+                live = { error: e instanceof Error ? e.message : "Preview lookup failed" };
+            }
+        } else if (canLive && url) {
             const validation = validateURL(url);
             if (!validation.valid) {
                 return c.json(
@@ -102,7 +130,9 @@ export async function previewHandler(c: AppContext) {
             live,
             livePreviewAvailable: canLive,
             livePreviewHint: canLive
-                ? "Pass a url to run a real, truncated preview of this endpoint for free."
+                ? (path === "/domain"
+                    ? "Pass a domain to run a real lookup for free — findings come back as counts."
+                    : "Pass a url to run a real, truncated preview of this endpoint for free.")
                 : "This endpoint calls a paid upstream provider, so free live previews are not offered — the recorded sample shows the exact response shape.",
             docs: `${baseOf(c)}/docs`,
             schema: `${baseOf(c)}/openapi.json`,

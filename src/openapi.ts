@@ -334,6 +334,15 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Discovered URLs", content: { "application/json": { schema: { $ref: "#/components/schemas/MapResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
+      "/domain": {
+        post: {
+          tags: ["Core"], summary: "Domain Intelligence", operationId: "domainIntel",
+          description: `Everything about a domain in one call: RDAP registration (registrar, age, expiry, status codes, nameservers), live DNS (A/AAAA/MX/NS/TXT), the mail and DNS providers those records identify, the SaaS vendors the domain's TXT verification tokens reveal, SPF/DMARC posture, and risk signals (newly-registered, expiring-soon, no-registrar-lock, no-spf, no-dmarc, dmarc-monitor-only). Everyone else sells this by the month — WhoisXML from $30/mo, BuiltWith's API from $495/mo. Price: ${PRICING.domain} per call, no account. Free preview available: POST /preview {"endpoint": "/domain", "domain": "..."}`,
+          "x-payment-info": fixedPayment(PRICING.domain),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/DomainRequest" }, example: { domain: "stripe.com" } } } },
+          responses: { "200": { description: "Domain intelligence report", content: { "application/json": { schema: { $ref: "#/components/schemas/DomainResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
       "/crawl": {
         post: {
           tags: ["Core"], summary: "Crawl Site", operationId: "crawlSite",
@@ -733,6 +742,51 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             requestId: { type: "string" },
           },
         },
+        DomainRequest: {
+          type: "object", required: ["domain"],
+          properties: {
+            domain: { type: "string", example: "stripe.com", description: "Domain to inspect. A full URL is accepted and reduced to its hostname; a leading www. is stripped." },
+          },
+        },
+        DomainResponse: {
+          type: "object",
+          properties: {
+            domain: { type: "string" },
+            registration: {
+              type: "object", description: "RDAP registration facts. found=false when the registry has no RDAP service or did not answer.",
+              properties: {
+                found: { type: "boolean" },
+                registrar: { type: "string" },
+                registeredAt: { type: "string", description: "ISO date the domain was first registered" },
+                expiresAt: { type: "string" },
+                updatedAt: { type: "string" },
+                status: { type: "array", items: { type: "string" }, description: "EPP status codes, e.g. client transfer prohibited" },
+                nameservers: { type: "array", items: { type: "string" } },
+                rdapServer: { type: "string", description: "Registry RDAP base URL that answered" },
+              },
+            },
+            dns: { type: "object", description: "Live records keyed by type: A, AAAA, MX, NS, TXT. Types with no answer are omitted." },
+            email: {
+              type: "object",
+              properties: {
+                provider: { type: "string", description: "Mail platform identified from MX, e.g. Google Workspace, Microsoft 365, Proofpoint" },
+                hasSpf: { type: "boolean" },
+                hasDmarc: { type: "boolean" },
+                dmarcPolicy: { type: "string", enum: ["none", "quarantine", "reject"] },
+              },
+            },
+            hosting: {
+              type: "object",
+              properties: { dnsProvider: { type: "string", description: "DNS operator identified from NS, e.g. AWS Route 53, Cloudflare" } },
+            },
+            stack: { type: "array", items: { type: "string" }, description: "SaaS vendors inferred from TXT domain-verification tokens the organisation published" },
+            signals: { type: "array", items: { type: "string" }, description: "Risk/posture flags: newly-registered, expiring-soon, expired, no-registrar-lock, no-spf, no-dmarc, dmarc-monitor-only, no-mx, registration-unavailable" },
+            ageDays: { type: "integer", description: "Days since registration" },
+            expiresInDays: { type: "integer", description: "Days until expiry (negative if expired)" },
+            inspectedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
         CrawlRequest: {
           type: "object", required: ["url"],
           properties: {
@@ -968,6 +1022,7 @@ Paid endpoints settle over the x402 protocol (USDC on Base) — no accounts, no 
 | Many pages at once | POST /batch/fetch | ${PRICING.batchFetch.perUrl}/URL |
 | JavaScript-rendered page | POST /fetch/pro | ${PRICING.fetch.pro} |
 | Structured JSON from a page | POST /extract | ${PRICING.extract} |
+| Who owns a domain + its stack | POST /domain | ${PRICING.domain} |
 
 Comparable search/scrape APIs bill $0.007-0.008 per request, or reach a lower
 per-page rate only on a ~$99/month plan. WebLens has no plan to commit to, and
@@ -1128,6 +1183,17 @@ Discover a site's URLs without fetching page content: robots.txt Sitemap: direct
 - Price: ${PRICING.map}
 - Body: \`{"url": "string", "limit?": number (1-5000, default 1000), "include?": ["string"], "exclude?": ["string"], "timeout?": number}\`
 - Returns: \`{"url", "urls": ["string"], "total", "source": "sitemap"|"links"|"none", "sitemapsChecked", "mappedAt", "requestId"}\`
+
+#### POST /domain
+Everything about a domain in one call — registration, DNS, and what they imply. Replaces an
+RDAP lookup, five DNS queries, and the interpretation on top. Competitors sell this by the
+month (WhoisXML from $30/mo, BuiltWith's API from $495/mo); this is per call, no account.
+- Price: ${PRICING.domain}
+- Body: \`{"domain": "stripe.com"}\` (a full URL works too — it is reduced to its hostname)
+- Returns: \`{"domain", "registration": {"found","registrar","registeredAt","expiresAt","updatedAt","status","nameservers"}, "dns": {"A","AAAA","MX","NS","TXT"}, "email": {"provider","hasSpf","hasDmarc","dmarcPolicy"}, "hosting": {"dnsProvider"}, "stack": ["string"], "signals": ["string"], "ageDays", "expiresInDays", "inspectedAt", "requestId"}\`
+- \`stack\` names the SaaS vendors the domain's own TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, DocuSign, Okta, …).
+- \`signals\` are the risk flags worth acting on: \`newly-registered\` (<90 days), \`expiring-soon\`, \`expired\`, \`no-registrar-lock\`, \`no-spf\`, \`no-dmarc\`, \`dmarc-monitor-only\`, \`no-mx\`.
+- Try it free first: \`POST /preview {"endpoint": "/domain", "domain": "stripe.com"}\` runs a real lookup and returns the counts.
 
 #### POST /crawl
 Bounded same-host BFS crawl returning clean markdown for every page in ONE synchronous call — no async job, no polling. robots.txt honoured by default (403 FORBIDDEN if it disallows the start URL).

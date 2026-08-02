@@ -42,6 +42,7 @@ const EXPECTED: Record<string, string> = {
     compare: PRICING.compare,
     batchFetchPerUrl: PRICING.batchFetch.perUrl,
     map: PRICING.map,
+    domain: PRICING.domain,
     crawlPerPage: PRICING.crawl.perPage,
     monitorSetup: PRICING.monitor.setup,
     memoryWrite: PRICING.memory.write,

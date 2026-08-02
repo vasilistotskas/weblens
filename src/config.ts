@@ -70,6 +70,14 @@ export const PRICING = {
   // regardless of site size, so a flat price stays profitable.
   map: "$0.004",
 
+  // Domain intelligence: RDAP registration + DNS posture + derived signals.
+  // Both upstreams (IANA/registry RDAP, Cloudflare DoH) are free, so this is
+  // another ~$0.000002 call. Priced against what it replaces: WhoisXML's
+  // entry tier works out to $0.015/query on a $30/mo minimum, BuiltWith gates
+  // its API behind $495/mo, and the incumbent x402 seller charges $0.04 for a
+  // composed report or $0.005-0.01 per fragment. One call, all of it, less.
+  domain: "$0.005",
+
   // Bounded whole-site crawl. Priced per requested page (the page budget the
   // caller reserves), consistent with batch fetch. Native fetch + markdown,
   // so marginal cost is CPU only.
@@ -152,7 +160,7 @@ export const PAID_ENDPOINTS: readonly string[] = [
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
   "/social/youtube/transcript", "/contents", "/answer",
-  "/map", "/crawl", "/research/deep",
+  "/map", "/crawl", "/research/deep", "/domain",
 ];
 
 // Free tier configuration - rate-limited access without payment

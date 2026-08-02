@@ -10,7 +10,8 @@ import {
     CompareRequestSchema,
     MapRequestSchema,
     CrawlRequestSchema,
-    DeepResearchRequestSchema
+    DeepResearchRequestSchema,
+    DomainRequestSchema
 } from "../schemas";
 import { getBatchFetchPrice, parsePrice } from "../services/pricing";
 
@@ -19,6 +20,7 @@ import { batchFetchHandler } from "../tools/batch-fetch";
 import { compareHandler } from "../tools/compare";
 import { crawlHandler } from "../tools/crawl";
 import { deepResearchHandler } from "../tools/deep-research";
+import { domainHandler } from "../tools/domain";
 import { mapHandler } from "../tools/map";
 import { pdfHandler } from "../tools/pdf";
 import { researchHandler } from "../tools/research";
@@ -260,6 +262,63 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
         )
     );
     app.post("/map", mapHandler);
+
+    // ============================================
+    // /domain — registration + DNS intelligence
+    // ============================================
+    app.use(
+        "/domain",
+        validateRequest(DomainRequestSchema),
+        createCreditMiddleware(PRICING.domain, "Domain Intelligence"),
+        createLazyPaymentMiddleware(
+            "/domain",
+            PRICING.domain,
+            "Domain intelligence in one call: RDAP registration (registrar, age, expiry, status), live DNS (A/AAAA/MX/NS/TXT), the mail and DNS providers behind them, the SaaS vendors the domain's TXT verification tokens reveal, SPF/DMARC posture, and risk signals like newly-registered or no-registrar-lock.",
+            { domain: "stripe.com" },
+            {
+                properties: {
+                    domain: { type: "string", description: "Domain to inspect, e.g. \"stripe.com\". A full URL is reduced to its hostname." },
+                },
+                required: ["domain"],
+            },
+            {
+                domain: "stripe.com",
+                registration: {
+                    found: true,
+                    registrar: "MarkMonitor Inc.",
+                    registeredAt: "1995-09-12T04:00:00Z",
+                    expiresAt: "2027-09-11T04:00:00Z",
+                    status: ["client transfer prohibited"],
+                    nameservers: ["ns-1087.awsdns-07.org"],
+                },
+                dns: { A: ["198.137.150.111"], MX: ["10 aspmx.l.google.com."], NS: ["ns-1087.awsdns-07.org."] },
+                email: { provider: "Google Workspace", hasSpf: true, hasDmarc: true, dmarcPolicy: "reject" },
+                hosting: { dnsProvider: "AWS Route 53" },
+                stack: ["Microsoft 365", "Salesforce"],
+                signals: [],
+                ageDays: 11282,
+                expiresInDays: 405,
+                inspectedAt: "2026-08-02T12:00:00.000Z",
+                requestId: "req_domain123",
+            },
+            {
+                properties: {
+                    domain: { type: "string" },
+                    registration: { type: "object", description: "RDAP: registrar, registeredAt, expiresAt, updatedAt, status, nameservers" },
+                    dns: { type: "object", description: "Live records keyed by type (A, AAAA, MX, NS, TXT)" },
+                    email: { type: "object", description: "provider, hasSpf, hasDmarc, dmarcPolicy" },
+                    hosting: { type: "object", description: "dnsProvider" },
+                    stack: { type: "array", description: "SaaS vendors inferred from TXT domain-verification tokens" },
+                    signals: { type: "array", description: "Risk flags: newly-registered, expiring-soon, no-registrar-lock, no-spf, no-dmarc, dmarc-monitor-only, no-mx" },
+                    ageDays: { type: "number" },
+                    expiresInDays: { type: "number" },
+                    inspectedAt: { type: "string" },
+                    requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/domain", domainHandler);
 
     // ============================================
     // /crawl — bounded whole-site crawl

@@ -110,6 +110,8 @@ export const PreviewRequestSchema = z.object({
         .describe("Paid endpoint path to preview, e.g. \"/answer\""),
     url: urlSchema.optional()
         .describe("For fetch-backed endpoints only: run a real truncated preview of this URL"),
+    domain: z.string().min(3).max(253).optional()
+        .describe("For /domain only: run a real, summarised preview of this domain"),
 });
 
 /**
@@ -126,6 +128,11 @@ export const FeedbackDocumentSchema = z.looseObject({}).refine(
     (document) => !exceedsDepth(document),
     { message: `Document nesting exceeds the ${String(MAX_DOCUMENT_DEPTH)} level limit` },
 );
+
+export const DomainRequestSchema = z.object({
+    domain: z.string().min(3).max(253)
+        .describe("Domain to inspect, e.g. \"stripe.com\". A full URL is accepted and reduced to its hostname."),
+});
 
 export const DeepResearchRequestSchema = z.object({
     query: z.string().min(1).max(500).describe("The research question"),

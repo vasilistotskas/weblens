@@ -22,6 +22,7 @@ export const LIVE_PREVIEW_ENDPOINTS: readonly string[] = [
     "/fetch/basic",
     "/contents",
     "/map",
+    "/domain",
 ];
 
 /** Characters of live preview content returned per request. */
@@ -44,6 +45,20 @@ interface PreviewEntry {
  * shipping an un-evaluatable product.
  */
 export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
+    "/domain": {
+        summary: "Who owns a domain, how old it is, what runs on it, and whether it looks risky — one call.",
+        sample: {
+            domain: "stripe.com",
+            registration: { found: true, registrar: "MarkMonitor Inc.", registeredAt: "1995-09-12T04:00:00Z", expiresAt: "2027-09-11T04:00:00Z", status: ["client transfer prohibited"] },
+            dns: { A: ["198.137.150.111"], MX: ["10 aspmx.l.google.com."], NS: ["ns-1087.awsdns-07.org."] },
+            email: { provider: "Google Workspace", hasSpf: true, hasDmarc: true, dmarcPolicy: "reject" },
+            hosting: { dnsProvider: "AWS Route 53" },
+            stack: ["Microsoft 365", "Salesforce"],
+            signals: [],
+            ageDays: 11282,
+            expiresInDays: 405,
+        },
+    },
     "/fetch/basic": {
         summary: "Any webpage as clean markdown, no JavaScript rendering.",
         sample: { url: "https://example.com", title: "Example Domain", content: "# Example Domain\n\nThis domain is for use in illustrative examples...", tier: "basic", fetchedAt: "2026-07-31T12:00:00.000Z" },
@@ -195,6 +210,7 @@ const PREVIEW_PRICE_HINT: Record<string, string> = {
     "/fetch/resilient": PRICING.fetch.resilient,
     "/screenshot": PRICING.screenshot,
     "/map": PRICING.map,
+    "/domain": PRICING.domain,
     "/search": `${PRICING.search} (+${PRICING.contents.perUrl}/result with includeContent)`,
     "/search/news": PRICING.searchVerticals.news,
     "/search/images": PRICING.searchVerticals.images,
