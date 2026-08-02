@@ -139,6 +139,9 @@ const MX_PROVIDERS: [needle: string, provider: string][] = [
 const NS_PROVIDERS: [needle: string, provider: string][] = [
     ["awsdns", "AWS Route 53"],
     ["cloudflare.com", "Cloudflare"],
+    // Cloudflare's enterprise nameservers, served from a separate domain —
+    // shopify.com and other large sites use these, not *.ns.cloudflare.com.
+    ["foundationdns.", "Cloudflare Foundation DNS"],
     ["azure-dns", "Azure DNS"],
     ["googledomains.com", "Google Cloud DNS"],
     ["ns.google.com", "Google Cloud DNS"],

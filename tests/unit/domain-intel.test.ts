@@ -120,6 +120,10 @@ describe("provider detection", () => {
             .toBe("AWS Route 53");
         expect(derive("a.com", FOUND, { NS: ["kim.ns.cloudflare.com."] }, []).hosting.dnsProvider)
             .toBe("Cloudflare");
+        // Cloudflare's enterprise nameservers live on their own domain, so a
+        // *.ns.cloudflare.com match alone misses large sites like shopify.com.
+        expect(derive("a.com", FOUND, { NS: ["gold.foundationdns.com."] }, []).hosting.dnsProvider)
+            .toBe("Cloudflare Foundation DNS");
     });
 
     it("falls back to RDAP nameservers when DNS NS is missing", () => {
