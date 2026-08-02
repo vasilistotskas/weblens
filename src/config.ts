@@ -78,6 +78,16 @@ export const PRICING = {
   // composed report or $0.005-0.01 per fragment. One call, all of it, less.
   domain: "$0.005",
 
+  // The rest of the zero-upstream-cost family. Each replaces a lookup that is
+  // otherwise only sold on a subscription, or not sold at all:
+  //   /package     npm + PyPI health in one call (registries are free)
+  //   /tech        site tech stack from headers + HTML — the other half of
+  //                what BuiltWith gates behind $295/mo
+  //   /discussions Hacker News via the free Algolia index
+  package: "$0.003",
+  tech: "$0.005",
+  discussions: "$0.004",
+
   // Bounded whole-site crawl. Priced per requested page (the page budget the
   // caller reserves), consistent with batch fetch. Native fetch + markdown,
   // so marginal cost is CPU only.
@@ -161,6 +171,7 @@ export const PAID_ENDPOINTS: readonly string[] = [
   "/search/scholar", "/search/autocomplete", "/search/trends",
   "/social/youtube/transcript", "/contents", "/answer",
   "/map", "/crawl", "/research/deep", "/domain",
+  "/package", "/tech", "/discussions",
 ];
 
 // Free tier configuration - rate-limited access without payment

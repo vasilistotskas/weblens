@@ -129,6 +129,25 @@ export const FeedbackDocumentSchema = z.looseObject({}).refine(
     { message: `Document nesting exceeds the ${String(MAX_DOCUMENT_DEPTH)} level limit` },
 );
 
+export const PackageRequestSchema = z.object({
+    name: z.string().min(1).max(214)
+        .describe("Package name, e.g. \"express\" or \"@scope/pkg\" (npm), \"requests\" (PyPI)"),
+    registry: z.enum(["npm", "pypi"]).optional().default("npm")
+        .describe("Which registry to look in (default npm)"),
+});
+
+export const TechRequestSchema = z.object({
+    url: urlSchema.describe("Site URL to fingerprint"),
+});
+
+export const DiscussionsRequestSchema = z.object({
+    query: z.string().min(1).max(200).describe("What to search Hacker News for"),
+    limit: z.number().min(1).max(50).optional().default(10)
+        .describe("Stories to return (1-50, default 10)"),
+    sort: z.enum(["relevance", "recent"]).optional().default("relevance")
+        .describe("Rank by relevance (default) or newest first"),
+});
+
 export const DomainRequestSchema = z.object({
     domain: z.string().min(3).max(253)
         .describe("Domain to inspect, e.g. \"stripe.com\". A full URL is accepted and reduced to its hostname."),

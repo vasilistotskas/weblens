@@ -23,6 +23,7 @@ export const LIVE_PREVIEW_ENDPOINTS: readonly string[] = [
     "/contents",
     "/map",
     "/domain",
+    "/tech",
 ];
 
 /** Characters of live preview content returned per request. */
@@ -45,6 +46,38 @@ interface PreviewEntry {
  * shipping an un-evaluatable product.
  */
 export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
+    "/package": {
+        summary: "Should you depend on this package? npm or PyPI health in one call.",
+        sample: {
+            name: "express", registry: "npm", found: true, version: "5.2.1",
+            license: "MIT", repository: "https://github.com/expressjs/express",
+            deprecated: false,
+            downloads: { lastWeek: 127864826, lastMonth: 548000000 },
+            maintenance: { lastPublishedAt: "2025-12-01T00:00:00.000Z", daysSinceRelease: 244, maintainers: 5, scores: { quality: 1, popularity: 1, maintenance: 1 } },
+            dependencies: 28,
+            signals: [],
+        },
+    },
+    "/tech": {
+        summary: "What a site is built and run on — framework, CMS, CDN, analytics, payments — with the evidence for each.",
+        sample: {
+            url: "https://vercel.com", finalUrl: "https://vercel.com/", status: 200,
+            server: "Vercel", poweredBy: "Next.js, Payload",
+            technologies: [
+                { name: "Next.js", category: "framework", evidence: "header x-powered-by: Next.js, Payload" },
+                { name: "Vercel", category: "hosting", evidence: "header x-vercel-id: iad1::abc" },
+            ],
+            categories: { framework: ["Next.js"], hosting: ["Vercel"] },
+        },
+    },
+    "/discussions": {
+        summary: "What Hacker News said about a topic, with points, comments and aggregates.",
+        sample: {
+            query: "cloudflare workers", source: "hackernews", sort: "relevance",
+            stories: [{ title: "Workerd: Open-source Cloudflare Workers runtime", url: "https://github.com/cloudflare/workerd", points: 689, comments: 133, author: "jgrahamc", postedAt: "2022-09-27T14:00:00.000Z", discussionUrl: "https://news.ycombinator.com/item?id=32979198" }],
+            summary: { totalMatches: 1259, returned: 10, pointsReturned: 3421, commentsReturned: 2870, topDomains: [{ domain: "github.com", count: 3 }] },
+        },
+    },
     "/domain": {
         summary: "Who owns a domain, how old it is, what runs on it, and whether it looks risky — one call.",
         sample: {
@@ -211,6 +244,9 @@ const PREVIEW_PRICE_HINT: Record<string, string> = {
     "/screenshot": PRICING.screenshot,
     "/map": PRICING.map,
     "/domain": PRICING.domain,
+    "/package": PRICING.package,
+    "/tech": PRICING.tech,
+    "/discussions": PRICING.discussions,
     "/search": `${PRICING.search} (+${PRICING.contents.perUrl}/result with includeContent)`,
     "/search/news": PRICING.searchVerticals.news,
     "/search/images": PRICING.searchVerticals.images,

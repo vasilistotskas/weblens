@@ -11,7 +11,10 @@ import {
     MapRequestSchema,
     CrawlRequestSchema,
     DeepResearchRequestSchema,
-    DomainRequestSchema
+    DomainRequestSchema,
+    PackageRequestSchema,
+    TechRequestSchema,
+    DiscussionsRequestSchema
 } from "../schemas";
 import { getBatchFetchPrice, parsePrice } from "../services/pricing";
 
@@ -20,10 +23,13 @@ import { batchFetchHandler } from "../tools/batch-fetch";
 import { compareHandler } from "../tools/compare";
 import { crawlHandler } from "../tools/crawl";
 import { deepResearchHandler } from "../tools/deep-research";
+import { discussionsHandler } from "../tools/discussions";
 import { domainHandler } from "../tools/domain";
 import { mapHandler } from "../tools/map";
+import { packageHandler } from "../tools/package-intel";
 import { pdfHandler } from "../tools/pdf";
 import { researchHandler } from "../tools/research";
+import { techHandler } from "../tools/tech";
 import type { Env, Variables } from "../types";
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
@@ -319,6 +325,132 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
         )
     );
     app.post("/domain", domainHandler);
+
+    // ============================================
+    // /package — npm + PyPI package intelligence
+    // ============================================
+    app.use(
+        "/package",
+        validateRequest(PackageRequestSchema),
+        createCreditMiddleware(PRICING.package, "Package Intelligence"),
+        createLazyPaymentMiddleware(
+            "/package",
+            PRICING.package,
+            "Should you depend on this package? Version, license, deprecation (with the maintainer's reason), weekly and monthly downloads, last release date, maintainer count, npm quality/popularity/maintenance scores, and health signals — npm or PyPI, one call.",
+            { name: "express", registry: "npm" },
+            {
+                properties: {
+                    name: { type: "string", description: "Package name, e.g. \"express\" or \"@scope/pkg\"" },
+                    registry: { type: "string", enum: ["npm", "pypi"], description: "Registry to look in (default npm)" },
+                },
+                required: ["name"],
+            },
+            {
+                name: "express", registry: "npm", found: true, version: "5.2.1",
+                description: "Fast, unopinionated, minimalist web framework",
+                license: "MIT", repository: "https://github.com/expressjs/express",
+                deprecated: false,
+                downloads: { lastWeek: 127864826, lastMonth: 548000000 },
+                maintenance: { lastPublishedAt: "2025-12-01T00:00:00.000Z", daysSinceRelease: 244, maintainers: 5, scores: { quality: 1, popularity: 1, maintenance: 1 } },
+                dependencies: 28,
+                signals: [],
+                checkedAt: "2026-08-02T12:00:00.000Z",
+                requestId: "req_pkg123",
+            },
+            {
+                properties: {
+                    name: { type: "string" }, registry: { type: "string" }, found: { type: "boolean" },
+                    version: { type: "string" }, license: { type: "string" }, repository: { type: "string" },
+                    deprecated: { type: "boolean" }, deprecationReason: { type: "string" },
+                    downloads: { type: "object", description: "lastWeek, lastMonth (npm only)" },
+                    maintenance: { type: "object", description: "lastPublishedAt, daysSinceRelease, maintainers, scores" },
+                    dependencies: { type: "number" }, requiresPython: { type: "string" },
+                    signals: { type: "array", description: "deprecated, no-recent-release, no-license, single-maintainer, no-public-repository" },
+                    checkedAt: { type: "string" }, requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/package", packageHandler);
+
+    // ============================================
+    // /tech — website technology detection
+    // ============================================
+    app.use(
+        "/tech",
+        validateRequest(TechRequestSchema),
+        createCreditMiddleware(PRICING.tech, "Tech Detection"),
+        createLazyPaymentMiddleware(
+            "/tech",
+            PRICING.tech,
+            "What a site is built and run on, from a single fetch: frameworks, CMS, ecommerce platform, CDN, analytics, payments, support widgets and web server — each with the header or HTML marker that proves it.",
+            { url: "https://example.com" },
+            {
+                properties: { url: { type: "string", description: "Site URL to fingerprint" } },
+                required: ["url"],
+            },
+            {
+                url: "https://vercel.com", finalUrl: "https://vercel.com/", status: 200,
+                server: "Vercel", poweredBy: "Next.js, Payload",
+                technologies: [
+                    { name: "Next.js", category: "framework", evidence: "header x-powered-by: Next.js, Payload" },
+                    { name: "Vercel", category: "hosting", evidence: "header x-vercel-id: ..." },
+                ],
+                categories: { framework: ["Next.js"], hosting: ["Vercel"] },
+                detectedAt: "2026-08-02T12:00:00.000Z",
+                requestId: "req_tech123",
+            },
+            {
+                properties: {
+                    url: { type: "string" }, finalUrl: { type: "string" }, status: { type: "number" },
+                    server: { type: "string" }, poweredBy: { type: "string" }, generator: { type: "string" },
+                    technologies: { type: "array", description: "Each: name, category, evidence" },
+                    categories: { type: "object", description: "Technology names grouped by category" },
+                    detectedAt: { type: "string" }, requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/tech", techHandler);
+
+    // ============================================
+    // /discussions — Hacker News
+    // ============================================
+    app.use(
+        "/discussions",
+        validateRequest(DiscussionsRequestSchema),
+        createCreditMiddleware(PRICING.discussions, "Discussions"),
+        createLazyPaymentMiddleware(
+            "/discussions",
+            PRICING.discussions,
+            "What Hacker News said about a topic: matching stories with points, comment counts and links to the threads, plus aggregates — total matches, points and comments returned, the domains most often submitted, and the first/last time it was discussed.",
+            { query: "cloudflare workers", limit: 10 },
+            {
+                properties: {
+                    query: { type: "string", description: "What to search Hacker News for" },
+                    limit: { type: "number", description: "Stories to return (1-50, default 10)", maximum: 50 },
+                    sort: { type: "string", enum: ["relevance", "recent"], description: "Ranking (default relevance)" },
+                },
+                required: ["query"],
+            },
+            {
+                query: "cloudflare workers", source: "hackernews", sort: "relevance",
+                stories: [{ title: "Workerd: Open-source Cloudflare Workers runtime", url: "https://github.com/cloudflare/workerd", points: 689, comments: 133, author: "jgrahamc", postedAt: "2022-09-27T14:00:00.000Z", discussionUrl: "https://news.ycombinator.com/item?id=32979198" }],
+                summary: { totalMatches: 1259, returned: 10, pointsReturned: 3421, commentsReturned: 2870, topDomains: [{ domain: "github.com", count: 3 }], firstSeen: "2018-03-12T00:00:00.000Z", lastSeen: "2026-07-30T00:00:00.000Z" },
+                discussedAt: "2026-08-02T12:00:00.000Z",
+                requestId: "req_disc123",
+            },
+            {
+                properties: {
+                    query: { type: "string" }, source: { type: "string" }, sort: { type: "string" },
+                    stories: { type: "array", description: "Each: title, url, points, comments, author, postedAt, discussionUrl" },
+                    summary: { type: "object", description: "totalMatches, returned, pointsReturned, commentsReturned, topDomains, firstSeen, lastSeen" },
+                    discussedAt: { type: "string" }, requestId: { type: "string" },
+                },
+            }
+        )
+    );
+    app.post("/discussions", discussionsHandler);
 
     // ============================================
     // /crawl — bounded whole-site crawl

@@ -55,6 +55,9 @@ const PRICE = {
   batchFetchPerUrl: "$0.0015",
   map: "$0.004",
   domain: "$0.005",
+  package: "$0.003",
+  tech: "$0.005",
+  discussions: "$0.004",
   crawlPerPage: "$0.0015",
   monitorSetup: "$0.01",
   memoryWrite: "$0.001",
@@ -833,6 +836,91 @@ server.registerTool(
         ageDays: res.data?.ageDays,
         expiresInDays: res.data?.expiresInDays,
       });
+    })
+);
+
+// Tool: Package intelligence
+server.registerTool(
+  "package_intel",
+  {
+    description: `Should you depend on this package? One call returns version, license, deprecation status WITH the maintainer's reason, weekly/monthly downloads, last release date, maintainer count, npm's quality/popularity/maintenance scores, and health signals (deprecated, no-recent-release, no-license, single-maintainer, no-public-repository). Supports npm and PyPI. Price: ${PRICE.package}`,
+    inputSchema: z.object({
+      name: z
+        .string()
+        .min(1)
+        .max(214)
+        .describe("Package name, e.g. \"express\" or \"@scope/pkg\""),
+      registry: z
+        .enum(["npm", "pypi"])
+        .optional()
+        .describe("Registry to look in (default npm)"),
+    }),
+  },
+  async ({ name, registry }) =>
+    runTool("package intel", async () => {
+      const res = await client.post("/package", { name, registry });
+      return jsonResult({
+        name: res.data?.name,
+        registry: res.data?.registry,
+        version: res.data?.version,
+        license: res.data?.license,
+        repository: res.data?.repository,
+        deprecated: res.data?.deprecated,
+        deprecationReason: res.data?.deprecationReason,
+        downloads: res.data?.downloads,
+        maintenance: res.data?.maintenance,
+        dependencies: res.data?.dependencies,
+        signals: res.data?.signals,
+      });
+    })
+);
+
+// Tool: Technology detection
+server.registerTool(
+  "detect_tech",
+  {
+    description: `What a website is built and run on, from a single fetch: framework, CMS, ecommerce platform, CDN, analytics, payments, support widgets and web server — each reported with the response header or HTML marker that proves it. Use for competitive research, sales prospecting and vendor due diligence. Price: ${PRICE.tech}`,
+    inputSchema: z.object({
+      url: urlField.describe("Site URL to fingerprint"),
+    }),
+  },
+  async ({ url }) =>
+    runTool("detect tech", async () => {
+      const res = await client.post("/tech", { url });
+      return jsonResult({
+        url: res.data?.finalUrl ?? res.data?.url,
+        server: res.data?.server,
+        poweredBy: res.data?.poweredBy,
+        technologies: res.data?.technologies,
+        categories: res.data?.categories,
+      });
+    })
+);
+
+// Tool: Hacker News discussions
+server.registerTool(
+  "search_discussions",
+  {
+    description: `What Hacker News said about a topic: matching stories with points, comment counts and links to the threads, plus aggregates — total matches, points and comments returned, most-submitted domains, and when it was first and last discussed. Price: ${PRICE.discussions}`,
+    inputSchema: z.object({
+      query: z.string().min(1).max(200).describe("What to search Hacker News for"),
+      limit: z
+        .number()
+        .min(1)
+        .max(50)
+        .optional()
+        .describe("Stories to return (1-50, default 10)"),
+      sort: z
+        .enum(["relevance", "recent"])
+        .optional()
+        .describe("Ranking (default relevance)"),
+    }),
+  },
+  async ({ query, limit, sort }) =>
+    runTool("search discussions", async () => {
+      const res = await client.post("/discussions", { query, limit, sort });
+      const stories = requireField(res.data?.stories, "stories");
+      return jsonResult({ stories, summary: res.data?.summary });
     })
 );
 

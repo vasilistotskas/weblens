@@ -245,7 +245,9 @@ export type ErrorCode =
   // --- Resilient fetch (tools/resilient-fetch.ts) ---
   | "FETCH_ALL_PROVIDERS_FAILED" // Every fetch provider failed (502)
   // --- Intel endpoints (tools/intel.ts) ---
-  | "INTEL_FAILED"; // Intelligence workflow failed (500)
+  | "INTEL_FAILED" // Intelligence workflow failed (500)
+  // --- Discussions endpoint (tools/discussions.ts) ---
+  | "PROVIDER_ERROR"; // Upstream discussion index returned an error (502)
 
 export interface ErrorResponse {
   error: string;

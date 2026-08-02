@@ -94,6 +94,9 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 | `/batch/fetch` | Fetch 2–20 URLs in parallel | $0.0015/URL |
 | `/map` | Discover a site's URLs (sitemaps + links, no page fetches) | $0.004 |
 | `/domain` | Registration + DNS + SaaS stack + risk signals for a domain | $0.005 |
+| `/tech` | Detect a site's framework, CMS, CDN, analytics and payments stack | $0.005 |
+| `/package` | npm/PyPI package health: deprecation, downloads, maintenance | $0.003 |
+| `/discussions` | Hacker News stories on a topic, with aggregates | $0.004 |
 | `/crawl` | Bounded whole-site crawl → markdown per page | $0.0015/page |
 
 ### Search

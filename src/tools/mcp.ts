@@ -302,6 +302,42 @@ export const TOOLS = [
     },
   },
   {
+    name: "package_intel",
+    description: `Should you depend on this package? One call returns version, license, deprecation status WITH the maintainer's reason, weekly/monthly downloads, last release date, maintainer count, npm's quality/popularity/maintenance scores, and health signals (deprecated, no-recent-release, no-license, single-maintainer, no-public-repository). Supports npm and PyPI. Price: ${PRICING.package}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Package name, e.g. \"express\" or \"@scope/pkg\"" },
+        registry: { type: "string", enum: ["npm", "pypi"], description: "Registry to look in (default npm)" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "detect_tech",
+    description: `What a website is built and run on, from a single fetch: framework, CMS, ecommerce platform, CDN, analytics, payments, support widgets and web server — each reported with the response header or HTML marker that proves it. Use for competitive research, sales prospecting and vendor due diligence. Price: ${PRICING.tech}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "Site URL to fingerprint" },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "search_discussions",
+    description: `What Hacker News said about a topic: matching stories with points, comment counts and links to the threads, plus aggregates — total matches, points and comments returned, most-submitted domains, and when it was first and last discussed. Price: ${PRICING.discussions}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "What to search Hacker News for" },
+        limit: { type: "number", minimum: 1, maximum: 50, description: "Stories to return (default 10)" },
+        sort: { type: "string", enum: ["relevance", "recent"], description: "Ranking (default relevance)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "map_site",
     description: `Discover a site's URLs without fetching page content — reads robots.txt sitemap directives, sitemap.xml and nested sitemap indexes, falling back to homepage link extraction. Price: ${PRICING.map}`,
     inputSchema: {
@@ -449,6 +485,9 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
   batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
   domain_intel:      { endpoint: "/domain",          method: "POST", price: PRICING.domain },
+  package_intel:     { endpoint: "/package",         method: "POST", price: PRICING.package },
+  detect_tech:       { endpoint: "/tech",            method: "POST", price: PRICING.tech },
+  search_discussions:{ endpoint: "/discussions",     method: "POST", price: PRICING.discussions },
   map_site:          { endpoint: "/map",             method: "POST", price: PRICING.map },
   crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
   extract_pdf:       { endpoint: "/pdf",             method: "POST", price: PRICING.pdf },

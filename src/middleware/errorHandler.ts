@@ -137,6 +137,7 @@ export function getHttpStatus(code: ErrorCode): number {
     case "FETCH_FAILED":
     case "FETCH_ALL_PROVIDERS_FAILED":
     case "RESEARCH_FAILED":
+    case "PROVIDER_ERROR":
       return 502;
     case "SERVICE_UNAVAILABLE":
     case "AI_UNAVAILABLE":

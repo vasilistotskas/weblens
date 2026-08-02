@@ -343,6 +343,37 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Domain intelligence report", content: { "application/json": { schema: { $ref: "#/components/schemas/DomainResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
+      "/package": {
+        post: {
+          tags: ["Core"], summary: "Package Intelligence", operationId: "packageIntel",
+          description: `Should you depend on this package? Version, license, deprecation status with the maintainer's own reason, weekly and monthly downloads, last release date, maintainer count, npm's quality/popularity/maintenance scores, and health signals — npm or PyPI, one call. Note: PyPI reports metadata and maintenance only; the sole free download-count source (pypistats.org) rate-limits anonymous callers, and a field that works intermittently is worse than one documented as absent. Price: ${PRICING.package}`,
+          "x-payment-info": fixedPayment(PRICING.package),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/PackageRequest" }, example: { name: "express", registry: "npm" } } } },
+          responses: {
+            "200": { description: "Package report", content: { "application/json": { schema: { $ref: "#/components/schemas/PackageResponse" } } } },
+            "402": { $ref: "#/components/responses/PaymentRequired" },
+            "404": { description: "No such package in that registry", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          },
+        },
+      },
+      "/tech": {
+        post: {
+          tags: ["Core"], summary: "Detect Website Technologies", operationId: "detectTech",
+          description: `What a site is built and run on, from a single fetch: framework, CMS, ecommerce platform, CDN, analytics, payments, support widgets and web server. Every detection carries the response header or HTML marker that produced it, so a caller can judge the heuristic rather than trust it blindly. Pairs with /domain, which reads the organisation's SaaS stack out of DNS instead. Price: ${PRICING.tech}. Free preview available: POST /preview {"endpoint": "/tech", "url": "..."}`,
+          "x-payment-info": fixedPayment(PRICING.tech),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/TechRequest" }, example: { url: "https://example.com" } } } },
+          responses: { "200": { description: "Detected technologies", content: { "application/json": { schema: { $ref: "#/components/schemas/TechResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
+      "/discussions": {
+        post: {
+          tags: ["Core"], summary: "Hacker News Discussions", operationId: "searchDiscussions",
+          description: `What Hacker News said about a topic: matching stories with points, comment counts and links to the threads, plus aggregates — total matches, points and comments over the returned set, most-submitted domains, and the first and last time it came up. Price: ${PRICING.discussions}`,
+          "x-payment-info": fixedPayment(PRICING.discussions),
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/DiscussionsRequest" }, example: { query: "cloudflare workers", limit: 10 } } } },
+          responses: { "200": { description: "Matching discussions and aggregates", content: { "application/json": { schema: { $ref: "#/components/schemas/DiscussionsResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
+        },
+      },
       "/crawl": {
         post: {
           tags: ["Core"], summary: "Crawl Site", operationId: "crawlSite",
@@ -787,6 +818,117 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             requestId: { type: "string" },
           },
         },
+        PackageRequest: {
+          type: "object", required: ["name"],
+          properties: {
+            name: { type: "string", example: "express", description: "Package name. npm scopes are supported (@scope/pkg)." },
+            registry: { type: "string", enum: ["npm", "pypi"], default: "npm" },
+          },
+        },
+        PackageResponse: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            registry: { type: "string", enum: ["npm", "pypi"] },
+            found: { type: "boolean" },
+            version: { type: "string", description: "Latest published version" },
+            description: { type: "string" },
+            license: { type: "string" },
+            homepage: { type: "string" },
+            repository: { type: "string", description: "Normalised repository URL (git+ prefix and .git suffix removed)" },
+            deprecated: { type: "boolean" },
+            deprecationReason: { type: "string", description: "The maintainer's deprecation message, when there is one" },
+            downloads: {
+              type: "object", description: "npm only — see the endpoint description for why PyPI has none",
+              properties: { lastWeek: { type: "integer" }, lastMonth: { type: "integer" } },
+            },
+            maintenance: {
+              type: "object",
+              properties: {
+                lastPublishedAt: { type: "string" },
+                daysSinceRelease: { type: "integer" },
+                maintainers: { type: "integer" },
+                scores: { type: "object", description: "npm's own 0-1 quality / popularity / maintenance scores" },
+              },
+            },
+            dependencies: { type: "integer", description: "Count of direct runtime dependencies" },
+            requiresPython: { type: "string", description: "PyPI only" },
+            signals: { type: "array", items: { type: "string" }, description: "deprecated, no-recent-release (>2y), no-license, single-maintainer, no-public-repository" },
+            checkedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
+        TechRequest: {
+          type: "object", required: ["url"],
+          properties: { url: { type: "string", format: "uri", example: "https://example.com", description: "Site URL to fingerprint" } },
+        },
+        TechResponse: {
+          type: "object",
+          properties: {
+            url: { type: "string" },
+            finalUrl: { type: "string", description: "URL after redirects" },
+            status: { type: "integer" },
+            server: { type: "string" },
+            poweredBy: { type: "string" },
+            generator: { type: "string", description: "Value of <meta name=\"generator\">, when present" },
+            technologies: {
+              type: "array", description: "Each detection with the marker that produced it",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  category: { type: "string", enum: ["framework", "cms", "ecommerce", "cdn", "analytics", "hosting", "security", "support", "payments", "server"] },
+                  evidence: { type: "string", description: "The response header line or HTML marker that matched" },
+                },
+              },
+            },
+            categories: { type: "object", description: "Technology names grouped by category" },
+            detectedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
+        DiscussionsRequest: {
+          type: "object", required: ["query"],
+          properties: {
+            query: { type: "string", example: "cloudflare workers", description: "What to search Hacker News for" },
+            limit: { type: "integer", minimum: 1, maximum: 50, default: 10 },
+            sort: { type: "string", enum: ["relevance", "recent"], default: "relevance" },
+          },
+        },
+        DiscussionsResponse: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            source: { type: "string", enum: ["hackernews"] },
+            sort: { type: "string" },
+            stories: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string" }, url: { type: "string" },
+                  points: { type: "integer" }, comments: { type: "integer" },
+                  author: { type: "string" }, postedAt: { type: "string" },
+                  discussionUrl: { type: "string", description: "Link to the HN thread" },
+                },
+              },
+            },
+            summary: {
+              type: "object",
+              properties: {
+                totalMatches: { type: "integer", description: "Stories HN matched overall, which may exceed those returned" },
+                returned: { type: "integer" },
+                pointsReturned: { type: "integer", description: "Summed over the RETURNED stories only" },
+                commentsReturned: { type: "integer", description: "Summed over the RETURNED stories only" },
+                topDomains: { type: "array", description: "Most-submitted domains among the returned stories" },
+                firstSeen: { type: "string" },
+                lastSeen: { type: "string" },
+              },
+            },
+            discussedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
         CrawlRequest: {
           type: "object", required: ["url"],
           properties: {
@@ -1023,6 +1165,9 @@ Paid endpoints settle over the x402 protocol (USDC on Base) — no accounts, no 
 | JavaScript-rendered page | POST /fetch/pro | ${PRICING.fetch.pro} |
 | Structured JSON from a page | POST /extract | ${PRICING.extract} |
 | Who owns a domain + its stack | POST /domain | ${PRICING.domain} |
+| What a site is built on | POST /tech | ${PRICING.tech} |
+| Is this package safe to use | POST /package | ${PRICING.package} |
+| What HN said about a topic | POST /discussions | ${PRICING.discussions} |
 
 Comparable search/scrape APIs bill $0.007-0.008 per request, or reach a lower
 per-page rate only on a ~$99/month plan. WebLens has no plan to commit to, and
@@ -1194,6 +1339,31 @@ month (WhoisXML from $30/mo, BuiltWith's API from $495/mo); this is per call, no
 - \`stack\` names the SaaS vendors the domain's own TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, DocuSign, Okta, …).
 - \`signals\` are the risk flags worth acting on: \`newly-registered\` (<90 days), \`expiring-soon\`, \`expired\`, \`no-registrar-lock\`, \`no-spf\`, \`no-dmarc\`, \`dmarc-monitor-only\`, \`no-mx\`.
 - Try it free first: \`POST /preview {"endpoint": "/domain", "domain": "stripe.com"}\` runs a real lookup and returns the counts.
+
+#### POST /tech
+What a site is built and run on, from one fetch — framework, CMS, ecommerce platform, CDN,
+analytics, payments, support widgets, web server. The other half of what BuiltWith gates behind
+$295/mo; \`/domain\` covers the DNS-derived half.
+- Price: ${PRICING.tech}
+- Body: \`{"url": "https://example.com"}\`
+- Returns: \`{"url", "finalUrl", "status", "server", "poweredBy", "generator", "technologies": [{"name","category","evidence"}], "categories": {...}, "detectedAt", "requestId"}\`
+- Every detection carries its \`evidence\` — the header line or HTML marker that matched — so you can judge the heuristic instead of trusting it.
+- Try it free: \`POST /preview {"endpoint": "/tech", "url": "https://example.com"}\`
+
+#### POST /package
+Should you depend on this package? npm or PyPI, one call.
+- Price: ${PRICING.package}
+- Body: \`{"name": "express", "registry?": "npm"|"pypi"}\`
+- Returns: \`{"name","registry","found","version","license","repository","deprecated","deprecationReason","downloads":{"lastWeek","lastMonth"},"maintenance":{"lastPublishedAt","daysSinceRelease","maintainers","scores"},"dependencies","signals","checkedAt","requestId"}\`
+- \`signals\`: \`deprecated\`, \`no-recent-release\` (>2 years), \`no-license\`, \`single-maintainer\`, \`no-public-repository\`.
+- PyPI returns metadata and maintenance but NOT download counts — the only free source rate-limits anonymous callers, so the field is absent rather than unreliable.
+
+#### POST /discussions
+What Hacker News said about a topic, with the aggregates that turn a hit list into an answer.
+- Price: ${PRICING.discussions}
+- Body: \`{"query": "cloudflare workers", "limit?": 1-50 (default 10), "sort?": "relevance"|"recent"}\`
+- Returns: \`{"query","source","sort","stories":[{"title","url","points","comments","author","postedAt","discussionUrl"}],"summary":{"totalMatches","returned","pointsReturned","commentsReturned","topDomains","firstSeen","lastSeen"},"discussedAt","requestId"}\`
+- \`pointsReturned\`/\`commentsReturned\` sum the returned stories only; \`totalMatches\` is HN's full count.
 
 #### POST /crawl
 Bounded same-host BFS crawl returning clean markdown for every page in ONE synchronous call — no async job, no polling. robots.txt honoured by default (403 FORBIDDEN if it disallows the start URL).

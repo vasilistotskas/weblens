@@ -27,6 +27,7 @@ import {
     describePrice,
     isPaidEndpoint,
 } from "../services/previews";
+import { detectTech } from "../services/tech-detect";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
 import { generateRequestId } from "../utils/requestId";
@@ -97,6 +98,29 @@ export async function previewHandler(c: AppContext) {
             } catch (e) {
                 live = { error: e instanceof Error ? e.message : "Preview lookup failed" };
             }
+        } else if (path === "/tech" && url) {
+            // Same bargain as /domain: a real detection, but reported as which
+            // categories were found and how many, not the labelled list.
+            const validation = validateURL(url);
+            if (!validation.valid) {
+                return c.json(
+                    createErrorResponse("INVALID_URL", validation.error ?? "Invalid URL", requestId),
+                    400,
+                );
+            }
+            try {
+                const report = await detectTech(validation.normalized ?? url);
+                live = {
+                    url: report.finalUrl,
+                    status: report.status,
+                    server: report.server,
+                    technologiesFound: report.technologies.length,
+                    categoriesFound: Object.keys(report.categories),
+                    note: `This is a real detection. The paid call names all ${String(report.technologies.length)} technolog(ies) and the header or HTML marker that proves each one.`,
+                };
+            } catch (e) {
+                live = { error: e instanceof Error ? e.message : "Preview detection failed" };
+            }
         } else if (canLive && url) {
             const validation = validateURL(url);
             if (!validation.valid) {
@@ -132,7 +156,9 @@ export async function previewHandler(c: AppContext) {
             livePreviewHint: canLive
                 ? (path === "/domain"
                     ? "Pass a domain to run a real lookup for free — findings come back as counts."
-                    : "Pass a url to run a real, truncated preview of this endpoint for free.")
+                    : path === "/tech"
+                        ? "Pass a url to run a real detection for free — findings come back as counts."
+                        : "Pass a url to run a real, truncated preview of this endpoint for free.")
                 : "This endpoint calls a paid upstream provider, so free live previews are not offered — the recorded sample shows the exact response shape.",
             docs: `${baseOf(c)}/docs`,
             schema: `${baseOf(c)}/openapi.json`,
