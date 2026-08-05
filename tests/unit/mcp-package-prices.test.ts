@@ -53,6 +53,7 @@ const EXPECTED: Record<string, string> = {
     intelMarket: PRICING.intel.market,
     intelCompetitive: PRICING.intel.competitive,
     intelSiteAudit: PRICING.intel.siteAudit,
+    intelProject: PRICING.intel.project,
 };
 
 /** Pull the `const PRICE = { ... }` literal out of the package source. */

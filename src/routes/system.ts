@@ -13,7 +13,7 @@ import {
     MemorySetRequestSchema,
 } from "../schemas";
 import { dashboardHandler } from "../tools/dashboard";
-import { discoveryHandler, wellKnownX402Handler } from "../tools/discovery";
+import { discoveryHandler, wellKnownX402Handler, x402ResourceCatalogHandler } from "../tools/discovery";
 import { faviconSvgHandler, faviconIcoHandler, faviconPngHandler } from "../tools/favicon";
 import { health } from "../tools/health";
 import { getLandingPageHTML } from "../tools/landing";
@@ -35,6 +35,10 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     // ============================================
     app.get("/discovery", discoveryHandler);
     app.get("/.well-known/x402", wellKnownX402Handler);
+    // Clients that point the facilitator discovery path at this origin were
+    // getting ~100 404s a week; serve them the catalogue instead.
+    app.get("/v2/x402/discovery/resources", x402ResourceCatalogHandler);
+    app.get("/v1/x402/discovery/resources", x402ResourceCatalogHandler);
     app.get("/health", health);
     app.get("/dashboard", dashboardHandler);
 

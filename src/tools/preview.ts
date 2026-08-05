@@ -27,6 +27,7 @@ import {
     describePrice,
     isPaidEndpoint,
 } from "../services/previews";
+import { auditProject } from "../services/project-audit";
 import { detectTech } from "../services/tech-detect";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
@@ -98,6 +99,25 @@ export async function previewHandler(c: AppContext) {
             } catch (e) {
                 live = { error: e instanceof Error ? e.message : "Preview lookup failed" };
             }
+        } else if (path === "/intel/project" && domain) {
+            // Real audit, graded verdict only. The grade is the hook; the
+            // signals behind it are what the paid call sells.
+            try {
+                const audit = await auditProject(domain, c.env);
+                live = audit === null
+                    ? { error: "Provide a public domain name, e.g. \"example.org\"" }
+                    : {
+                        domain: audit.project.domain,
+                        reachable: audit.project.reachable,
+                        ageDays: audit.domain.ageDays,
+                        grade: audit.risk.grade,
+                        riskScore: audit.risk.score,
+                        signalsFound: audit.signals.length,
+                        note: `This is a real audit. The paid call names all ${String(audit.signals.length)} signal(s), the full registration and site breakdown, socials, and the contract cross-check.`,
+                    };
+            } catch (e) {
+                live = { error: e instanceof Error ? e.message : "Preview audit failed" };
+            }
         } else if (path === "/tech" && url) {
             // Same bargain as /domain: a real detection, but reported as which
             // categories were found and how many, not the labelled list.
@@ -154,7 +174,9 @@ export async function previewHandler(c: AppContext) {
             live,
             livePreviewAvailable: canLive,
             livePreviewHint: canLive
-                ? (path === "/domain"
+                ? (path === "/intel/project"
+                    ? "Pass a domain to run a real audit for free — you get the grade, the paid call names the signals."
+                    : path === "/domain"
                     ? "Pass a domain to run a real lookup for free — findings come back as counts."
                     : path === "/tech"
                         ? "Pass a url to run a real detection for free — findings come back as counts."

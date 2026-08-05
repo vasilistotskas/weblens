@@ -129,6 +129,15 @@ export const FeedbackDocumentSchema = z.looseObject({}).refine(
     { message: `Document nesting exceeds the ${String(MAX_DOCUMENT_DEPTH)} level limit` },
 );
 
+export const ProjectAuditRequestSchema = z.object({
+    domain: z.string().min(3).max(253)
+        .describe("Project website, e.g. \"example.org\". A full URL is reduced to its hostname."),
+    tokenAddress: z.string().min(20).max(80).optional()
+        .describe("Optional contract/token address to cross-check against the addresses printed on the site"),
+    chain: z.string().min(2).max(32).optional()
+        .describe("Optional chain label for the token address, e.g. \"base\", \"ethereum\", \"solana\""),
+});
+
 export const PackageRequestSchema = z.object({
     name: z.string().min(1).max(214)
         .describe("Package name, e.g. \"express\" or \"@scope/pkg\" (npm), \"requests\" (PyPI)"),

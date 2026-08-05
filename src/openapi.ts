@@ -629,6 +629,21 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Site audit report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
+      "/intel/project": {
+        post: {
+          tags: ["Intelligence"], summary: "Project Due Diligence (off-chain)", operationId: "intelProject",
+          description: `Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see. Returns domain age and registrar, whether a team page, whitepaper, docs, tokenomics and socials exist, whether the site is an off-the-shelf template, and a cross-check of a contract address against the addresses actually printed on the project's own website. An address you are about to trade that does NOT appear on the project site, while other addresses do, is the strongest off-chain impersonation signal available. Returns weighted risk signals and an A-F grade. Reads NOTHING on-chain: no contract code, liquidity, ownership or holders — pair it with an on-chain checker, neither half is sufficient alone. Price: ${PRICING.intel.project}. Free preview available: POST /preview {"endpoint": "/intel/project", "domain": "..."} returns the grade.`,
+          "x-payment-info": fixedPayment(PRICING.intel.project),
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { $ref: "#/components/schemas/ProjectAuditRequest" }, example: { domain: "example.org", tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chain: "base" } } },
+          },
+          responses: {
+            "200": { description: "Off-chain due diligence report", content: { "application/json": { schema: { $ref: "#/components/schemas/ProjectAuditResponse" } } } },
+            "402": { $ref: "#/components/responses/PaymentRequired" },
+          },
+        },
+      },
       "/memory/set": {
         post: {
           tags: ["Memory"], summary: "Store Value", operationId: "memorySet",
@@ -815,6 +830,46 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             ageDays: { type: "integer", description: "Days since registration" },
             expiresInDays: { type: "integer", description: "Days until expiry (negative if expired)" },
             inspectedAt: { type: "string" },
+            requestId: { type: "string" },
+          },
+        },
+        ProjectAuditRequest: {
+          type: "object", required: ["domain"],
+          properties: {
+            domain: { type: "string", example: "example.org", description: "Project website. A full URL is reduced to its hostname." },
+            tokenAddress: { type: "string", description: "Optional contract/token address to cross-check against the addresses printed on the site" },
+            chain: { type: "string", description: "Optional chain label for the token address, e.g. base, ethereum, solana" },
+          },
+        },
+        ProjectAuditResponse: {
+          type: "object",
+          properties: {
+            project: { type: "object", description: "input, domain, reachable, status, title" },
+            domain: { type: "object", description: "RDAP facts: registeredAt, ageDays, expiresAt, registrar, nameservers, found" },
+            site: { type: "object", description: "technologies (each with evidence), categories, generator, looksTemplated" },
+            content: {
+              type: "object",
+              description: "pages present (team, whitepaper, docs, tokenomics, audit, roadmap), socials found, and every EVM contract address printed on the site",
+            },
+            crossCheck: {
+              type: "object",
+              description: "Present when tokenAddress was supplied: the queried address, whether it appears on the site, and any other addresses that do",
+              properties: {
+                queried: { type: "string" }, chain: { type: "string" },
+                foundOnSite: { type: "boolean" },
+                otherAddressesOnSite: { type: "array", items: { type: "string" } },
+              },
+            },
+            signals: {
+              type: "array", items: { type: "string" },
+              description: "Weighted off-chain signals: very-new-domain, newly-registered-domain, contract-mismatch, contract-not-on-site, site-unreachable, no-team-page, no-whitepaper, no-docs, no-socials, no-github, templated-site, domain-expires-soon, no-registrar-lock, registration-unavailable",
+            },
+            risk: {
+              type: "object",
+              properties: { score: { type: "integer", description: "0-100 cumulative weighted risk" }, grade: { type: "string", enum: ["A", "B", "C", "D", "F"] }, summary: { type: "string" } },
+            },
+            disclaimer: { type: "string", description: "States plainly that nothing on-chain was read" },
+            auditedAt: { type: "string" },
             requestId: { type: "string" },
           },
         },
@@ -1168,6 +1223,7 @@ Paid endpoints settle over the x402 protocol (USDC on Base) — no accounts, no 
 | What a site is built on | POST /tech | ${PRICING.tech} |
 | Is this package safe to use | POST /package | ${PRICING.package} |
 | What HN said about a topic | POST /discussions | ${PRICING.discussions} |
+| Is this project legit (off-chain) | POST /intel/project | ${PRICING.intel.project} |
 
 Comparable search/scrape APIs bill $0.007-0.008 per request, or reach a lower
 per-page rate only on a ~$99/month plan. WebLens has no plan to commit to, and
@@ -1339,6 +1395,17 @@ month (WhoisXML from $30/mo, BuiltWith's API from $495/mo); this is per call, no
 - \`stack\` names the SaaS vendors the domain's own TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, DocuSign, Okta, …).
 - \`signals\` are the risk flags worth acting on: \`newly-registered\` (<90 days), \`expiring-soon\`, \`expired\`, \`no-registrar-lock\`, \`no-spf\`, \`no-dmarc\`, \`dmarc-monitor-only\`, \`no-mx\`.
 - Try it free first: \`POST /preview {"endpoint": "/domain", "domain": "stripe.com"}\` runs a real lookup and returns the counts.
+
+#### POST /intel/project
+Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see.
+Built for agents doing token/project diligence: on-chain tools read the contract, this reads the web.
+- Price: ${PRICING.intel.project}
+- Body: \`{"domain": "example.org", "tokenAddress?": "0x…", "chain?": "base"}\`
+- Returns: \`{"project", "domain", "site", "content", "crossCheck?", "signals", "risk": {"score","grade","summary"}, "disclaimer", "auditedAt", "requestId"}\`
+- The signal nothing on-chain can give you: pass \`tokenAddress\` and it checks whether that address actually appears on the project's own site. If it does not, but OTHER addresses do, you get \`contract-mismatch\` — a strong impersonation/clone signal.
+- Other signals: \`very-new-domain\` (<30d), \`newly-registered-domain\` (<90d), \`site-unreachable\`, \`no-team-page\`, \`no-whitepaper\`, \`no-docs\`, \`no-socials\`, \`no-github\`, \`templated-site\`, \`domain-expires-soon\`, \`no-registrar-lock\`.
+- **Reads nothing on-chain.** No contract code, liquidity, ownership or holder data. Pair it with a contract checker — neither half is sufficient alone.
+- Try it free: \`POST /preview {"endpoint": "/intel/project", "domain": "example.org"}\` returns the grade.
 
 #### POST /tech
 What a site is built and run on, from one fetch — framework, CMS, ecommerce platform, CDN,

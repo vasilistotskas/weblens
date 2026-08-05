@@ -302,6 +302,19 @@ export const TOOLS = [
     },
   },
   {
+    name: "project_due_diligence",
+    description: `Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see. Returns domain age and registrar, whether a team page, whitepaper, docs and socials exist, whether the site is an off-the-shelf template, and a cross-check of a contract address against the addresses actually printed on the project's own website (a mismatch is a strong impersonation signal). Gives weighted risk signals and an A-F grade. Reads NOTHING on-chain — pair it with a contract/liquidity checker. Price: ${PRICING.intel.project}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        domain: { type: "string", minLength: 3, maxLength: 253, description: "Project website, e.g. \"example.org\"" },
+        tokenAddress: { type: "string", minLength: 20, maxLength: 80, description: "Optional contract address to cross-check against the site" },
+        chain: { type: "string", minLength: 2, maxLength: 32, description: "Optional chain label, e.g. base, ethereum, solana" },
+      },
+      required: ["domain"],
+    },
+  },
+  {
     name: "package_intel",
     description: `Should you depend on this package? One call returns version, license, deprecation status WITH the maintainer's reason, weekly/monthly downloads, last release date, maintainer count, npm's quality/popularity/maintenance scores, and health signals (deprecated, no-recent-release, no-license, single-maintainer, no-public-repository). Supports npm and PyPI. Price: ${PRICING.package}`,
     inputSchema: {
@@ -485,6 +498,7 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
   batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
   domain_intel:      { endpoint: "/domain",          method: "POST", price: PRICING.domain },
+  project_due_diligence: { endpoint: "/intel/project", method: "POST", price: PRICING.intel.project },
   package_intel:     { endpoint: "/package",         method: "POST", price: PRICING.package },
   detect_tech:       { endpoint: "/tech",            method: "POST", price: PRICING.tech },
   search_discussions:{ endpoint: "/discussions",     method: "POST", price: PRICING.discussions },

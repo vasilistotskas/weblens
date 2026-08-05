@@ -97,6 +97,7 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 | `/tech` | Detect a site's framework, CMS, CDN, analytics and payments stack | $0.005 |
 | `/package` | npm/PyPI package health: deprecation, downloads, maintenance | $0.003 |
 | `/discussions` | Hacker News stories on a topic, with aggregates | $0.004 |
+| `/intel/project` | Off-chain project due diligence: domain age, team/whitepaper, contract cross-check, A–F grade | $0.05 |
 | `/crawl` | Bounded whole-site crawl → markdown per page | $0.0015/page |
 
 ### Search

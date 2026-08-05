@@ -146,6 +146,16 @@ export const PRICING = {
     market: "$5.00",        // Market research report
     competitive: "$8.00",   // Competitive analysis
     siteAudit: "$0.75",     // Full site audit
+    /**
+     * Off-chain project due diligence. Priced against the market it sells
+     * into rather than the cost to serve: on the x402 rail, crypto risk
+     * data goes for $0.02 (rug check) to $0.50 (full due diligence), and
+     * every incumbent there reads only the chain. This reads only the web,
+     * so it is the complement rather than a competitor — priced between the
+     * cheap grade and the full report. Cost to serve is the usual
+     * ~$0.000002: RDAP, DNS and one page fetch, all free upstreams.
+     */
+    project: "$0.05",
   },
 
   // Agent Credit Accounts (Clearing House seed)
@@ -171,7 +181,7 @@ export const PAID_ENDPOINTS: readonly string[] = [
   "/search/scholar", "/search/autocomplete", "/search/trends",
   "/social/youtube/transcript", "/contents", "/answer",
   "/map", "/crawl", "/research/deep", "/domain",
-  "/package", "/tech", "/discussions",
+  "/package", "/tech", "/discussions", "/intel/project",
 ];
 
 // Free tier configuration - rate-limited access without payment

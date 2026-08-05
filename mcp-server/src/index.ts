@@ -65,6 +65,7 @@ const PRICE = {
   intelMarket: "$5.00",
   intelCompetitive: "$8.00",
   intelSiteAudit: "$0.75",
+  intelProject: "$0.05",
 } as const;
 
 // Client will be initialized async
@@ -835,6 +836,47 @@ server.registerTool(
         signals: res.data?.signals,
         ageDays: res.data?.ageDays,
         expiresInDays: res.data?.expiresInDays,
+      });
+    })
+);
+
+// Tool: Off-chain project due diligence
+server.registerTool(
+  "project_due_diligence",
+  {
+    description: `Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see. Returns domain age and registrar, whether a team page, whitepaper, docs and socials exist, whether the site is an off-the-shelf template, and a cross-check of a contract address against the addresses actually printed on the project's own website (a mismatch is a strong impersonation signal). Gives weighted risk signals and an A-F grade. Reads NOTHING on-chain — pair it with a contract/liquidity checker. Price: ${PRICE.intelProject}`,
+    inputSchema: z.object({
+      domain: z
+        .string()
+        .min(3)
+        .max(253)
+        .describe("Project website, e.g. \"example.org\""),
+      tokenAddress: z
+        .string()
+        .min(20)
+        .max(80)
+        .optional()
+        .describe("Optional contract address to cross-check against the site"),
+      chain: z
+        .string()
+        .min(2)
+        .max(32)
+        .optional()
+        .describe("Optional chain label, e.g. base, ethereum, solana"),
+    }),
+  },
+  async ({ domain, tokenAddress, chain }) =>
+    runTool("project due diligence", async () => {
+      const res = await client.post("/intel/project", { domain, tokenAddress, chain });
+      return jsonResult({
+        project: res.data?.project,
+        domain: res.data?.domain,
+        site: res.data?.site,
+        content: res.data?.content,
+        crossCheck: res.data?.crossCheck,
+        signals: res.data?.signals,
+        risk: res.data?.risk,
+        disclaimer: res.data?.disclaimer,
       });
     })
 );

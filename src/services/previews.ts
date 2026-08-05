@@ -24,6 +24,7 @@ export const LIVE_PREVIEW_ENDPOINTS: readonly string[] = [
     "/map",
     "/domain",
     "/tech",
+    "/intel/project",
 ];
 
 /** Characters of live preview content returned per request. */
@@ -46,6 +47,18 @@ interface PreviewEntry {
  * shipping an un-evaluatable product.
  */
 export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
+    "/intel/project": {
+        summary: "Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see.",
+        sample: {
+            project: { domain: "example.org", reachable: true, title: "Example Project" },
+            domain: { registeredAt: "2021-04-02T00:00:00Z", ageDays: 1950, registrar: "NameCheap, Inc.", found: true },
+            site: { categories: { framework: ["Next.js"] }, looksTemplated: false },
+            content: { pages: { team: true, whitepaper: true, docs: true }, socials: { twitter: "https://x.com/example", github: "https://github.com/example" } },
+            crossCheck: { queried: "0x8335…2913", foundOnSite: true, otherAddressesOnSite: [] },
+            signals: [],
+            risk: { score: 0, grade: "A", summary: "No off-chain risk signals." },
+        },
+    },
     "/package": {
         summary: "Should you depend on this package? npm or PyPI health in one call.",
         sample: {
@@ -247,6 +260,7 @@ const PREVIEW_PRICE_HINT: Record<string, string> = {
     "/package": PRICING.package,
     "/tech": PRICING.tech,
     "/discussions": PRICING.discussions,
+    "/intel/project": PRICING.intel.project,
     "/search": `${PRICING.search} (+${PRICING.contents.perUrl}/result with includeContent)`,
     "/search/news": PRICING.searchVerticals.news,
     "/search/images": PRICING.searchVerticals.images,

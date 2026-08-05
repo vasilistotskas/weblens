@@ -34,6 +34,7 @@ import {
     AnswerRequestSchema,
     MapRequestSchema,
     DomainRequestSchema,
+    ProjectAuditRequestSchema,
     PackageRequestSchema,
     TechRequestSchema,
     DiscussionsRequestSchema,
@@ -70,6 +71,7 @@ const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
     "/batch/fetch": BatchFetchRequestSchema,
     "/map": MapRequestSchema,
     "/domain": DomainRequestSchema,
+    "/intel/project": ProjectAuditRequestSchema,
     "/package": PackageRequestSchema,
     "/tech": TechRequestSchema,
     "/discussions": DiscussionsRequestSchema,
@@ -90,6 +92,7 @@ interface JsonSchemaProp {
     enum?: unknown[];
     minimum?: number;
     maximum?: number;
+    minLength?: number;
     items?: JsonSchemaProp;
 }
 interface ToolInputSchema {
@@ -116,11 +119,18 @@ function sampleValue(key: string, prop: JsonSchemaProp): unknown {
         case "object":
             return { field: { type: "string" } };
         case "string":
-        default:
+        default: {
             if (/^url$|url$/iu.test(key)) { return "https://example.com"; }
             if (/videoid/iu.test(key)) { return "dQw4w9WgXcQ"; }
             if (/key$/iu.test(key)) { return "sample_key"; }
-            return "sample";
+            // Honour minLength — a tool that advertises no lower bound while
+            // the endpoint enforces one sends agents into a 400. Padding here
+            // is what surfaces that mismatch instead of hiding it.
+            const base = /address/iu.test(key) ? "0x" : "sample";
+            return prop.minLength && prop.minLength > base.length
+                ? base.padEnd(prop.minLength, "a")
+                : base === "0x" ? "0x0000000000000000000000000000000000000000" : base;
+        }
     }
 }
 

@@ -9,7 +9,13 @@ import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
 // Service catalog with rich metadata for AI agent discovery
-const SERVICE_CATALOG = {
+/**
+ * The advertised catalogue. Exported so a test can assert it covers every
+ * entry of PAID_ENDPOINTS — it silently fell five endpoints behind once, and
+ * an endpoint missing here is invisible to /discovery, /.well-known/x402 and
+ * the resource mirror no matter how well it works.
+ */
+export const SERVICE_CATALOG = {
     name: "WebLens",
     version: "2.0.0",
     tagline: "Give your AI agents web superpowers",
@@ -293,6 +299,56 @@ const SERVICE_CATALOG = {
             tags: ["batch", "parallel", "bulk", "efficient"],
             latency: "5-15 seconds",
             rateLimit: "20/minute",
+        },
+        {
+            endpoint: "/domain",
+            method: "POST",
+            name: "Domain Intelligence",
+            description: "Registration (registrar, age, expiry, status), live DNS, the mail and DNS providers behind it, the SaaS vendors its TXT verification tokens reveal, SPF/DMARC posture, and risk signals.",
+            price: PRICING.domain,
+            tags: ["domain", "whois", "rdap", "dns", "due-diligence", "security"],
+            latency: "1-3 seconds",
+            rateLimit: "50/minute",
+        },
+        {
+            endpoint: "/tech",
+            method: "POST",
+            name: "Technology Detection",
+            description: "What a site is built and run on — framework, CMS, ecommerce, CDN, analytics, payments, support widgets and web server — each with the header or HTML marker that proves it.",
+            price: PRICING.tech,
+            tags: ["tech-stack", "fingerprinting", "competitive-intel", "prospecting"],
+            latency: "1-4 seconds",
+            rateLimit: "50/minute",
+        },
+        {
+            endpoint: "/package",
+            method: "POST",
+            name: "Package Intelligence",
+            description: "Should you depend on this package? Version, license, deprecation with the maintainer's reason, downloads, release recency, maintainer count and health signals. npm and PyPI.",
+            price: PRICING.package,
+            tags: ["npm", "pypi", "dependencies", "supply-chain", "developer-tools"],
+            latency: "1-3 seconds",
+            rateLimit: "50/minute",
+        },
+        {
+            endpoint: "/discussions",
+            method: "POST",
+            name: "Hacker News Discussions",
+            description: "What Hacker News said about a topic: stories with points and comments, plus aggregates — total matches, most-submitted domains, and when it was first and last discussed.",
+            price: PRICING.discussions,
+            tags: ["hacker-news", "sentiment", "discussions", "market-research"],
+            latency: "1-3 seconds",
+            rateLimit: "50/minute",
+        },
+        {
+            endpoint: "/intel/project",
+            method: "POST",
+            name: "Project Due Diligence (off-chain)",
+            description: "The half an on-chain rug checker cannot see: domain age and registrar, whether a team page, whitepaper, docs and socials exist, whether the site is an off-the-shelf template, and a cross-check of a contract address against the addresses printed on the project's own website. Weighted risk signals and an A-F grade. Reads nothing on-chain.",
+            price: PRICING.intel.project,
+            tags: ["due-diligence", "crypto", "risk", "osint", "off-chain", "token-safety"],
+            latency: "2-6 seconds",
+            rateLimit: "30/minute",
         },
         {
             endpoint: "/map",
@@ -636,5 +692,52 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
             hashAlgorithm: "keccak256",
             supportedTrust: ["feedback"],
         },
+    });
+}
+
+/**
+ * Resource-server mirror of the x402 discovery catalogue
+ * (GET /v2/x402/discovery/resources, and the /v1 alias).
+ *
+ * WHY THIS EXISTS. Per the CDP Bazaar spec this path is hosted by
+ * FACILITATORS, not by resource servers — but production logs showed ~100
+ * requests a week arriving here and getting a 404, from clients that point the
+ * facilitator path at the resource server. Answering them turns a dead end
+ * into a usable catalogue of all paid endpoints.
+ *
+ * DELIBERATELY NO `accepts` BLOCK. A facilitator catalogue carries full
+ * payment requirements — network, asset address, payTo, amount. Those values
+ * are produced by the x402 library from the live network config, not from
+ * anything this module can read, so hand-rolling them here would risk
+ * publishing a wrong asset or payTo and misdirecting a real payment. Prices
+ * come from PRICING (one source of truth) and the authoritative terms stay
+ * where they belong: the 402 challenge returned by POSTing the resource.
+ */
+export function x402ResourceCatalogHandler(c: Context<{ Bindings: Env }>) {
+    const baseUrl = new URL(c.req.url).origin;
+    const url = new URL(c.req.url);
+    const limit = Math.min(Number(url.searchParams.get("limit") ?? "100") || 100, 200);
+    const offset = Math.max(Number(url.searchParams.get("offset") ?? "0") || 0, 0);
+
+    const all = SERVICE_CATALOG.services.map((s) => ({
+        resource: `${baseUrl}${s.endpoint}`,
+        type: "http" as const,
+        x402Version: 2,
+        method: s.method,
+        metadata: {
+            name: s.name,
+            description: s.description,
+            price: s.price,
+            tags: s.tags,
+        },
+    }));
+
+    return c.json({
+        // Self-describing: an indexer must not mistake this for a facilitator.
+        source: "resource-server-mirror",
+        note: "Convenience mirror for clients that request the facilitator discovery path against this origin. Authoritative payment requirements are in the 402 challenge — POST the resource to receive it. The canonical catalogue is hosted by the facilitator.",
+        facilitator: "https://facilitator.payai.network",
+        items: all.slice(offset, offset + limit),
+        pagination: { limit, offset, total: all.length },
     });
 }
