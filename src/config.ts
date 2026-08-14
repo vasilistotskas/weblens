@@ -184,6 +184,85 @@ export const PAID_ENDPOINTS: readonly string[] = [
   "/package", "/tech", "/discussions", "/intel/project",
 ];
 
+// Routes published with a `{param}` placeholder, paired with a URL a caller can
+// actually issue.
+//
+// Agents copy documented paths verbatim, braces and all: production logs showed
+// ~10.8k requests a week to literal `/r/{url}`, `/receipts/{requestId}` and
+// friends (they arrive percent-encoded as `%7Burl%7D`; Hono decodes them back to
+// braces in `c.req.path`). Every one was a dead end — a 404, or a 400 whose
+// message said nothing about the real mistake.
+//
+// This is the single source of truth for those templates. `pathTemplateMiddleware`
+// answers an unsubstituted request with the matching `example`, and
+// `tests/unit/path-templates.test.ts` asserts that every `{param}` string
+// reachable in the published discovery surfaces appears here — so a new
+// parameterized route cannot ship without its example.
+export interface ParameterizedRoute {
+  /** Exactly as published to agents, e.g. "/r/{url}". */
+  readonly template: string;
+  readonly methods: readonly string[];
+  /** Placeholder name, e.g. "url". */
+  readonly param: string;
+  /** A path the caller can issue as-is. */
+  readonly example: string;
+  /** Where the real value comes from. */
+  readonly hint: string;
+}
+
+export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
+  {
+    template: "/r/{url}",
+    methods: ["GET"],
+    param: "url",
+    example: "/r/https://example.com",
+    hint: "Append the full target URL, scheme included, exactly as-is — do not encode it.",
+  },
+  {
+    template: "/s/{query}",
+    methods: ["GET"],
+    param: "query",
+    example: "/s/cloudflare+workers",
+    hint: "Append the search query, using + or %20 between words.",
+  },
+  {
+    template: "/receipts/{requestId}",
+    methods: ["GET"],
+    param: "requestId",
+    example: "/receipts/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
+    hint: "Use the requestId from the paid response body, or the X-Receipt-Id response header.",
+  },
+  {
+    template: "/feedback/{id}",
+    methods: ["GET"],
+    param: "id",
+    example: "/feedback/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
+    hint: "Use the id from the feedbackURI returned by POST /feedback.",
+  },
+  {
+    template: "/monitor/{id}",
+    methods: ["GET", "DELETE"],
+    param: "id",
+    example: "/monitor/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
+    hint: "Use the monitor id returned by POST /monitor/create.",
+  },
+];
+
+const EXAMPLE_BY_TEMPLATE = new Map(PARAMETERIZED_ROUTES.map((route) => [route.template, route.example]));
+
+/**
+ * The callable example for a published template, for the discovery surfaces to
+ * advertise alongside it. Throws on an unregistered template so a new
+ * parameterized route fails at import rather than shipping without an example.
+ */
+export function pathExample(template: string): string {
+  const example = EXAMPLE_BY_TEMPLATE.get(template);
+  if (example === undefined) {
+    throw new Error(`No example registered in PARAMETERIZED_ROUTES for path template ${template}`);
+  }
+  return example;
+}
+
 // Free tier configuration - rate-limited access without payment
 export const FREE_TIER = {
   // Rate limiting

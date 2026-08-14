@@ -9,12 +9,12 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
-import { PAID_ENDPOINTS } from "./config";
 // Middleware
 import { errorHandler } from "./middleware/errorHandler";
 import { paymentDebugMiddleware } from "./middleware/payment-debug";
 import { receiptMiddleware } from "./middleware/receipt";
 import { requestIdMiddleware } from "./middleware/requestId";
+import { paidEndpointsArePostOnly, pathTemplateMiddleware, routeMethodGuard } from "./middleware/routing";
 import { securityMiddleware } from "./middleware/security";
 
 // Route Registrars
@@ -93,29 +93,17 @@ app.use("*", receiptMiddleware());
 // Global Policies
 // ============================================
 
-// POST-only enforcement for paid endpoints
-// Must run BEFORE payment middleware to prevent 402 on GET requests
-app.use("*", async (c, next) => {
-    const path = c.req.path;
-    const method = c.req.method;
+// Paid endpoints are POST-only. Must run BEFORE the payment middleware, which
+// is registered per-path with app.use() and so would answer a GET with a 402.
+app.use("*", paidEndpointsArePostOnly);
 
-    // Check if this is a paid endpoint that requires POST
-    if (PAID_ENDPOINTS.includes(path) && method !== "POST") {
-        return c.json({
-            error: "METHOD_NOT_ALLOWED",
-            message: "This endpoint only accepts POST requests. Please send a POST request with the required JSON body.",
-            method: method,
-            path: path,
-            allowedMethods: ["POST"],
-            code: "METHOD_NOT_ALLOWED",
-            requestId: c.get("requestId"),
-        }, 405, {
-            "Allow": "POST",
-        });
-    }
+// A documented path still carrying its {placeholder} gets the concrete URL to
+// call. Ahead of the routers so it also pre-empts the free-tier rate limiter.
+app.use("*", pathTemplateMiddleware);
 
-    await next();
-});
+// 405 + Allow for any path registered under a different method, derived from
+// the app's own route table. Wraps the routes below and rewrites their 404s.
+app.use("*", routeMethodGuard(app));
 
 // ============================================
 // Route Registration

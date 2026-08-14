@@ -4,7 +4,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, FREE_TIER } from "../config";
+import { PRICING, FREE_TIER, pathExample } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -501,6 +501,7 @@ export const SERVICE_CATALOG = {
         endpoints: [
             {
                 endpoint: "/r/{url}",
+                example: pathExample("/r/{url}"),
                 method: "GET",
                 name: "Reader Mode",
                 description: "Zero-friction: just GET /r/ + any URL → markdown. No auth, no POST body.",
@@ -510,6 +511,7 @@ export const SERVICE_CATALOG = {
             },
             {
                 endpoint: "/s/{query}",
+                example: pathExample("/s/{query}"),
                 method: "GET",
                 name: "Search Reader",
                 description: "Zero-friction: just GET /s/ + query → search results. No auth, no POST body.",
@@ -555,6 +557,7 @@ export const SERVICE_CATALOG = {
             },
             {
                 endpoint: "/receipts/{requestId}",
+                example: pathExample("/receipts/{requestId}"),
                 method: "GET",
                 name: "Call Receipt",
                 description: "Receipt for a paid call: endpoint, status, outcome, price, payment method, network, payTo. Paid responses carry X-Receipt-Id and X-Receipt-Url headers; receipts are kept 30 days. The mac field, when present, is a symmetric HMAC tag verifiable only by the key holder — not a third-party-verifiable signature.",
@@ -573,6 +576,7 @@ export const SERVICE_CATALOG = {
             },
             {
                 endpoint: "/feedback/{id}",
+                example: pathExample("/feedback/{id}"),
                 method: "GET",
                 name: "Get Hosted Feedback",
                 description: "Serves a hosted feedback document byte-for-byte, so its keccak-256 hash matches the feedbackHash returned when it was stored. This URL is the feedbackURI.",

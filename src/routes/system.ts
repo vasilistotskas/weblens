@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { SUPPORTED_NETWORKS, PRICING  } from "../config";
+import { SUPPORTED_NETWORKS, PRICING, pathExample } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import {
@@ -35,10 +35,13 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     // ============================================
     app.get("/discovery", discoveryHandler);
     app.get("/.well-known/x402", wellKnownX402Handler);
-    // Clients that point the facilitator discovery path at this origin were
-    // getting ~100 404s a week; serve them the catalogue instead.
+    // Clients that point a facilitator discovery path at this origin were
+    // getting ~120 404s a week; serve them the catalogue instead. The paths
+    // differ per facilitator build, so every observed spelling is accepted.
     app.get("/v2/x402/discovery/resources", x402ResourceCatalogHandler);
     app.get("/v1/x402/discovery/resources", x402ResourceCatalogHandler);
+    app.get("/.well-known/x402/discovery/resources", x402ResourceCatalogHandler);
+    app.get("/discovery/resources", x402ResourceCatalogHandler);
     app.get("/health", health);
     app.get("/dashboard", dashboardHandler);
 
@@ -116,19 +119,19 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
                     path: "/r/{url}",
                     method: "GET",
                     description: "Zero-friction: just GET /r/ + any URL → markdown",
-                    example: "GET /r/https://example.com",
+                    example: `GET ${pathExample("/r/{url}")}`,
                     limit: "10 requests/hour, 2000 char content limit",
                 },
                 search: {
                     path: "/s/{query}",
                     method: "GET",
                     description: "Zero-friction: just GET /s/ + query → search results",
-                    example: "GET /s/cloudflare+workers",
+                    example: `GET ${pathExample("/s/{query}")}`,
                     limit: "10 requests/hour, 3 results max",
                 },
                 endpoints: [
-                    { path: "/r/{url}", method: "GET", description: "Zero-friction reader — just append any URL", limit: "10 requests/hour" },
-                    { path: "/s/{query}", method: "GET", description: "Zero-friction search — just append a query", limit: "10 requests/hour" },
+                    { path: "/r/{url}", method: "GET", example: pathExample("/r/{url}"), description: "Zero-friction reader — just append any URL", limit: "10 requests/hour" },
+                    { path: "/s/{query}", method: "GET", example: pathExample("/s/{query}"), description: "Zero-friction search — just append a query", limit: "10 requests/hour" },
                     { path: "/free/fetch", method: "POST", description: "Fetch any webpage (truncated to 2000 chars)", limit: "10 requests/hour" },
                     { path: "/free/search", method: "POST", description: "Web search (max 3 results)", limit: "10 requests/hour" },
                 ],

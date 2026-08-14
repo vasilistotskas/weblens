@@ -228,8 +228,9 @@ export type ErrorCode =
   | "INVALID_SIGNATURE" // Signature did not verify (401)
   | "VERIFICATION_FAILED" // Signature verification threw (401)
   | "UNAUTHORIZED" // No valid payment/credit wallet for the operation (401)
-  // --- Routing (src/index.ts) ---
-  | "METHOD_NOT_ALLOWED" // Non-POST on a POST-only paid endpoint (405)
+  // --- Routing (src/middleware/routing.ts) ---
+  | "METHOD_NOT_ALLOWED" // Path exists, but not under this method (405)
+  | "UNSUBSTITUTED_PATH_TEMPLATE" // Path still contains a documented {placeholder} (400)
   | "NOT_FOUND" // Unknown route (404)
   // --- Crawl (tools/crawl.ts) ---
   | "FORBIDDEN" // robots.txt disallows crawling the requested URL (403)
