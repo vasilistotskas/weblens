@@ -68,5 +68,27 @@ minimumReleaseAgeExclude:
   - eslint@10.8.0
   - viem@2.55.16
 
+# --- Security overrides ------------------------------------------------------
+# fast-uri is one of the few advisory-carrying transitives that actually reaches
+# the deployed Worker bundle (via ajv <- @x402/extensions). 3.1.4 carries the
+# host-confusion / path-traversal advisories GHSA-7p8r-x3mc-p8w7,
+# GHSA-v39h-62p7-jpjc and GHSA-q3j6-qgpj-74h6.
+#
+# 3.1.5 is the fix: ajv declares `fast-uri: ^3.0.1`, so 4.x — the current latest
+# — would break that range, and 3.1.5 is the highest 3.x.
+#
+# Real exposure here was low, which is why this is a pin and not an incident:
+# WebLens never passes caller-controlled input to fast-uri (SSRF validation goes
+# through the WHATWG URL API in services/validator.ts), and the Ajv path that
+# pulls it in is patched to skip validation under workerd. Pinned regardless
+# because it costs nothing. Drop this once @x402/extensions ships an ajv that
+# resolves >=3.1.5 on its own.
+#
+# The other 17 audit advisories (axios, ip-address, extract-zip, postcss,
+# nanoid, brace-expansion) are dev-only or tree-shaken out — verified absent
+# from the bundle via `wrangler deploy --dry-run` source-map inspection.
+overrides:
+  fast-uri: '3.1.5'
+
 patchedDependencies:
   '@x402/extensions@2.22.0': patches/@x402__extensions@2.22.0.patch

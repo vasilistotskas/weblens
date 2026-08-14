@@ -89,3 +89,23 @@ describe("MCP requests", () => {
         expect(body.error.code).toBe(-32601);
     });
 });
+
+describe("MCP transport", () => {
+    // Streamable HTTP makes the server-to-client SSE stream optional: the server
+    // "MUST respond with Content-Type: text/event-stream or 405 Method Not
+    // Allowed". WebLens has nothing to push, so it declines — and clients do
+    // ask (~1.5k GETs a week), so the shape is pinned.
+    it("declines the optional SSE stream with a conformant 405", async () => {
+        const res = await SELF.fetch(MCP_URL, { headers: { Accept: "text/event-stream" } });
+
+        expect(res.status).toBe(405);
+        expect(res.headers.get("Allow")).toBe("POST");
+        expect(res.headers.get("Content-Type")).toContain("application/json");
+
+        const body = await res.json<Record<string, unknown>>();
+        expect(body.code).toBe("METHOD_NOT_ALLOWED");
+        expect(body.error).toBe(body.code);
+        expect(body.allowedMethods).toEqual(["POST"]);
+        expect(body.requestId).toBeTruthy();
+    });
+});

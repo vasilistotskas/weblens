@@ -735,15 +735,34 @@ export async function mcpPostHandler(c: Context<{ Bindings: Env }>) {
 }
 
 /**
- * MCP HTTP GET handler (for SSE streams - not implemented yet)
+ * GET /mcp — decline the optional server-to-client SSE stream.
+ *
+ * Streamable HTTP lets a client open an SSE stream here so the server can push
+ * requests and notifications unprompted. WebLens has nothing to push: every
+ * tool call is a self-contained request/response paid at its own endpoint. The
+ * spec covers exactly this case — the server "MUST respond with
+ * Content-Type: text/event-stream or 405 Method Not Allowed" — so 405 is the
+ * conformant answer, not a gap. Clients do try it (~1.5k GETs a week).
+ *
+ * Body is the standard error envelope like every other error the API returns;
+ * MCP clients key off the status, so this only has to be consistent.
  */
-export function mcpGetHandler() {
-  return new Response("Method Not Allowed", { 
-    status: 405,
-    headers: {
-      "Allow": "POST",
+export function mcpGetHandler(c: Context<{ Bindings: Env }>) {
+  return c.json(
+    {
+      error: "METHOD_NOT_ALLOWED",
+      code: "METHOD_NOT_ALLOWED",
+      message:
+        "This MCP endpoint does not offer a server-to-client SSE stream. " +
+        "Send JSON-RPC requests as POST /mcp.",
+      method: "GET",
+      path: "/mcp",
+      allowedMethods: ["POST"],
+      requestId: c.get("requestId"),
     },
-  });
+    405,
+    { Allow: "POST" },
+  );
 }
 
 /**
