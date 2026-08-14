@@ -129,7 +129,9 @@ async function captureScreenshotInternal(
       timeout,
     });
 
-    let screenshotBuffer: Buffer;
+    // Typed as Uint8Array (web-standard, consistent with the rest of the
+    // codebase; avoids Node Buffer) — puppeteer's Buffer satisfies it.
+    let screenshotBuffer: Uint8Array;
     let actualDimensions = viewport;
 
     if (request.selector) {
@@ -176,8 +178,9 @@ async function captureScreenshotInternal(
       });
     }
 
-    // Convert to base64
-    const base64Image = screenshotBuffer.toString("base64");
+    // Convert to base64 (Uint8Array.prototype.toBase64 — supported by workerd,
+    // pinned by tests/workers/tobase64-probe.test.ts)
+    const base64Image = screenshotBuffer.toBase64();
 
     return {
       image: base64Image,

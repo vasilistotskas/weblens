@@ -21,6 +21,7 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import axios from "axios";
 import type { Hex, LocalAccount } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { Buffer } from "node:buffer";
 
 async function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));

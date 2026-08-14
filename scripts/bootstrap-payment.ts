@@ -30,6 +30,7 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import axios, { AxiosError } from "axios";
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { Buffer } from "node:buffer";
 
 interface BootstrapResponse {
     data?: { title?: string; content?: string };

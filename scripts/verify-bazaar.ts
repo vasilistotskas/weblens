@@ -15,6 +15,8 @@
  *   SKIP_BAZAAR=true npx tsx scripts/verify-bazaar.ts   # Phase 1 only (no Bazaar scan)
  */
 
+import { Buffer } from "node:buffer";
+
 // ============================================
 // Types
 // ============================================
@@ -208,8 +210,7 @@ async function fetchBazaarPage(offset: number, retries = 5): Promise<BazaarRespo
       throw new Error(`Bazaar API returned ${response.status} ${response.statusText}`);
     }
 
-    const data: BazaarResponse = await response.json();
-    return data;
+    return (await response.json()) as BazaarResponse;
   }
 
   throw new Error(`Bazaar API rate-limited after ${retries} retries at offset ${offset}`);

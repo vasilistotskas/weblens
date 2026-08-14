@@ -1,0 +1,188 @@
+diff --git a/dist/cjs/bazaar/index.js b/dist/cjs/bazaar/index.js
+index 917510142e8666a36e11e2c06cc47987798ddfc6..d65f0f5a55a4cfabc79d6e080bfb227f3d656b5c 100644
+--- a/dist/cjs/bazaar/index.js
++++ b/dist/cjs/bazaar/index.js
+@@ -723,7 +723,7 @@ function validateDiscoveryExtension(extension) {
+         errors: ["schema must not contain external $ref/$id references"]
+       };
+     }
+-    const ajv = new import__.default({ strict: false, allErrors: true });
++    const ajv = new import__.default({ strict: false, allErrors: true, logger: false });
+     const validate = ajv.compile(extension.schema);
+     const valid = validate(extension.info);
+     if (valid) {
+@@ -735,10 +735,14 @@ function validateDiscoveryExtension(extension) {
+     }) || ["Unknown validation error"];
+     return { valid: false, errors };
+   } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    if (message.includes("Code generation from strings")) {
++      return { valid: true };
++    }
+     return {
+       valid: false,
+       errors: [
+-        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`
++        `Schema validation failed: ${message}`
+       ]
+     };
+   }
+diff --git a/dist/cjs/index.js b/dist/cjs/index.js
+index f4b24ddb1e58a1d9f97e0da5d3797376d4241d12..d9298f026f735ba026861720728a30352eb6284c 100644
+--- a/dist/cjs/index.js
++++ b/dist/cjs/index.js
+@@ -846,7 +846,7 @@ function validateDiscoveryExtension(extension) {
+         errors: ["schema must not contain external $ref/$id references"]
+       };
+     }
+-    const ajv = new import__.default({ strict: false, allErrors: true });
++    const ajv = new import__.default({ strict: false, allErrors: true, logger: false });
+     const validate = ajv.compile(extension.schema);
+     const valid = validate(extension.info);
+     if (valid) {
+@@ -858,10 +858,14 @@ function validateDiscoveryExtension(extension) {
+     }) || ["Unknown validation error"];
+     return { valid: false, errors };
+   } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    if (message.includes("Code generation from strings")) {
++      return { valid: true };
++    }
+     return {
+       valid: false,
+       errors: [
+-        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`
++        `Schema validation failed: ${message}`
+       ]
+     };
+   }
+@@ -2861,7 +2865,7 @@ function validatePaymentIdentifier(extension) {
+   }
+   if (ext.schema) {
+     try {
+-      const ajv = new import__2.default({ strict: false, allErrors: true });
++      const ajv = new import__2.default({ strict: false, allErrors: true, logger: false });
+       const validate = ajv.compile(ext.schema);
+       const valid = validate(ext.info);
+       if (!valid && validate.errors) {
+@@ -2872,12 +2876,15 @@ function validatePaymentIdentifier(extension) {
+         return { valid: false, errors };
+       }
+     } catch (error) {
+-      return {
+-        valid: false,
+-        errors: [
+-          `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`
+-        ]
+-      };
++      const message = error instanceof Error ? error.message : String(error);
++      if (!message.includes("Code generation from strings")) {
++        return {
++          valid: false,
++          errors: [
++            `Schema validation failed: ${message}`
++          ]
++        };
++      }
+     }
+   }
+   return { valid: true };
+diff --git a/dist/cjs/payment-identifier/index.js b/dist/cjs/payment-identifier/index.js
+index 39e91fe2d8d0df9be1600db208c1056a4eeb2d5f..c73e5c0963d79011ae5ce7608ef911896f2b29e7 100644
+--- a/dist/cjs/payment-identifier/index.js
++++ b/dist/cjs/payment-identifier/index.js
+@@ -142,7 +142,7 @@ function validatePaymentIdentifier(extension) {
+   }
+   if (ext.schema) {
+     try {
+-      const ajv = new import__.default({ strict: false, allErrors: true });
++      const ajv = new import__.default({ strict: false, allErrors: true, logger: false });
+       const validate = ajv.compile(ext.schema);
+       const valid = validate(ext.info);
+       if (!valid && validate.errors) {
+@@ -153,12 +153,15 @@ function validatePaymentIdentifier(extension) {
+         return { valid: false, errors };
+       }
+     } catch (error) {
+-      return {
+-        valid: false,
+-        errors: [
+-          `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`
+-        ]
+-      };
++      const message = error instanceof Error ? error.message : String(error);
++      if (!message.includes("Code generation from strings")) {
++        return {
++          valid: false,
++          errors: [
++            `Schema validation failed: ${message}`
++          ]
++        };
++      }
+     }
+   }
+   return { valid: true };
+diff --git a/dist/esm/chunk-73HCOE6N.mjs b/dist/esm/chunk-73HCOE6N.mjs
+index a65c53eb0f2153f8a53890a4dfe100e773ba2060..e1e4e9c7f91e8c2fb9f559c75c340ab42d6ed514 100644
+--- a/dist/esm/chunk-73HCOE6N.mjs
++++ b/dist/esm/chunk-73HCOE6N.mjs
+@@ -90,7 +90,7 @@ function validatePaymentIdentifier(extension) {
+   }
+   if (ext.schema) {
+     try {
+-      const ajv = new Ajv({ strict: false, allErrors: true });
++      const ajv = new Ajv({ strict: false, allErrors: true, logger: false });
+       const validate = ajv.compile(ext.schema);
+       const valid = validate(ext.info);
+       if (!valid && validate.errors) {
+@@ -101,12 +101,15 @@ function validatePaymentIdentifier(extension) {
+         return { valid: false, errors };
+       }
+     } catch (error) {
+-      return {
+-        valid: false,
+-        errors: [
+-          `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`
+-        ]
+-      };
++      const message = error instanceof Error ? error.message : String(error);
++      if (!message.includes("Code generation from strings")) {
++        return {
++          valid: false,
++          errors: [
++            `Schema validation failed: ${message}`
++          ]
++        };
++      }
+     }
+   }
+   return { valid: true };
+diff --git a/dist/esm/chunk-XWKAN63N.mjs b/dist/esm/chunk-XWKAN63N.mjs
+index a601d12274230095e09fb9c661c90032b1eb9db8..5e46cff567e1ac2fcf3e496a12ec235f764160af 100644
+--- a/dist/esm/chunk-XWKAN63N.mjs
++++ b/dist/esm/chunk-XWKAN63N.mjs
+@@ -665,7 +665,7 @@ function validateDiscoveryExtension(extension) {
+         errors: ["schema must not contain external $ref/$id references"]
+       };
+     }
+-    const ajv = new Ajv({ strict: false, allErrors: true });
++    const ajv = new Ajv({ strict: false, allErrors: true, logger: false });
+     const validate = ajv.compile(extension.schema);
+     const valid = validate(extension.info);
+     if (valid) {
+@@ -677,10 +677,14 @@ function validateDiscoveryExtension(extension) {
+     }) || ["Unknown validation error"];
+     return { valid: false, errors };
+   } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    if (message.includes("Code generation from strings")) {
++      return { valid: true };
++    }
+     return {
+       valid: false,
+       errors: [
+-        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`
++        `Schema validation failed: ${message}`
+       ]
+     };
+   }

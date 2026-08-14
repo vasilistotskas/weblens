@@ -15,8 +15,8 @@ External API dependencies: **SerpAPI** (web search), **Anthropic** (AI extractio
 pnpm run dev                      # wrangler dev (port 8787)
 wrangler dev --env testnet        # testnet mode (Base Sepolia, fake USDC)
 
-# Type checking
-pnpm run build                    # tsc --noEmit (also: pnpm run typecheck)
+# Type checking (two projects: root tsconfig = src/, scripts/tsconfig.json = Node CLI scripts)
+pnpm run build                    # tsc --noEmit && tsc --noEmit -p scripts (also: pnpm run typecheck)
 
 # Testing
 pnpm run test                     # vitest run (all property-based tests)
@@ -37,6 +37,8 @@ wrangler secret put SERP_API_KEY
 ```
 
 > **pnpm 11**: pnpm-specific settings live in `pnpm-workspace.yaml` (the `pnpm` field in `package.json` is no longer read) — `allowBuilds` (replaces `onlyBuiltDependencies`), `blockExoticSubdeps: false` (viem@2.51 pulls `ox` from a pkg.pr.new tarball), plus `peerDependencyRules`/`overrides`/`allowedDeprecatedVersions`. `LOG_LEVEL` is a `[vars]` entry in `wrangler.toml`. `mcp-server/` is a **separate** npm package (own lockfile/build), not part of the workspace.
+
+> **TypeScript 7 dual install**: `tsc` is the native TS 7 compiler via the `@typescript/native` alias; the `typescript` package name resolves to `@typescript/typescript6` (Microsoft's TS 6 API compat package, bin `tsc6`) because typescript-eslint has no TS 7 support until 7.1 (typescript-eslint#10940) — TS 7.0 ships **no programmatic API**. Collapse back to a single plain `typescript` dep once typescript-eslint supports the TS 7 API. Worker code (`src/`) types against `@cloudflare/workers-types` only; Node CLI scripts type against `@types/node` via `scripts/tsconfig.json` (workers-types v5 declares a global `Buffer: any`, so scripts must import `Buffer` from `node:buffer` explicitly or trip the no-unsafe lint rules).
 
 ## Architecture
 
@@ -177,4 +179,4 @@ Model Context Protocol JSON-RPC handler at `/mcp` — enables AI agents to disco
 - `/.well-known/x402` — standard x402 discovery endpoint
 - `/openapi.json` — x402scan discovery document (register at x402scan.com/resources/register; requires `info.x-guidance` + per-op `x-payment-info` + `security: []` on free ops per x402scan.com/discovery/spec)
 - Uses `@x402/extensions/bazaar` (`declareDiscoveryExtension` in `src/middleware/payment.ts`) — this got WebLens indexed in the **PayAI facilitator discovery catalog** (facilitator.payai.network/discovery/resources, 12 endpoints listed). The **CDP Bazaar** (api.cdp.coinbase.com …/x402/discovery/resources) indexes ONLY services whose payments the CDP facilitator itself settles — with PayAI as primary facilitator, CDP never settles, so WebLens is not in the CDP Bazaar. Flipping precedence would expose real payments to CDP's still-open Base-mainnet settle bug (x402-foundation/x402#1065); the indexing pipeline also has an open bug (#2112).
-- `patches/@x402__extensions@2.19.0.patch` (pnpm patch, wired in `pnpm-workspace.yaml` `patchedDependencies`): `@x402/hono`'s middleware runs an advisory Ajv validation of each route's bazaar extension on cold start, but Ajv compiles schemas via `new Function` — forbidden in workerd — which spammed a paired error+warn per paid route per isolate in production logs. The patch passes `logger: false` to Ajv and treats the codegen-disallowed `EvalError` as "skip validation" instead of a failure. Discovery itself was never affected (the extension is not dropped on validation failure). Re-check on `@x402/*` upgrades past 2.19.0 — drop the patch if upstream handles no-codegen runtimes.
+- `patches/@x402__extensions@2.22.0.patch` (pnpm patch, wired in `pnpm-workspace.yaml` `patchedDependencies`): `@x402/hono`'s middleware runs an advisory Ajv validation of each route's bazaar extension on cold start, but Ajv compiles schemas via `new Function` — forbidden in workerd — which spammed a paired error+warn per paid route per isolate in production logs. The patch passes `logger: false` to Ajv and treats the codegen-disallowed `EvalError` as "skip validation" instead of a failure. It also guards the **payment-identifier** extension validator (new in 2.20+, same Ajv pattern) — unguarded, a payer attaching a schema to that extension would get a false `valid: false` on the payment path, not just log noise. The erc20-approval-gas-sponsoring Ajv call is facilitator-only code WebLens never reaches — left unpatched. Discovery itself was never affected (the extension is not dropped on validation failure). Upstream tracks this as x402-foundation/x402#3029 with open PR #3093 (same approach: detect the codegen error, skip validation, report once) — on `@x402/*` upgrades past 2.22.0, re-key the patch (`pnpm patch @x402/extensions@<ver>` → re-apply → `pnpm patch-commit`) or drop it if #3093 has shipped.

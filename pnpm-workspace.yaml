@@ -27,8 +27,11 @@ blockExoticSubdeps: false
 # --- Peer dependency reconciliation ------------------------------------------
 # We deliberately run ahead of some upstream peer ranges; all combinations below
 # are verified working (pnpm run build + pnpm run lint both pass):
-#   - typescript 6 / eslint 10 — our chosen toolchain; many deps still declare
-#     ^5 / ^9 peers but work fine.
+#   - typescript resolves to @typescript/typescript6 (the TS 6 API compat
+#     package Microsoft ships for tools like typescript-eslint, which has no
+#     TS 7 support until 7.1 — typescript-eslint/typescript-eslint#10940);
+#     `tsc` comes from @typescript/native (real typescript@7, native compiler).
+#     Some deps still declare ^5 typescript / ^9 eslint peers but work fine.
 peerDependencyRules:
   allowedVersions:
     typescript: '6'
@@ -41,7 +44,7 @@ peerDependencyRules:
 # age check can't apply to it — excluded explicitly to silence that notice.
 minimumReleaseAgeExclude:
   - ox
-  - '@cloudflare/workers-types@4.20260526.1'
+  - '@cloudflare/workers-types@4.20260526.1 || 5.20260814.1'
   - '@typescript-eslint/eslint-plugin@8.60.0'
   - '@typescript-eslint/parser@8.60.0'
   - '@typescript-eslint/project-service@8.60.0'
@@ -53,16 +56,17 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/utils@8.60.0'
   - '@typescript-eslint/visitor-keys@8.60.0'
   - typescript-eslint@8.60.0
-  - '@cloudflare/vitest-pool-workers@0.16.10'
+  - '@cloudflare/vitest-pool-workers@0.16.10 || 0.21.3'
   - '@cloudflare/workerd-darwin-64@1.20260526.1'
   - '@cloudflare/workerd-darwin-arm64@1.20260526.1'
   - '@cloudflare/workerd-linux-64@1.20260526.1'
   - '@cloudflare/workerd-linux-arm64@1.20260526.1'
   - '@cloudflare/workerd-windows-64@1.20260526.1'
-  - miniflare@4.20260526.0
+  - miniflare@4.20260526.0 || 5.20260811.1-alpha
   - workerd@1.20260526.1
-  - wrangler@4.95.0
+  - wrangler@4.95.0 || 4.123.0
   - eslint@10.8.0
+  - viem@2.55.16
 
 patchedDependencies:
-  '@x402/extensions@2.19.0': patches/@x402__extensions@2.19.0.patch
+  '@x402/extensions@2.22.0': patches/@x402__extensions@2.22.0.patch

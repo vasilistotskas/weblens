@@ -1,0 +1,12 @@
+{
+  // Node-side CLI scripts (run via `npx tsx`). Scoped tsconfig so these get
+  // @types/node globals (Buffer, process) instead of the Worker runtime's
+  // @cloudflare/workers-types — the root tsconfig deliberately excludes Node
+  // types from src/. typescript-eslint's projectService and the second tsc
+  // pass in `pnpm run build` both pick this file up automatically.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts"]
+}
