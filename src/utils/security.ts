@@ -1,4 +1,5 @@
 import { getAddress, verifyMessage } from "viem";
+import type { ErrorCode } from "../types";
 
 /**
  * Security Utility
@@ -12,7 +13,12 @@ import { getAddress, verifyMessage } from "viem";
 interface VerificationResult {
     isValid: boolean;
     error?: string;
-    code?: string;
+    /**
+     * Typed so callers can surface it directly. Reporting a generic code here
+     * loses real diagnostic detail: an expired timestamp, a malformed address
+     * and a bad signature are three different things for the caller to fix.
+     */
+    code?: ErrorCode;
 }
 
 /**
