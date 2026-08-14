@@ -108,6 +108,15 @@ export function validateRequest(schema: z.ZodType) {
                 code: err.code
             }));
 
+            // Which field a caller got wrong is the only way to tell a broken
+            // client from a broken contract — /preview alone rejects ~870
+            // bodies a week and the logs could not say why. Field paths and
+            // Zod codes only: the submitted values are caller data and may
+            // carry credentials, so they are never logged.
+            c.get("log").info("request.validation.failed", {
+                fields: formattedErrors.map((e) => `${e.field || "<root>"}:${e.code}`),
+            });
+
             return c.json({
                 error: "VALIDATION_ERROR",
                 message: "Request body failed validation",
