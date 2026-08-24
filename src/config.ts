@@ -208,6 +208,17 @@ export interface ParameterizedRoute {
   readonly example: string;
   /** Where the real value comes from. */
   readonly hint: string;
+  /**
+   * Whether `example` resolves for anyone, right now.
+   *
+   * True when the parameter is caller-supplied (`/r/`, `/s/`), so the example
+   * is a live call and can be published as *the* endpoint. False when the
+   * parameter is an id this service issued (a receipt, a stored feedback
+   * document, a monitor) — the example is then illustrative only, would 404
+   * for anyone else, and must never be published in a field consumers
+   * dereference. Those routes advertise `uriTemplate` and nothing fetchable.
+   */
+  readonly callableExample: boolean;
 }
 
 export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
@@ -217,6 +228,7 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     param: "url",
     example: "/r/https://example.com",
     hint: "Append the full target URL, scheme included, exactly as-is — do not encode it.",
+    callableExample: true,
   },
   {
     template: "/s/{query}",
@@ -224,6 +236,7 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     param: "query",
     example: "/s/cloudflare+workers",
     hint: "Append the search query, using + or %20 between words.",
+    callableExample: true,
   },
   {
     template: "/receipts/{requestId}",
@@ -231,6 +244,7 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     param: "requestId",
     example: "/receipts/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
     hint: "Use the requestId from the paid response body, or the X-Receipt-Id response header.",
+    callableExample: false,
   },
   {
     template: "/feedback/{id}",
@@ -238,6 +252,7 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     param: "id",
     example: "/feedback/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
     hint: "Use the id from the feedbackURI returned by POST /feedback.",
+    callableExample: false,
   },
   {
     template: "/monitor/{id}",
@@ -245,6 +260,7 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     param: "id",
     example: "/monitor/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
     hint: "Use the monitor id returned by POST /monitor/create.",
+    callableExample: false,
   },
 ];
 
@@ -261,6 +277,53 @@ export function pathExample(template: string): string {
     throw new Error(`No example registered in PARAMETERIZED_ROUTES for path template ${template}`);
   }
   return example;
+}
+
+const ROUTE_BY_TEMPLATE_CONFIG = new Map(PARAMETERIZED_ROUTES.map((route) => [route.template, route]));
+
+/** How a parameterized route is published in a machine-readable catalog. */
+export interface PathPublication {
+  /**
+   * A path that resolves as-is. Present only for `callableExample` routes —
+   * the field a naive consumer dereferences must always be fetchable, which is
+   * the whole point of this shape.
+   */
+  readonly endpoint?: string;
+  /** RFC 6570 template. Expand the placeholder; never request it literally. */
+  readonly uriTemplate: string;
+  /** Illustrative call, whether or not it resolves for the reader. */
+  readonly example: string;
+}
+
+/**
+ * Publication shape for a parameterized route, for any catalog an agent reads.
+ *
+ * Exists because agents dereference whatever looks like a URL. Publishing
+ * `endpoint: "/r/{url}"` sent ~44k requests a week to the literal brace string;
+ * the template belongs in a field whose name says it is a template, and
+ * `endpoint` belongs only to paths that actually answer. Prefix with an origin
+ * for absolute URLs.
+ */
+export function pathPublication(template: string): PathPublication {
+  const route = ROUTE_BY_TEMPLATE_CONFIG.get(template);
+  if (route === undefined) {
+    throw new Error(`No entry in PARAMETERIZED_ROUTES for path template ${template}`);
+  }
+  return {
+    ...(route.callableExample ? { endpoint: route.example } : {}),
+    uriTemplate: route.template,
+    example: route.example,
+  };
+}
+
+/** {@link pathPublication} with every path resolved against an origin. */
+export function absolutePathPublication(origin: string, template: string): PathPublication {
+  const relative = pathPublication(template);
+  return {
+    ...(relative.endpoint === undefined ? {} : { endpoint: `${origin}${relative.endpoint}` }),
+    uriTemplate: `${origin}${relative.uriTemplate}`,
+    example: `${origin}${relative.example}`,
+  };
 }
 
 // Free tier configuration - rate-limited access without payment

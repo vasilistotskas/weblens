@@ -24,7 +24,7 @@
  */
 
 import { keccak256, stringToHex } from "viem";
-import { PRICING, SUPPORTED_NETWORKS } from "../config";
+import { PRICING, SUPPORTED_NETWORKS, absolutePathPublication } from "../config";
 import type { Env } from "../types";
 import { signContext } from "./crypto";
 
@@ -79,7 +79,7 @@ export function buildRegistration(baseUrl: string) {
         },
         feedback: {
             /** Where a buyer turns a served call into citable payment evidence. */
-            receiptEndpoint: `${baseUrl}/receipts/{requestId}`,
+            receiptEndpoint: absolutePathPublication(baseUrl, "/receipts/{requestId}"),
             /** Where a buyer can host a feedback document and get its hash. */
             submitEndpoint: `${baseUrl}/feedback`,
             hashAlgorithm: "keccak256",

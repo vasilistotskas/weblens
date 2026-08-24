@@ -4,7 +4,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, FREE_TIER, pathExample } from "../config";
+import { PRICING, FREE_TIER, pathPublication, absolutePathPublication } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -500,8 +500,7 @@ export const SERVICE_CATALOG = {
         description: "Try WebLens free — no wallet or payment needed",
         endpoints: [
             {
-                endpoint: "/r/{url}",
-                example: pathExample("/r/{url}"),
+                ...pathPublication("/r/{url}"),
                 method: "GET",
                 name: "Reader Mode",
                 description: "Zero-friction: just GET /r/ + any URL → markdown. No auth, no POST body.",
@@ -510,8 +509,7 @@ export const SERVICE_CATALOG = {
                 tags: ["free", "reader", "zero-friction", "viral"],
             },
             {
-                endpoint: "/s/{query}",
-                example: pathExample("/s/{query}"),
+                ...pathPublication("/s/{query}"),
                 method: "GET",
                 name: "Search Reader",
                 description: "Zero-friction: just GET /s/ + query → search results. No auth, no POST body.",
@@ -556,8 +554,7 @@ export const SERVICE_CATALOG = {
                 tags: ["free", "erc-8004", "agent-reputation", "identity", "discovery"],
             },
             {
-                endpoint: "/receipts/{requestId}",
-                example: pathExample("/receipts/{requestId}"),
+                ...pathPublication("/receipts/{requestId}"),
                 method: "GET",
                 name: "Call Receipt",
                 description: "Receipt for a paid call: endpoint, status, outcome, price, payment method, network, payTo. Paid responses carry X-Receipt-Id and X-Receipt-Url headers; receipts are kept 30 days. The mac field, when present, is a symmetric HMAC tag verifiable only by the key holder — not a third-party-verifiable signature.",
@@ -575,8 +572,7 @@ export const SERVICE_CATALOG = {
                 tags: ["free", "erc-8004", "agent-reputation", "feedback"],
             },
             {
-                endpoint: "/feedback/{id}",
-                example: pathExample("/feedback/{id}"),
+                ...pathPublication("/feedback/{id}"),
                 method: "GET",
                 name: "Get Hosted Feedback",
                 description: "Serves a hosted feedback document byte-for-byte, so its keccak-256 hash matches the feedbackHash returned when it was stored. This URL is the feedbackURI.",
@@ -690,9 +686,9 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         erc8004: {
             description: "Off-chain ERC-8004 surfaces only. WebLens is not registered on-chain, holds no agent id, and writes nothing to any registry.",
             registration: `${baseUrl}/.well-known/agent-registration.json`,
-            receipt: `${baseUrl}/receipts/{requestId}`,
+            receipt: absolutePathPublication(baseUrl, "/receipts/{requestId}"),
             submitFeedback: `${baseUrl}/feedback`,
-            feedbackDocument: `${baseUrl}/feedback/{id}`,
+            feedbackDocument: absolutePathPublication(baseUrl, "/feedback/{id}"),
             hashAlgorithm: "keccak256",
             supportedTrust: ["feedback"],
         },

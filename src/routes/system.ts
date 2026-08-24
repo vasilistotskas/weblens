@@ -42,6 +42,9 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     app.get("/v1/x402/discovery/resources", x402ResourceCatalogHandler);
     app.get("/.well-known/x402/discovery/resources", x402ResourceCatalogHandler);
     app.get("/discovery/resources", x402ResourceCatalogHandler);
+    // Unversioned spelling — still ~200 404s a week after the versioned ones
+    // were added, so it is a distinct client, not a stale cache.
+    app.get("/x402/discovery/resources", x402ResourceCatalogHandler);
     app.get("/health", health);
     app.get("/dashboard", dashboardHandler);
 

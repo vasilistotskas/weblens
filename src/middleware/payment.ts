@@ -17,6 +17,11 @@ import { createLogger } from "../utils/logger";
 // use the request-scoped logger via `c.get("log")`.
 const log = createLogger();
 
+interface AppEnv {
+    Bindings: Env;
+    Variables: Variables;
+}
+
 // ============================================
 // Resource Server Cache (env-signature keyed)
 // ============================================
@@ -202,10 +207,22 @@ function createPaymentConfig(
 // Per-route middleware cache, keyed on (path + price + payTo + network + cdpKeyId).
 // When env changes the cache key changes, so the middleware is rebuilt
 // automatically — no stale `payTo` after a config change.
-const middlewareCache = new Map<
-    string,
-    MiddlewareHandler<{ Bindings: Env; Variables: Variables }>
->();
+const middlewareCache = new Map<string, MiddlewareHandler<AppEnv>>();
+
+/**
+ * Drop every cached payment object for this env.
+ *
+ * Called when the payment wall fails before the handler runs. Clearing the
+ * whole middleware cache — not just the failing route — is deliberate: each
+ * cached middleware closes over the resource server we are evicting *and* over
+ * its own latched `isInitialized` flag, so every one of them is poisoned by
+ * the same bad `/supported` sync. Evicting only the failing route would leave
+ * each remaining route to serve one 5xx of its own before healing.
+ */
+function evictPaymentCaches(env: Env): void {
+    resourceServerCache.delete(envSignature(env));
+    middlewareCache.clear();
+}
 
 /**
  * Create a lazy-initialized x402 payment middleware. Supports both static
@@ -251,8 +268,7 @@ export function createLazyPaymentMiddleware(
             ].join("|")
             : null;
 
-        let middleware = cacheKey ? middlewareCache.get(cacheKey) : undefined;
-        if (!middleware) {
+        const build = (): MiddlewareHandler<AppEnv> => {
             const config = createPaymentConfig(
                 path,
                 price,
@@ -264,11 +280,12 @@ export function createLazyPaymentMiddleware(
                 outputExample,
                 outputSchema
             );
-            const server = getResourceServer(env);
-            middleware = paymentMiddleware(config, server) as MiddlewareHandler<{
-                Bindings: Env;
-                Variables: Variables;
-            }>;
+            return paymentMiddleware(config, getResourceServer(env)) as MiddlewareHandler<AppEnv>;
+        };
+
+        let middleware = cacheKey ? middlewareCache.get(cacheKey) : undefined;
+        if (!middleware) {
+            middleware = build();
             if (cacheKey) {
                 middlewareCache.set(cacheKey, middleware);
                 c.get("log").debug("payment.middleware_ready", { path, price });
@@ -277,6 +294,73 @@ export function createLazyPaymentMiddleware(
             }
         }
 
-        return middleware(c, next);
+        // Run the wall, tracking whether control ever reached the handler.
+        // @x402/hono answers its own failures (500 internal, 502 facilitator)
+        // by returning a Response *without* calling next(), so "handler never
+        // ran AND status is 5xx" cleanly separates a payment-wall failure from
+        // a handler that ran and failed on its own.
+        const run = async (mw: MiddlewareHandler<AppEnv>) => {
+            // Held on an object, not a `let`: TypeScript does not track
+            // assignments made inside a callback, so a plain local would stay
+            // narrowed to its `false` initializer and make the check below a
+            // constant. Property narrowing is invalidated by the call.
+            const state = { reachedHandler: false };
+            // A Hono middleware may answer with a Response or return nothing
+            // and leave the answer on `c.res`; the declared type collapses the
+            // second case to `void`, so widen it and read whichever applies.
+            const response = (await mw(c, async () => {
+                state.reachedHandler = true;
+                await next();
+            })) as Response | undefined;
+            const status = response?.status ?? c.res.status;
+            return { response, wallFailed: !state.reachedHandler && status >= 500 };
+        };
+
+        const first = await run(middleware);
+        if (!first.wallFailed) {
+            return first.response;
+        }
+
+        // The wall failed before the handler. The cause we actually see in
+        // production is a facilitator whose /supported response omitted our
+        // scheme/network: `initialize()` then resolves "successfully" with no
+        // supported kind, @x402/hono latches `isInitialized = true` for the
+        // life of that closure, and every later request throws out of
+        // buildPaymentRequirements. A momentary facilitator blip therefore
+        // poisons the isolate until it is recycled, turning 402 challenges
+        // into 500s. Drop the caches so the next request re-syncs /supported.
+        evictPaymentCaches(env);
+        c.get("log").error("x402.wall_failure", { path, price });
+
+        // Retry once only when no payment was attached. Re-running the wall
+        // re-runs verification, and re-verifying a payment that may already
+        // have settled risks charging twice; building a bare 402 challenge
+        // moves no money, so retrying that is free — and with zero payment
+        // attempts in production, that is every failure observed here.
+        const paymentAttached = Boolean(
+            c.req.header("payment-signature") ?? c.req.header("x-payment")
+        );
+        if (!paymentAttached) {
+            const retry = await run(build());
+            if (!retry.wallFailed) {
+                return retry.response;
+            }
+        }
+
+        // Still failing: answer in the standard envelope. @x402/hono's own
+        // body is `{"error":"Internal Server Error"}`, which carries no code
+        // and no requestId, and 500 tells a caller nothing useful — this is a
+        // transient upstream condition, so 503 + retryAfter is the honest code.
+        return c.json(
+            {
+                error: "SERVICE_UNAVAILABLE",
+                code: "SERVICE_UNAVAILABLE",
+                message:
+                    "The payment facilitator is not currently advertising support for this network, so a payment challenge could not be issued. Retry shortly.",
+                requestId: c.get("requestId"),
+                retryAfter: 5,
+            },
+            503
+        );
     };
 }
