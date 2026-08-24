@@ -67,6 +67,7 @@ minimumReleaseAgeExclude:
   - wrangler@4.95.0 || 4.123.0
   - eslint@10.8.0
   - viem@2.55.16
+  - hono@4.13.4
 
 # --- Security overrides ------------------------------------------------------
 # fast-uri is one of the few advisory-carrying transitives that actually reaches
@@ -91,4 +92,4 @@ overrides:
   fast-uri: '3.1.5'
 
 patchedDependencies:
-  '@x402/extensions@2.22.0': patches/@x402__extensions@2.22.0.patch
+  '@x402/extensions@2.23.0': patches/@x402__extensions@2.23.0.patch

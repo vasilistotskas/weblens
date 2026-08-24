@@ -28,10 +28,10 @@ index 917510142e8666a36e11e2c06cc47987798ddfc6..d65f0f5a55a4cfabc79d6e080bfb227f
      };
    }
 diff --git a/dist/cjs/index.js b/dist/cjs/index.js
-index f4b24ddb1e58a1d9f97e0da5d3797376d4241d12..d9298f026f735ba026861720728a30352eb6284c 100644
+index 54362c09fac07fda852fcb80e8db98b8ff41c925..51552468df79a502eaa18ca4e82994ba16caa539 100644
 --- a/dist/cjs/index.js
 +++ b/dist/cjs/index.js
-@@ -846,7 +846,7 @@ function validateDiscoveryExtension(extension) {
+@@ -847,7 +847,7 @@ function validateDiscoveryExtension(extension) {
          errors: ["schema must not contain external $ref/$id references"]
        };
      }
@@ -40,7 +40,7 @@ index f4b24ddb1e58a1d9f97e0da5d3797376d4241d12..d9298f026f735ba026861720728a3035
      const validate = ajv.compile(extension.schema);
      const valid = validate(extension.info);
      if (valid) {
-@@ -858,10 +858,14 @@ function validateDiscoveryExtension(extension) {
+@@ -859,10 +859,14 @@ function validateDiscoveryExtension(extension) {
      }) || ["Unknown validation error"];
      return { valid: false, errors };
    } catch (error) {
@@ -56,7 +56,7 @@ index f4b24ddb1e58a1d9f97e0da5d3797376d4241d12..d9298f026f735ba026861720728a3035
        ]
      };
    }
-@@ -2861,7 +2865,7 @@ function validatePaymentIdentifier(extension) {
+@@ -2886,7 +2890,7 @@ function validatePaymentIdentifier(extension) {
    }
    if (ext.schema) {
      try {
@@ -65,7 +65,7 @@ index f4b24ddb1e58a1d9f97e0da5d3797376d4241d12..d9298f026f735ba026861720728a3035
        const validate = ajv.compile(ext.schema);
        const valid = validate(ext.info);
        if (!valid && validate.errors) {
-@@ -2872,12 +2876,15 @@ function validatePaymentIdentifier(extension) {
+@@ -2897,12 +2901,15 @@ function validatePaymentIdentifier(extension) {
          return { valid: false, errors };
        }
      } catch (error) {
