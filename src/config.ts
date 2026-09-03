@@ -369,3 +369,68 @@ export const TIMEOUT_CONFIG = {
   min: 5000, // 5 seconds
   max: 30000, // 30 seconds
 } as const;
+
+// ============================================
+// x402 Catalog Identity
+// ============================================
+//
+// `serviceName`, `tags` and `iconUrl` are fields of the x402 `RouteConfig`
+// (@x402/core) — NOT of the bazaar extension. Putting them inside the object
+// returned by `declareDiscoveryExtension()` silently does nothing: the
+// extension preserves unknown keys, so the value survives into the 402 header
+// and is echoed back by CDP's `/validate` under `bazaarExtension.serviceName`,
+// which looks like confirmation but never reaches the catalog record
+// (x402-foundation/x402#2112). Facilitator catalogs write the record at
+// **settle** time, so a route only picks these up on its next settled payment.
+export const SERVICE_NAME = "WebLens";
+
+/** Catalog icon. Served by `faviconPngHandler`; origin is taken from the request. */
+export const SERVICE_ICON_PATH = "/favicon.png";
+
+// Tags are matched by longest path prefix, so "/search/news" beats "/search".
+// Keep the specific entries above the general ones.
+const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
+  ["/social/youtube/transcript", ["video", "transcript", "youtube"]],
+  ["/research/deep", ["research", "ai", "multi-step"]],
+  ["/intel/site-audit", ["intelligence", "seo", "audit"]],
+  ["/intel/competitive", ["intelligence", "competitive", "ai"]],
+  ["/intel/company", ["intelligence", "company", "ai"]],
+  ["/intel/market", ["intelligence", "market", "ai"]],
+  ["/intel/project", ["intelligence", "diligence", "ai"]],
+  ["/extract/smart", ["extraction", "ai", "structured-data"]],
+  ["/fetch", ["fetch", "scraping", "markdown"]],
+  ["/search", ["search", "serp"]],
+  ["/extract", ["extraction", "ai", "structured-data"]],
+  ["/batch/fetch", ["fetch", "scraping", "batch"]],
+  ["/research", ["research", "ai"]],
+  ["/screenshot", ["screenshot", "rendering"]],
+  ["/monitor", ["monitoring", "change-detection"]],
+  ["/memory", ["storage", "agent-memory"]],
+  ["/credits", ["billing", "credits"]],
+  ["/contents", ["fetch", "scraping", "batch"]],
+  ["/answer", ["search", "ai", "question-answering"]],
+  ["/compare", ["comparison", "ai"]],
+  ["/crawl", ["crawling", "scraping"]],
+  ["/discussions", ["search", "social"]],
+  ["/domain", ["domain", "whois"]],
+  ["/package", ["package", "registry"]],
+  ["/tech", ["technology", "fingerprinting"]],
+  ["/map", ["crawling", "sitemap"]],
+  ["/pdf", ["pdf", "documents"]],
+];
+
+/**
+ * Catalog tags for a paid path. Returns the longest-prefix match so agents
+ * searching a facilitator catalog by intent can find the endpoint.
+ */
+export function tagsForPath(path: string): string[] {
+  let best: readonly string[] = [];
+  let bestLen = -1;
+  for (const [prefix, tags] of TAG_PREFIXES) {
+    if ((path === prefix || path.startsWith(`${prefix}/`)) && prefix.length > bestLen) {
+      best = tags;
+      bestLen = prefix.length;
+    }
+  }
+  return [...best];
+}

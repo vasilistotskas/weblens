@@ -29,6 +29,12 @@ export interface Env {
   LOG_LEVEL?: string;
   // Facilitator URL override (PayAI fallback for multi-chain support)
   PAYAI_FACILITATOR_URL?: string;
+  // Seeds CDP Bazaar listings: a request carrying this secret in
+  // `X-Bazaar-Bootstrap` settles through the CDP facilitator instead of PayAI,
+  // which is the only way a resource enters CDP's catalog (indexing is
+  // per-resource and driven by CDP's own settles). Unset = feature off.
+  // Set via: wrangler secret put BAZAAR_BOOTSTRAP_SECRET
+  BAZAAR_BOOTSTRAP_SECRET?: string;
   SIGNING_PRIVATE_KEY?: string;
   // Stripe fiat onramp — agents/devs without on-chain wallets can buy
   // credits via card. Webhook credits the wallet on `checkout.session.completed`.

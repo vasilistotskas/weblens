@@ -9,6 +9,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { paymentMiddleware } from "@x402/hono";
 import type { Context, MiddlewareHandler } from "hono";
+import { SERVICE_ICON_PATH, SERVICE_NAME, tagsForPath } from "../config";
 import type { Env, Variables } from "../types";
 import { createLogger } from "../utils/logger";
 
@@ -44,6 +45,48 @@ function fingerprint(value: string | undefined): string {
     return (h >>> 0).toString(16);
 }
 
+/**
+ * Absolute catalog icon URL for the origin serving this request.
+ *
+ * Forced to https for any non-local host: facilitator curation checks that
+ * published metadata is https, and `wrangler dev` reports the *configured
+ * route* host over plain http (`http://api.weblens.dev/...`), so deriving the
+ * scheme straight from the request would publish an http icon.
+ */
+export function catalogIconUrl(requestUrl: string): string {
+    const url = new URL(SERVICE_ICON_PATH, requestUrl);
+    const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (!isLocal) {
+        url.protocol = "https:";
+    }
+    return url.toString();
+}
+
+/**
+ * Constant-time string compare. Used for the bootstrap header so a wrong
+ * secret cannot be recovered by timing the 402 path.
+ */
+function secretsMatch(a: string, b: string): boolean {
+    if (a.length !== b.length) {return false;}
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
+
+/**
+ * True when this request asked to settle through the CDP facilitator instead
+ * of PayAI. Fails closed: with no `BAZAAR_BOOTSTRAP_SECRET` configured the
+ * header is ignored entirely, so the CDP-primary path cannot be reached from
+ * the internet. Used only to seed CDP Bazaar listings (see getResourceServer).
+ */
+export function wantsCdpBootstrap(env: Env, header: string | undefined): boolean {
+    const secret = env.BAZAAR_BOOTSTRAP_SECRET;
+    if (!secret || !header) {return false;}
+    return secretsMatch(header, secret);
+}
+
 function envSignature(env: Env): string {
     return [
         env.NETWORK ?? "base",
@@ -59,8 +102,8 @@ function envSignature(env: Env): string {
  * signature so the cost of `httpServer.initialize()` (one network call to
  * `/supported`) is paid once per distinct facilitator config, not per request.
  */
-function getResourceServer(env: Env): x402ResourceServer {
-    const key = envSignature(env);
+function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
+    const key = preferCdp ? `${envSignature(env)}|cdp-primary` : envSignature(env);
     const cached = resourceServerCache.get(key);
     if (cached) {return cached;}
 
@@ -92,8 +135,17 @@ function getResourceServer(env: Env): x402ResourceServer {
         );
         // PayAI first = gets precedence for shared scheme/network combos.
         // x402ResourceServer uses "earlier facilitator wins" during initialize().
-        facilitatorClients = [payaiClient, cdpClient];
-        facilitatorLabel = `payai (primary) + cdp (fallback)`;
+        //
+        // `preferCdp` inverts that for one request only (see the bootstrap
+        // header in createLazyPaymentMiddleware). CDP's Bazaar indexes a
+        // resource only after the CDP facilitator itself settles a payment for
+        // it, and indexing is per-resource — so a listing can only be seeded by
+        // routing a real payment through CDP. Doing that globally would expose
+        // every buyer to coinbase/x402#1065, hence per-request opt-in.
+        facilitatorClients = preferCdp ? [cdpClient, payaiClient] : [payaiClient, cdpClient];
+        facilitatorLabel = preferCdp
+            ? `cdp (primary, bootstrap) + payai (fallback)`
+            : `payai (primary) + cdp (fallback)`;
     } else {
         const url = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
         facilitatorClients = [new HTTPFacilitatorClient({ url })];
@@ -161,7 +213,8 @@ function createPaymentConfig(
     inputExample?: Record<string, unknown>,
     inputSchema?: Record<string, unknown>,
     outputExample?: Record<string, unknown>,
-    outputSchema?: Record<string, unknown>
+    outputSchema?: Record<string, unknown>,
+    catalog?: { serviceName: string; tags: string[]; iconUrl?: string }
 ): RoutesConfig {
     const extensionConfig: Record<string, unknown> = {
         bodyType: "json" as const,
@@ -193,6 +246,16 @@ function createPaymentConfig(
             }],
             description,
             mimeType: "application/json" as const,
+            // These three are RouteConfig fields, deliberately outside
+            // `extensions` — see SERVICE_NAME in config.ts for why that
+            // distinction is load-bearing.
+            ...(catalog
+                ? {
+                    serviceName: catalog.serviceName,
+                    tags: catalog.tags,
+                    ...(catalog.iconUrl ? { iconUrl: catalog.iconUrl } : {}),
+                }
+                : {}),
             extensions: {
                 ...declareDiscoveryExtension(extensionConfig),
             },
@@ -252,6 +315,20 @@ export function createLazyPaymentMiddleware(
         const isStatic = typeof priceOrCalculator === "string";
         const price = isStatic ? priceOrCalculator : await priceOrCalculator(c);
 
+        // Opt-in, per-request CDP settlement for seeding Bazaar listings.
+        const preferCdp = wantsCdpBootstrap(env, c.req.header("X-Bazaar-Bootstrap"));
+        if (preferCdp) {
+            c.get("log").info("x402.bootstrap_facilitator", { path, facilitator: "cdp" });
+        }
+
+        // Catalog metadata. iconUrl tracks the serving origin so testnet and
+        // production each advertise their own reachable icon.
+        const catalog = {
+            serviceName: SERVICE_NAME,
+            tags: tagsForPath(path),
+            iconUrl: catalogIconUrl(c.req.url),
+        };
+
         // Static pricing → cacheable. Dynamic pricing recomputes per request
         // so the middleware instance is rebuilt each time (cheap; the
         // expensive `/supported` init lives on the cached resourceServer).
@@ -265,6 +342,10 @@ export function createLazyPaymentMiddleware(
                 networkCaip2,
                 env.CDP_API_KEY_ID ?? "",
                 fingerprint(env.CDP_API_KEY_SECRET),
+                // A bootstrap request must not populate (or read) the cache
+                // entry the normal PayAI-primary path uses.
+                preferCdp ? "cdp-primary" : "",
+                catalog.iconUrl,
             ].join("|")
             : null;
 
@@ -278,9 +359,10 @@ export function createLazyPaymentMiddleware(
                 inputExample,
                 inputSchema,
                 outputExample,
-                outputSchema
+                outputSchema,
+                catalog
             );
-            return paymentMiddleware(config, getResourceServer(env)) as MiddlewareHandler<AppEnv>;
+            return paymentMiddleware(config, getResourceServer(env, preferCdp)) as MiddlewareHandler<AppEnv>;
         };
 
         let middleware = cacheKey ? middlewareCache.get(cacheKey) : undefined;
