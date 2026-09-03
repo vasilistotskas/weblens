@@ -14,16 +14,6 @@ allowBuilds:
   utf-8-validate: true
   workerd: true
 
-# --- Exotic subdependencies --------------------------------------------------
-# pnpm 11 blocks exotic (non-registry) sources in *transitive* deps by default
-# (blockExoticSubdeps). viem@2.51.0 — the latest release — pins its `ox`
-# dependency to an integrity-locked pkg.pr.new preview tarball upstream, so the
-# default refuses to resolve it. This already lives in our committed lockfile
-# (pinned by sha512), so we permit exotic subdeps to install it. Revisit if/when
-# viem drops the pkg.pr.new pin, or pnpm ships blockExoticSubdepsExclude
-# (https://github.com/pnpm/pnpm/issues/11799) for a narrower allowlist.
-blockExoticSubdeps: false
-
 # --- Peer dependency reconciliation ------------------------------------------
 # We deliberately run ahead of some upstream peer ranges; all combinations below
 # are verified working (pnpm run build + pnpm run lint both pass):
@@ -40,11 +30,8 @@ peerDependencyRules:
 # --- Supply-chain: minimum release age (pnpm-managed) ------------------------
 # pnpm 11 refuses very recently published versions by default; in loose mode it
 # records the ones we've already accepted here. pnpm appends to this list itself.
-# `ox` (viem's pkg.pr.new preview build) carries no publish-time metadata, so the
-# age check can't apply to it — excluded explicitly to silence that notice.
 minimumReleaseAgeExclude:
-  - ox
-  - '@cloudflare/workers-types@4.20260526.1 || 5.20260814.1'
+  - '@cloudflare/workers-types@4.20260526.1 || 5.20260814.1 || 5.20260903.1'
   - '@typescript-eslint/eslint-plugin@8.60.0'
   - '@typescript-eslint/parser@8.60.0'
   - '@typescript-eslint/project-service@8.60.0'
@@ -69,27 +56,24 @@ minimumReleaseAgeExclude:
   - viem@2.55.16
   - hono@4.13.4
 
-# --- Security overrides ------------------------------------------------------
-# fast-uri is one of the few advisory-carrying transitives that actually reaches
-# the deployed Worker bundle (via ajv <- @x402/extensions). 3.1.4 carries the
-# host-confusion / path-traversal advisories GHSA-7p8r-x3mc-p8w7,
-# GHSA-v39h-62p7-jpjc and GHSA-q3j6-qgpj-74h6.
+# --- Supply-chain notes ------------------------------------------------------
+# No `overrides` are needed any more. `fast-uri` used to be pinned to 3.1.5
+# here: it is one of the few advisory-carrying transitives that actually reaches
+# the deployed Worker bundle (via ajv <- @x402/extensions), and 3.1.4 carried
+# the host-confusion / path-traversal advisories GHSA-7p8r-x3mc-p8w7,
+# GHSA-v39h-62p7-jpjc and GHSA-q3j6-qgpj-74h6. ajv 8.20 declares
+# `fast-uri: ^3.0.1`, which now resolves 3.1.6 on its own — past the fix and
+# advisory-clean — so the pin was dropped rather than left to hold 3.x back.
+# Re-pin only if ajv ever widens the range to 4.x before we have vetted it.
 #
-# 3.1.5 is the fix: ajv declares `fast-uri: ^3.0.1`, so 4.x — the current latest
-# — would break that range, and 3.1.5 is the highest 3.x.
-#
-# Real exposure here was low, which is why this is a pin and not an incident:
+# Exposure was low either way, which is why the pin was never an incident:
 # WebLens never passes caller-controlled input to fast-uri (SSRF validation goes
 # through the WHATWG URL API in services/validator.ts), and the Ajv path that
-# pulls it in is patched to skip validation under workerd. Pinned regardless
-# because it costs nothing. Drop this once @x402/extensions ships an ajv that
-# resolves >=3.1.5 on its own.
+# pulls it in is patched to skip validation under workerd anyway.
 #
-# The other 17 audit advisories (axios, ip-address, extract-zip, postcss,
+# The remaining 17 audit advisories (axios, ip-address, extract-zip, postcss,
 # nanoid, brace-expansion) are dev-only or tree-shaken out — verified absent
 # from the bundle via `wrangler deploy --dry-run` source-map inspection.
-overrides:
-  fast-uri: '3.1.5'
 
 patchedDependencies:
-  '@x402/extensions@2.23.0': patches/@x402__extensions@2.23.0.patch
+  '@x402/extensions@2.24.0': patches/@x402__extensions@2.24.0.patch

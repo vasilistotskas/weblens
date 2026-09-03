@@ -171,8 +171,7 @@ export async function deleteMonitor(
 async function updateMonitorAfterCheck(
   config: MonitorServiceConfig,
   monitorId: string,
-  contentHash: string,
-  changed: boolean
+  contentHash: string
 ): Promise<StoredMonitor | null> {
   const { kv } = config;
   const monitor = await getMonitor(config, monitorId);
@@ -181,7 +180,6 @@ async function updateMonitorAfterCheck(
 
   const now = new Date().toISOString();
   const perCheckCents = parseFloat(PRICING.monitor.perCheck.replace("$", "")) * 100;
-  void changed; // Used for webhook notification logic
 
   const updated: StoredMonitor = {
     ...monitor,
@@ -352,7 +350,7 @@ export async function checkMonitor(
     const changed = previousHash !== undefined && previousHash !== currentHash;
 
     // Update monitor state
-    await updateMonitorAfterCheck(config, monitorId, currentHash, changed);
+    await updateMonitorAfterCheck(config, monitorId, currentHash);
 
     // Send webhook if changed and notification is configured
     let notified = false;

@@ -32,29 +32,29 @@
   "dependencies": {
     "@cloudflare/puppeteer": "^1.4.0",
     "@coinbase/x402": "^2.1.0",
-    "@scalar/hono-api-reference": "^0.11.16",
-    "@x402/core": "^2.23.0",
-    "@x402/evm": "^2.23.0",
-    "@x402/extensions": "^2.23.0",
-    "@x402/hono": "^2.23.0",
-    "hono": "^4.13.4",
-    "viem": "^2.55.19",
-    "zod": "^4.4.3"
+    "@scalar/hono-api-reference": "^0.12.0",
+    "@x402/core": "^2.24.0",
+    "@x402/evm": "^2.24.0",
+    "@x402/extensions": "^2.24.0",
+    "@x402/hono": "^2.24.0",
+    "hono": "^4.13.5",
+    "viem": "^2.56.3",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20260823.1",
+    "@cloudflare/workers-types": "^5.20260903.1",
     "@hono/eslint-config": "^2.1.1",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.1",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@x402/axios": "^2.23.0",
-    "axios": "^1.19.0",
-    "eslint": "10.9.0",
+    "@x402/axios": "^2.24.0",
+    "axios": "^1.20.0",
+    "eslint": "10.9.1",
     "fast-check": "^4.9.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.67.0",
+    "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.11",
-    "wrangler": "^4.125.0"
+    "wrangler": "^4.128.0"
   },
-  "packageManager": "pnpm@11.23.0"
+  "packageManager": "pnpm@11.25.0"
 }
