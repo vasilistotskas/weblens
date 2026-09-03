@@ -41,8 +41,14 @@
  *   API_URL=...         Target (default https://api.weblens.dev)
  *   RETRIES=4           Attempts per endpoint; #1065 fails intermittently
  *
- * Prerequisites: the wallet needs USDC on Base mainnet plus a little ETH for
- * gas, and BAZAAR_BOOTSTRAP_SECRET must match the deployed Worker secret.
+ * Prerequisites:
+ *   - BAZAAR_BOOTSTRAP_SECRET must match the deployed Worker secret.
+ *   - The wallet needs **USDC only** — no ETH. x402 settles via EIP-3009
+ *     `transferWithAuthorization`: the payer signs off-chain and the
+ *     facilitator submits the transaction and pays gas. Verified against the
+ *     two real buyers of this API, who both hold 0 ETH and have sent 0
+ *     transactions, yet paid successfully.
+ *   - The wallet must NOT be PAY_TO_ADDRESS: CDP rejects self-payments.
  */
 
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
