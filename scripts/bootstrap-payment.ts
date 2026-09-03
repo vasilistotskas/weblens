@@ -71,8 +71,12 @@ interface Accept {
     network?: string;
 }
 
+interface ChallengeAccept extends Accept {
+    payTo?: string;
+}
+
 interface Challenge {
-    accepts?: Accept[];
+    accepts?: ChallengeAccept[];
     extensions?: {
         bazaar?: { info?: { input?: { body?: Record<string, unknown> } } };
     };
@@ -84,9 +88,34 @@ interface Plan {
     amount: number;
     /** Request body taken from the endpoint's own bazaar input example. */
     body: Record<string, unknown>;
+    /** Recipient advertised by the challenge, used for the self-payment guard. */
+    payTo?: string;
 }
 
 const usd = (atomic: number): string => `$${(atomic / 1e6).toFixed(4)}`;
+
+/**
+ * Resolve one `ENDPOINTS` entry to a known paid path.
+ *
+ * Git Bash (MSYS) rewrites env values that look like Unix paths before Node
+ * sees them — `ENDPOINTS=/fetch/basic` arrives as
+ * `C:/Program Files/Git/fetch/basic` — which otherwise fails much later as a
+ * DNS error on a mangled URL. Recover by matching the tail, and reject
+ * anything that is not a real paid endpoint so typos fail loudly here.
+ */
+function resolveEndpoint(raw: string): string {
+    if (PAID_ENDPOINTS.includes(raw)) {return raw;}
+
+    const recovered = PAID_ENDPOINTS.find((p) => raw.endsWith(p));
+    if (recovered) {
+        console.log(`   note: "${raw}" → ${recovered} (shell rewrote the leading slash; in Git Bash use MSYS_NO_PATHCONV=1)`);
+        return recovered;
+    }
+    throw new Error(
+        `ENDPOINTS contains "${raw}", which is not a paid endpoint.\n` +
+        `Valid values: ${PAID_ENDPOINTS.join(", ")}`
+    );
+}
 
 function decodeB64Json(value: string): unknown {
     try {
@@ -128,7 +157,7 @@ async function probe(apiUrl: string, path: string): Promise<Plan | null> {
             console.log(`   ${path}: no bazaar input example to build a valid body — skipping`);
             return null;
         }
-        return { path, amount, body };
+        return { path, amount, body, payTo: challenge.accepts?.[0]?.payTo };
     }
 }
 
@@ -228,7 +257,11 @@ async function run(): Promise<void> {
     const retries = Number(process.env.RETRIES ?? 4);
     const maxPrice = Math.round(Number(process.env.MAX_PRICE ?? 0.02) * 1e6);
     const maxTotal = Math.round(Number(process.env.MAX_TOTAL ?? 1) * 1e6);
-    const explicit = process.env.ENDPOINTS?.split(",").map((s) => s.trim()).filter(Boolean);
+    const explicit = process.env.ENDPOINTS
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(resolveEndpoint);
     const account = privateKeyToAccount(rawPrivateKey as Hex);
 
     const candidates = (explicit ?? PAID_ENDPOINTS).filter((p) => !NEVER_SEED.has(p));
@@ -263,6 +296,19 @@ async function run(): Promise<void> {
     if (plans.length === 0) {
         console.log("\nNothing to seed.");
         return;
+    }
+
+    // CDP rejects self-payments, so seeding from the payTo wallet fails on
+    // every route. Catch it once here instead of after N confusing settles.
+    const selfPaid = plans.find(
+        (p) => p.payTo?.toLowerCase() === account.address.toLowerCase()
+    );
+    if (selfPaid) {
+        throw new Error(
+            `PRIVATE_KEY belongs to ${account.address}, which is the payTo address for ` +
+            `${selfPaid.path}. CDP rejects self-payments — seed from a different wallet ` +
+            `funded with USDC on Base mainnet.`
+        );
     }
     if (total > maxTotal) {
         throw new Error(
