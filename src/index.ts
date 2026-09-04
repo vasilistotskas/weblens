@@ -26,6 +26,7 @@ import { registerIntelRoutes } from "./routes/intel";
 import { registerReaderRoutes } from "./routes/reader";
 import { registerSystemRoutes } from "./routes/system";
 import { registerVerticalRoutes } from "./routes/verticals";
+import { setMcpDispatcher } from "./tools/mcp";
 import type { Env, Variables } from "./types";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -150,6 +151,14 @@ app.onError(errorHandler);
 // Named export of the underlying Hono app — used by integration tests that
 // want to call `app.request(...)` directly.
 export { app };
+
+// MCP `tools/call` runs each tool through this same app, in-process, so a tool
+// call gets the identical middleware chain (validation -> credit -> payment ->
+// handler) and the x402 wall still issues the 402. It must not reach its own
+// endpoints with `fetch()`: this Worker serves a Cloudflare Custom Domain, and
+// a Worker fetching its own hostname returns 522 — which is exactly what every
+// `tools/call` returned in production. See setMcpDispatcher in tools/mcp.ts.
+setMcpDispatcher((request, env, ctx) => app.fetch(request, env, ctx));
 
 // Worker entry — x402 v2 only.
 export default app;

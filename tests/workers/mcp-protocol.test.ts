@@ -15,6 +15,7 @@
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { TOOL_ENDPOINTS } from "../../src/tools/mcp";
 
 const MCP_URL = "https://api.weblens.dev/mcp";
 
@@ -87,6 +88,93 @@ describe("MCP requests", () => {
         const res = await rpc({ jsonrpc: "2.0", id: 3, method: "no/such/method" });
         const body = await res.json<{ error: { code: number } }>();
         expect(body.error.code).toBe(-32601);
+    });
+});
+
+
+describe("MCP tool calls", () => {
+    // Every `tools/call` answered `{"error":{"code":522}}` in production — free
+    // tools included — because the bridge reached its own endpoints with
+    // `fetch()` and this Worker serves a Cloudflare Custom Domain, where a
+    // Worker fetching its own hostname returns 522. Nothing in the handshake
+    // tests above could see it: initialize and tools/list never leave the
+    // isolate, so the registry listing looked healthy while every tool was dead.
+    it("dispatches a free tool in-process and returns its JSON result", async () => {
+        const res = await rpc({
+            jsonrpc: "2.0",
+            id: 10,
+            method: "tools/call",
+            params: { name: "preview_endpoint", arguments: { endpoint: "/fetch/basic" } },
+        });
+        expect(res.status).toBe(200);
+
+        const body = await res.json<{
+            result?: { content: { type: string; text: string }[] };
+            error?: { code: number; message: string };
+        }>();
+
+        expect(body.error).toBeUndefined();
+        const text = body.result?.content?.[0]?.text ?? "";
+        expect(JSON.parse(text)).toMatchObject({ endpoint: "/fetch/basic" });
+    });
+
+    it("never answers a tool call with a Cloudflare edge error", async () => {
+        // 520-527 are Cloudflare origin errors. None of them is ever a
+        // legitimate answer from a Worker talking to itself.
+        const calls: [string, Record<string, unknown>][] = [
+            ["preview_endpoint", { endpoint: "/fetch/basic" }],
+            ["fetch_webpage", { url: "https://example.com" }],
+        ];
+
+        for (const [name, args] of calls) {
+            const res = await rpc({
+                jsonrpc: "2.0",
+                id: 11,
+                method: "tools/call",
+                params: { name, arguments: args },
+            });
+            const body = await res.json<{ error?: { code: number } }>();
+            const code = body.error?.code ?? 0;
+
+            expect(code < 520 || code > 527, `${name} answered ${String(code)}`).toBe(true);
+        }
+    });
+
+    it("walls an unpaid paid tool with 402, not an opaque failure", async () => {
+        const res = await rpc({
+            jsonrpc: "2.0",
+            id: 12,
+            method: "tools/call",
+            params: { name: "fetch_webpage", arguments: { url: "https://example.com" } },
+        });
+
+        const body = await res.json<{ error?: { code: number; data?: Record<string, unknown> } }>();
+
+        // 503 is the honest answer when the facilitator is not advertising the
+        // network (see the wall-failure path in middleware/payment.ts); anything
+        // else here means the request never reached the payment middleware.
+        expect([402, 503]).toContain(body.error?.code);
+        if (body.error?.code === 402) {
+            expect(body.error.data?.endpoint).toBe("/fetch/basic");
+            expect(body.error.data?.price).toBeTruthy();
+        }
+    });
+
+    it("rejects an unknown tool with -32602", async () => {
+        const res = await rpc({
+            jsonrpc: "2.0",
+            id: 13,
+            method: "tools/call",
+            params: { name: "no_such_tool", arguments: {} },
+        });
+        const body = await res.json<{ error: { code: number } }>();
+        expect(body.error.code).toBe(-32602);
+    });
+
+    it("routes no tool back at /mcp, which would recurse", () => {
+        for (const [name, config] of Object.entries(TOOL_ENDPOINTS)) {
+            expect(config?.endpoint, name).not.toBe("/mcp");
+        }
     });
 });
 

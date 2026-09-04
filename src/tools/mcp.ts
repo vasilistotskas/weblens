@@ -13,6 +13,148 @@ import type { Env } from "../types";
 // MCP Protocol version
 const MCP_VERSION = "2025-06-18";
 
+/**
+ * Request headers a `tools/call` carries through onto the tool's own endpoint.
+ *
+ * The x402 payload, the three credit-account headers, and the caller's edge IP.
+ * Only `Payment-Signature` used to be forwarded, so a buyer holding prepaid
+ * credits could not spend them through MCP even though the identical call
+ * worked over plain HTTP.
+ *
+ * Forwarding `cf-connecting-ip` is not a trust hole: the rate limiter reads
+ * only that header *because* Cloudflare's edge overwrites it on the way in, so
+ * the value copied here is the edge-set one from the outer request. Without it
+ * every MCP-originated call to a free, rate-limited endpoint shares a single
+ * "unknown" bucket and one noisy client throttles everyone.
+ */
+const FORWARDED_REQUEST_HEADERS = [
+  "Payment-Signature",
+  "X-CREDIT-WALLET",
+  "X-CREDIT-SIGNATURE",
+  "X-CREDIT-TIMESTAMP",
+  "cf-connecting-ip",
+] as const;
+
+/**
+ * Hono's ExecutionContext shape, taken from Context so it always agrees with
+ * what `app.fetch` accepts — the global workers-types `ExecutionContext`
+ * declares extra members (`tracing`, `abort`) that Hono's does not.
+ */
+type HonoExecutionContext = Context<{ Bindings: Env }>["executionCtx"];
+
+/**
+ * How a `tools/call` reaches WebLens' own endpoints.
+ *
+ * A tool call has to run the real middleware chain (validation -> credit ->
+ * payment -> handler) so the x402 wall still issues the 402 and money moves
+ * exactly as it does over plain HTTP. That used to be done with
+ * `fetch(new URL(c.req.url).origin + endpoint)` — the Worker fetching its own
+ * hostname — which cannot work here: WebLens runs on a Cloudflare **Custom
+ * Domain** (`custom_domain = true` in wrangler.toml), and Cloudflare documents
+ * that a Worker fetching its own hostname returns 522. Production agreed —
+ * every `tools/call` answered `{"error":{"code":522}}`, free tools included,
+ * from the day the self-fetch landed (2025-11) until this replaced it.
+ *
+ * Dispatching into the app's own fetch handler keeps the whole chain, spends no
+ * subrequest, and removes the failure mode instead of working around it. The
+ * documented alternative — the `global_fetch_strictly_public` compatibility
+ * flag — keeps the round trip and bills a second Worker invocation per call.
+ */
+export type McpDispatcher = (
+  request: Request,
+  env: Env,
+  ctx?: HonoExecutionContext
+) => Response | Promise<Response>;
+
+let mcpDispatcher: McpDispatcher | undefined;
+
+/**
+ * Registered by the Worker entry (`src/index.ts`) with the Hono app itself.
+ * Accepts `undefined` so a test can assert the unregistered path directly.
+ */
+export function setMcpDispatcher(dispatcher: McpDispatcher | undefined): void {
+  mcpDispatcher = dispatcher;
+}
+
+async function dispatchToolRequest(
+  request: Request,
+  c: Context<{ Bindings: Env }>
+): Promise<Response> {
+  if (!mcpDispatcher) {
+    // No entry point registered one. Throwing beats falling back to a
+    // self-`fetch`, which is the bug this replaced.
+    throw new Error(
+      "MCP dispatcher not registered — the Worker entry must call setMcpDispatcher()"
+    );
+  }
+  // `c.executionCtx` throws when the runtime supplied none; the cache
+  // middleware already tolerates that, so pass it on only when it exists.
+  let ctx: HonoExecutionContext | undefined;
+  try {
+    ctx = c.executionCtx;
+  } catch {
+    ctx = undefined;
+  }
+  return mcpDispatcher(request, c.env, ctx);
+}
+
+/** Base64 -> JSON, for the `PAYMENT-REQUIRED` challenge header. */
+function decodeBase64Json(value: string): unknown {
+  try {
+    const bytes = Uint8Array.from(atob(value), (ch) => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The JSON-RPC error for a tool call that still needs paying.
+ *
+ * x402 v2 carries the challenge in the base64 `PAYMENT-REQUIRED` *response
+ * header* and leaves the 402 body as `{}`. Reading the body — which is what
+ * this did — handed MCP clients an empty object: no amount, no asset, no
+ * payTo, nothing signable. Return the decoded challenge, and the raw header
+ * beside it so a client can pass it straight to an x402 client library.
+ */
+export function paymentRequiredError(
+  response: Response,
+  toolConfig: { endpoint: string; price: string }
+): { code: number; message: string; data: Record<string, unknown> } {
+  const header = response.headers.get("PAYMENT-REQUIRED");
+  const challenge = header !== null ? decodeBase64Json(header) : undefined;
+
+  return {
+    code: 402,
+    message: `Payment required: ${toolConfig.price} for ${toolConfig.endpoint}`,
+    data: {
+      endpoint: toolConfig.endpoint,
+      price: toolConfig.price,
+      ...(header !== null && { paymentRequiredHeader: header }),
+      ...(challenge !== undefined && { paymentRequired: challenge }),
+      howToPay:
+        "Decode the base64 paymentRequiredHeader (or read the decoded paymentRequired), sign one " +
+        "of its `accepts` entries with your wallet, then retry this tools/call with the signed " +
+        "payload in the Payment-Signature header. Prepaid credits work too — send X-CREDIT-WALLET, " +
+        "X-CREDIT-SIGNATURE and X-CREDIT-TIMESTAMP instead.",
+    },
+  };
+}
+
+/** Prefer the API's own error envelope over a bare body when a tool call fails. */
+async function toolErrorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+  try {
+    const parsed = JSON.parse(text) as { code?: string; message?: string };
+    if (parsed.message) {
+      return parsed.code ? `${parsed.code}: ${parsed.message}` : parsed.message;
+    }
+  } catch {
+    // Not an error envelope — fall through to the raw body.
+  }
+  return text;
+}
+
 // Tool definitions for WebLens
 // Exported for the MCP-contract test, which samples each tool's declared
 // inputSchema and asserts the endpoint's canonical Zod schema accepts it.
@@ -621,7 +763,6 @@ interface ToolCallParams {
 
 async function handleToolCall(params: ToolCallParams, id: string | number | undefined, c: Context<{ Bindings: Env }>): Promise<JsonRpcResponse> {
   const { name, arguments: args } = params;
-  const paymentSignature = c.req.header("Payment-Signature");
 
   const toolConfig = TOOL_ENDPOINTS[name];
   if (!toolConfig) {
@@ -635,40 +776,39 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
     };
   }
 
-  const baseUrl = new URL(c.req.url).origin;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(paymentSignature && { "Payment-Signature": paymentSignature }),
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  for (const header of FORWARDED_REQUEST_HEADERS) {
+    const value = c.req.header(header);
+    if (value !== undefined) {
+      headers[header] = value;
+    }
+  }
 
   try {
-    const response = await fetch(`${baseUrl}${toolConfig.endpoint}`, {
-      method: toolConfig.method,
-      headers,
-      body: JSON.stringify(args),
-    });
+    const response = await dispatchToolRequest(
+      new Request(new URL(toolConfig.endpoint, c.req.url), {
+        method: toolConfig.method,
+        headers,
+        body: JSON.stringify(args),
+      }),
+      c
+    );
 
     if (response.status === 402) {
-      const paymentInfo: unknown = await response.json();
       return {
         jsonrpc: "2.0",
         id,
-        error: {
-          code: 402,
-          message: "Payment Required",
-          data: paymentInfo,
-        },
+        error: paymentRequiredError(response, toolConfig),
       };
     }
 
     if (!response.ok) {
-      const errorText = await response.text();
       return {
         jsonrpc: "2.0",
         id,
         error: {
           code: response.status,
-          message: errorText,
+          message: await toolErrorMessage(response),
         },
       };
     }
