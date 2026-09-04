@@ -1,6 +1,18 @@
 /**
- * Seed CDP Bazaar listings by settling real x402 payments through the CDP
- * facilitator, one per resource.
+ * Write catalog listings by settling one real x402 payment per resource.
+ *
+ * Two catalogs, two facilitators, and the choice matters — a catalog record is
+ * written by **whichever facilitator settles the payment**, so seeding one does
+ * nothing for the other. Pick with `FACILITATOR`:
+ *
+ *   FACILITATOR=cdp    (default) settle through CDP → CDP Bazaar listings.
+ *   FACILITATOR=payai            settle through PayAI → refresh PayAI records.
+ *
+ * PayAI mode exists because WebLens' PayAI records went stale. Nine of the
+ * fourteen were last written by the 2025-11-30 self-tests and still carry
+ * `x402Version: 1`, `network: "base"`, an empty top-level input/output schema
+ * and description, prices from before the 2026-08 repricing, and a payTo that
+ * is no longer the payout address. Only a fresh PayAI settlement rewrites them.
  *
  * Why this exists, precisely: CDP's Bazaar has no registration call. A resource
  * enters the catalog only after the **CDP facilitator itself** settles a payment
@@ -35,6 +47,8 @@
  *   $env:BAZAAR_BOOTSTRAP_SECRET='...' ; $env:PRIVATE_KEY='0x...' ; pnpm run bootstrap-payment
  *
  * Options:
+ *   FACILITATOR=payai   Which facilitator settles, and so which catalog gets
+ *                       the record: cdp (default) or payai
  *   MAX_PRICE=0.02      Skip endpoints dearer than this, in USDC (default 0.02)
  *   MAX_TOTAL=1.00      Abort if the plan exceeds this total (default 1.00)
  *   ENDPOINTS=/a,/b     Seed exactly these paths, ignoring MAX_PRICE
@@ -42,7 +56,9 @@
  *   RETRIES=4           Attempts per endpoint; #1065 fails intermittently
  *
  * Prerequisites:
- *   - BAZAAR_BOOTSTRAP_SECRET must match the deployed Worker secret.
+ *   - BAZAAR_BOOTSTRAP_SECRET must match the deployed Worker secret — CDP mode
+ *     only. PayAI is already the default facilitator, so PayAI mode sends no
+ *     bootstrap header and needs no secret.
  *   - The wallet needs **USDC only** — no ETH. x402 settles via EIP-3009
  *     `transferWithAuthorization`: the payer signs off-chain and the
  *     facilitator submits the transaction and pays gas. Verified against the
@@ -60,6 +76,19 @@ import { Buffer } from "node:buffer";
 import { PAID_ENDPOINTS } from "../src/config";
 
 const CDP_VALIDATE = "https://api.cdp.coinbase.com/platform/v2/x402/validate";
+const PAYAI_DISCOVERY = "https://facilitator.payai.network/discovery/resources";
+
+/** Which facilitator settles, and therefore which catalog records the resource. */
+type Facilitator = "cdp" | "payai";
+
+/** One row of the PayAI discovery catalog, narrowed to the fields compared here. */
+interface CatalogRecord {
+    resource?: string;
+    x402Version?: number;
+    lastUpdated?: string;
+    inputSchema?: unknown;
+    accepts?: (ChallengeAccept & { maxAmountRequired?: string })[];
+}
 
 // Never self-pay these: /credits/buy just moves money into our own credit
 // ledger, and it is a billing action rather than a data product worth listing.
@@ -178,7 +207,8 @@ function isRetryableSettleError(err: unknown): boolean {
 async function seed(
     apiUrl: string,
     plan: Plan,
-    secret: string,
+    /** CDP mode only. Undefined in PayAI mode, which sends no bootstrap header. */
+    secret: string | undefined,
     account: ReturnType<typeof privateKeyToAccount>,
     retries: number
 ): Promise<{ ok: boolean; tx?: string; bazaar?: string; detail?: string }> {
@@ -193,8 +223,10 @@ async function seed(
         );
 
         try {
+            // With no secret the request takes the normal path, which is
+            // PayAI-primary — exactly what refreshing a PayAI record needs.
             const res = await client.post(plan.path, plan.body, {
-                headers: { "X-Bazaar-Bootstrap": secret },
+                headers: secret ? { "X-Bazaar-Bootstrap": secret } : {},
             });
 
             const receipt = decodeB64Json(
@@ -226,6 +258,50 @@ async function seed(
     return { ok: false, detail: "retries exhausted" };
 }
 
+/**
+ * Every WebLens record in the PayAI catalog, keyed by resource URL.
+ *
+ * The discovery API accepts no resource/search filter — resource=, search=, q=
+ * and payTo= all return the same unfiltered set (~28k rows and growing), so the
+ * only way to read one record is to page the whole catalog and pick it out.
+ */
+async function payaiRecords(apiUrl: string): Promise<Map<string, CatalogRecord>> {
+    const found = new Map<string, CatalogRecord>();
+    for (let offset = 0; offset < 60000; offset += 1000) {
+        const res = await axios.get<{ items?: CatalogRecord[] }>(
+            PAYAI_DISCOVERY,
+            { params: { limit: 1000, offset }, timeout: 60000 }
+        );
+
+        const items = res.data.items ?? [];
+        for (const item of items) {
+            const resource = item.resource ?? "";
+            if (resource.startsWith(apiUrl)) {found.set(resource, item);}
+        }
+        if (items.length < 1000) {break;}
+    }
+    return found;
+}
+
+/** One-line summary of a catalog record, for before/after comparison. */
+function describeRecord(record: CatalogRecord | undefined): string {
+    if (!record) {return "not listed";}
+
+    const accepts = record.accepts?.[0] ?? {};
+    // v1 records store the price as maxAmountRequired; v2 renamed it to amount.
+    const price = accepts.amount ?? accepts.maxAmountRequired;
+    const schemaBytes = JSON.stringify(record.inputSchema ?? null).length;
+
+    return [
+        `v${String(record.x402Version ?? "?")}`,
+        accepts.network ?? "?",
+        price === undefined ? "no price" : usd(Number(price)),
+        `payTo=${(accepts.payTo ?? "?").slice(0, 10)}`,
+        `inputSchema=${String(schemaBytes)}B`,
+        record.lastUpdated ?? "?",
+    ].join("  ");
+}
+
 /** Ask CDP whether the resource is now in the catalog. */
 async function cdpIndexState(resource: string): Promise<string> {
     try {
@@ -250,13 +326,18 @@ async function run(): Promise<void> {
             "  PowerShell: $env:PRIVATE_KEY='0x...' ; pnpm run bootstrap-payment"
         );
     }
-    if (!secret) {
+    const facilitator: Facilitator = process.env.FACILITATOR === "payai" ? "payai" : "cdp";
+    if (facilitator === "cdp" && !secret) {
         throw new Error(
             "Set BAZAAR_BOOTSTRAP_SECRET to the value deployed as the Worker secret.\n" +
             "Without it the payment settles through PayAI and CDP will not index anything.\n" +
-            "  wrangler secret put BAZAAR_BOOTSTRAP_SECRET"
+            "  wrangler secret put BAZAAR_BOOTSTRAP_SECRET\n" +
+            "To refresh the PayAI catalog instead, run with FACILITATOR=payai (no secret needed)."
         );
     }
+    // PayAI is already primary on the normal path, so the header must be absent
+    // for the settlement to reach it — never send one in PayAI mode.
+    const bootstrapSecret = facilitator === "cdp" ? secret : undefined;
 
     const apiUrl = process.env.API_URL ?? "https://api.weblens.dev";
     const confirmed = process.env.CONFIRM === "yes";
@@ -273,8 +354,13 @@ async function run(): Promise<void> {
     const candidates = (explicit ?? PAID_ENDPOINTS).filter((p) => !NEVER_SEED.has(p));
 
     console.log("━".repeat(64));
-    console.log("🌱 WebLens → CDP Bazaar seeding");
+    console.log(
+        facilitator === "cdp"
+            ? "🌱 WebLens → CDP Bazaar seeding"
+            : "♻️  WebLens → PayAI catalog refresh"
+    );
     console.log("━".repeat(64));
+    console.log("  Settles by: " + facilitator);
     console.log(`  API:        ${apiUrl}`);
     console.log(`  Wallet:     ${account.address}`);
     console.log(`  Mode:       ${confirmed ? "PAY (CONFIRM=yes)" : "PLAN ONLY — set CONFIRM=yes to pay"}`);
@@ -304,16 +390,17 @@ async function run(): Promise<void> {
         return;
     }
 
-    // CDP rejects self-payments, so seeding from the payTo wallet fails on
-    // every route. Catch it once here instead of after N confusing settles.
+    // CDP rejects self-payments outright, and an EIP-3009 authorization from the
+    // payTo wallet to itself is not worth debugging on either facilitator.
+    // Catch it once here instead of after N confusing settles.
     const selfPaid = plans.find(
         (p) => p.payTo?.toLowerCase() === account.address.toLowerCase()
     );
     if (selfPaid) {
         throw new Error(
             `PRIVATE_KEY belongs to ${account.address}, which is the payTo address for ` +
-            `${selfPaid.path}. CDP rejects self-payments — seed from a different wallet ` +
-            `funded with USDC on Base mainnet.`
+            `${selfPaid.path}. Pay from a different wallet funded with USDC on Base ` +
+            `mainnet (CDP rejects self-payments outright).`
         );
     }
     if (total > maxTotal) {
@@ -322,17 +409,25 @@ async function run(): Promise<void> {
             `Raise MAX_TOTAL or lower MAX_PRICE.`
         );
     }
+    if (facilitator === "payai") {
+        console.log("\n🔎 Current PayAI records (paging the unfiltered catalog, ~30 requests)...");
+        const before = await payaiRecords(apiUrl);
+        for (const p of plans) {
+            console.log("   " + p.path.padEnd(24) + " " + describeRecord(before.get(apiUrl + p.path)));
+        }
+    }
+
     if (!confirmed) {
         console.log("\n⏸  Plan only — no payment made. Re-run with CONFIRM=yes to seed.");
         return;
     }
 
-    console.log("\n💸 Seeding (each payment settles through CDP)...");
+    console.log("\n💸 Paying (each payment settles through " + facilitator + ")...");
     const results: { path: string; ok: boolean; tx?: string; bazaar?: string; detail?: string }[] = [];
     let spent = 0;
     for (const plan of plans) {
         console.log(`\n   → ${plan.path} (${usd(plan.amount)})`);
-        const r = await seed(apiUrl, plan, secret, account, retries);
+        const r = await seed(apiUrl, plan, bootstrapSecret, account, retries);
         results.push({ path: plan.path, ...r });
         if (r.ok) {
             spent += plan.amount;
@@ -349,7 +444,15 @@ async function run(): Promise<void> {
     console.log(`  settled ${String(ok.length)}/${String(results.length)}, spent ${usd(spent)}`);
     console.log("━".repeat(64));
 
-    if (ok.length > 0) {
+    if (ok.length > 0 && facilitator === "payai") {
+        console.log("\n🔎 PayAI records now (indexing is not instant; re-check in a few minutes):");
+        const after = await payaiRecords(apiUrl);
+        for (const r of ok) {
+            console.log("   " + r.path.padEnd(24) + " " + describeRecord(after.get(apiUrl + r.path)));
+        }
+    }
+
+    if (ok.length > 0 && facilitator === "cdp") {
         console.log("\n🔎 CDP index state (indexing is not instant; re-check in a few minutes):");
         for (const r of ok) {
             console.log(`   ${r.path.padEnd(30)} ${await cdpIndexState(`${apiUrl}${r.path}`)}`);
