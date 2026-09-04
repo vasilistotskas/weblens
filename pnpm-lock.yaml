@@ -16,7 +16,7 @@ importers:
         version: 1.4.0(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@6.0.6)
       '@coinbase/x402':
         specifier: ^2.1.0
-        version: 2.1.0(@typescript/typescript6@6.0.2)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.19.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
+        version: 2.1.0(@typescript/typescript6@6.0.2)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
       '@scalar/hono-api-reference':
         specifier: ^0.12.0
         version: 0.12.0(hono@4.13.5)
@@ -32,6 +32,9 @@ importers:
       '@x402/hono':
         specifier: ^2.24.0
         version: 2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(hono@4.13.5)(utf-8-validate@6.0.6)
+      '@x402/svm':
+        specifier: ^2.24.0
+        version: 2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22))
       hono:
         specifier: ^4.13.5
         version: 4.13.5
@@ -1557,9 +1560,6 @@ packages:
     peerDependencies:
       axios: ^1.7.9
 
-  '@x402/core@2.19.0':
-    resolution: {integrity: sha512-IPQIHzIrwvbri1339QWHvwtiTTDbGsrF5Yff0LZfufmVXNdOSYbjY8oz6vZg7+4W13f7/k81NUMAFoDOU4gswQ==}
-
   '@x402/core@2.24.0':
     resolution: {integrity: sha512-zKFbG+RgUhBXT9RcBQZGPW1cZXL9xpiTv68XSSuO1SMoobudmVvxYgP/bhoxJuAoqJjjEceeAhT4/EcA/wolrQ==}
 
@@ -1578,8 +1578,8 @@ packages:
       '@x402/paywall':
         optional: true
 
-  '@x402/svm@2.19.0':
-    resolution: {integrity: sha512-ZceHsvidxNCe/vX9N8D5GMJ29iZMp2IsimzBPTNw48ylGNEzVSBIEtTYrhcrUTebwSlDWdutM5J25AIGp05oZQ==}
+  '@x402/svm@2.24.0':
+    resolution: {integrity: sha512-j/2ARlUaDipqGyMuQOCbxSr+Pr7sANsksL1HXMCqYmTnNhX8BqZGIYTXNxbkNON47QKaojSdRckXwHwX0oIVrg==}
     peerDependencies:
       '@solana/kit': '>=5.1.0'
 
@@ -2954,7 +2954,7 @@ snapshots:
 
   '@cloudflare/workers-types@5.20260903.1': {}
 
-  '@coinbase/cdp-sdk@1.54.0(@typescript/typescript6@6.0.2)(@x402/core@2.24.0)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.19.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)':
+  '@coinbase/cdp-sdk@1.54.0(@typescript/typescript6@6.0.2)(@x402/core@2.24.0)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)':
     dependencies:
       '@solana-program/system': 0.10.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
@@ -2972,7 +2972,7 @@ snapshots:
       '@x402/core': 2.24.0
       '@x402/evm': 2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@x402/extensions': 2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
-      '@x402/svm': 2.19.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22))
+      '@x402/svm': 2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22))
     transitivePeerDependencies:
       - bufferutil
       - debug
@@ -2980,9 +2980,9 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@coinbase/x402@2.1.0(@typescript/typescript6@6.0.2)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.19.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)':
+  '@coinbase/x402@2.1.0(@typescript/typescript6@6.0.2)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)':
     dependencies:
-      '@coinbase/cdp-sdk': 1.54.0(@typescript/typescript6@6.0.2)(@x402/core@2.24.0)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.19.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
+      '@coinbase/cdp-sdk': 1.54.0(@typescript/typescript6@6.0.2)(@x402/core@2.24.0)(@x402/evm@2.24.0(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@x402/extensions@2.24.0(patch_hash=ecba39d020e145158c2d3e40b9c1d721e6eb4e4bb859e3f1e8fde001f841e638)(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(ethers@6.17.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))(@x402/svm@2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)))(bufferutil@4.1.0)(debug@4.4.3(supports-color@10.2.2))(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
       '@x402/core': 2.24.0
       viem: 2.56.3(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(zod@3.25.76)
       zod: 3.25.76
@@ -3466,7 +3466,6 @@ snapshots:
   '@solana-program/compute-budget@0.11.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
     dependencies:
       '@solana/kit': 5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
-    optional: true
 
   '@solana-program/system@0.10.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
     dependencies:
@@ -3476,7 +3475,6 @@ snapshots:
     dependencies:
       '@solana/kit': 5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
       '@solana/sysvars': 5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22)
-    optional: true
 
   '@solana-program/token@0.9.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))':
     dependencies:
@@ -4218,11 +4216,6 @@ snapshots:
       '@x402/core': 2.24.0
       axios: 1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
 
-  '@x402/core@2.19.0':
-    dependencies:
-      zod: 3.25.76
-    optional: true
-
   '@x402/core@2.24.0':
     dependencies:
       zod: 3.25.76
@@ -4265,16 +4258,15 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/svm@2.19.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22))':
+  '@x402/svm@2.24.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22))':
     dependencies:
       '@solana-program/compute-budget': 0.11.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))
       '@solana-program/token-2022': 0.6.1(@solana/kit@5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(@typescript/typescript6@6.0.2)(fastestsmallesttextencoderdecoder@1.0.22))
       '@solana/kit': 5.5.1(@typescript/typescript6@6.0.2)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(utf-8-validate@6.0.6)
-      '@x402/core': 2.19.0
+      '@x402/core': 2.24.0
     transitivePeerDependencies:
       - '@solana/sysvars'
-    optional: true
 
   abitype@1.0.6(@typescript/typescript6@6.0.2)(zod@3.25.76):
     optionalDependencies:

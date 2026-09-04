@@ -69,7 +69,7 @@ describe("published path templates", () => {
     });
 
     it("registers every template the ERC-8004 registration document publishes", () => {
-        const published = [...templatePathsIn(buildRegistration("https://api.weblens.dev"))];
+        const published = [...templatePathsIn(buildRegistration("https://api.weblens.dev", {}))];
         const unregistered = published.filter((path) => !REGISTERED.has(path));
 
         expect(unregistered, `unregistered in PARAMETERIZED_ROUTES: ${unregistered.join(", ")}`).toEqual([]);
@@ -133,7 +133,7 @@ describe("dereferenceable fields are always fetchable", () => {
     // published under a key that says it is a template.
     const documents: [string, unknown][] = [
         ["discovery catalogue", SERVICE_CATALOG],
-        ["ERC-8004 registration", buildRegistration("https://api.weblens.dev")],
+        ["ERC-8004 registration", buildRegistration("https://api.weblens.dev", {})],
     ];
 
     for (const [name, document] of documents) {
@@ -149,7 +149,7 @@ describe("dereferenceable fields are always fetchable", () => {
 
     it("still finds fields to check, so the walker cannot silently pass", () => {
         expect(dereferenceableStrings(SERVICE_CATALOG).length).toBeGreaterThan(0);
-        expect(dereferenceableStrings(buildRegistration("https://x")).length).toBeGreaterThan(0);
+        expect(dereferenceableStrings(buildRegistration("https://x", {})).length).toBeGreaterThan(0);
     });
 
     it("publishes a callable endpoint exactly for caller-supplied parameters", () => {

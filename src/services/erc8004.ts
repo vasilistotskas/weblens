@@ -24,7 +24,8 @@
  */
 
 import { keccak256, stringToHex } from "viem";
-import { PRICING, SUPPORTED_NETWORKS, absolutePathPublication } from "../config";
+import { PRICING, supportedNetworks, absolutePathPublication } from "../config";
+import type { NetworkEnv } from "../config";
 import type { Env } from "../types";
 import { signContext } from "./crypto";
 
@@ -46,7 +47,7 @@ const RECEIPT_TTL_SECONDS = 60 * 60 * 24 * 30;
  * someone registers this URI on-chain; until then `registrations` is empty
  * and we say so rather than inventing an id.
  */
-export function buildRegistration(baseUrl: string) {
+export function buildRegistration(baseUrl: string, env: NetworkEnv) {
     return {
         type: ERC8004_REGISTRATION_TYPE,
         name: "WebLens",
@@ -73,7 +74,7 @@ export function buildRegistration(baseUrl: string) {
         payment: {
             protocol: "x402",
             version: 2,
-            networks: SUPPORTED_NETWORKS,
+            networks: supportedNetworks(env),
             asset: "USDC",
             priceRange: `${PRICING.memory.read} - ${PRICING.intel.competitive}`,
         },

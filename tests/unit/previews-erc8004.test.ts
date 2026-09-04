@@ -81,7 +81,7 @@ describe("preview cost safety", () => {
 });
 
 describe("ERC-8004 registration document", () => {
-    const doc = buildRegistration("https://api.weblens.dev");
+    const doc = buildRegistration("https://api.weblens.dev", {});
 
     it("declares the registration-v1 type the spec requires", () => {
         expect(doc.type).toBe(ERC8004_REGISTRATION_TYPE);
@@ -107,9 +107,13 @@ describe("ERC-8004 registration document", () => {
         expect(doc.supportedTrust).toEqual(["feedback"]);
     });
 
-    it("advertises x402 support and the real network", () => {
+    it("advertises x402 support and the real network, in CAIP-2", () => {
         expect(doc.x402Support).toBe(true);
-        expect(doc.payment.networks).toContain("base");
+        // CAIP-2, not "base": this is the same identifier the 402
+        // challenge carries in accepts[].network, so a buyer can match
+        // the two. Solana joins the list only once PAY_TO_ADDRESS_SVM is
+        // set, and this document is built with an empty env.
+        expect(doc.payment.networks).toEqual(["eip155:8453"]);
     });
 });
 

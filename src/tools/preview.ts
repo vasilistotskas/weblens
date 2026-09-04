@@ -198,7 +198,7 @@ export async function previewHandler(c: AppContext) {
 // ============================================
 
 export function agentRegistrationHandler(c: AppContext) {
-    return c.json(buildRegistration(baseOf(c)));
+    return c.json(buildRegistration(baseOf(c), c.env));
 }
 
 export async function receiptHandler(c: AppContext) {

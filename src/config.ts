@@ -338,12 +338,64 @@ export const FREE_TIER = {
   searchMaxResults: 3,
 } as const;
 
-// List of all supported networks for 402 responses.
+// CAIP-2 chain identifiers for every network WebLens can be paid on.
+//
 // Facilitator selection is NOT configured here — it happens at runtime in
 // src/middleware/payment.ts based on env vars (NETWORK, CDP_API_KEY_ID,
 // CDP_API_KEY_SECRET, FACILITATOR_URL, PAYAI_FACILITATOR_URL). See
 // getResourceServer() in payment.ts for the full branch logic.
-export const SUPPORTED_NETWORKS = ["base"] as const;
+//
+// The Solana ids are the genesis-hash prefixes CAIP-2 mandates, and match
+// what facilitator.payai.network/supported advertises for `exact`.
+export const NETWORKS = {
+  baseMainnet: "eip155:8453",
+  baseSepolia: "eip155:84532",
+  solanaMainnet: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  solanaDevnet: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+} as const;
+
+/** The env fields that decide which networks are live. */
+export interface NetworkEnv {
+  NETWORK?: string;
+  PAY_TO_ADDRESS_SVM?: string;
+}
+
+/** True on the testnet deployment (Base Sepolia + Solana devnet). */
+export function isTestnet(env: NetworkEnv): boolean {
+  return env.NETWORK === "base-sepolia";
+}
+
+/** The EVM chain this deployment settles on. */
+export function evmNetwork(env: NetworkEnv): `${string}:${string}` {
+  return isTestnet(env) ? NETWORKS.baseSepolia : NETWORKS.baseMainnet;
+}
+
+/**
+ * The Solana chain this deployment settles on, or undefined when Solana is off.
+ *
+ * Gated on a configured `PAY_TO_ADDRESS_SVM` because an SVM `exact` payment is
+ * an SPL TransferChecked into the payee's associated token account, and the
+ * spec makes the facilitator verify that the destination account exists.
+ * Advertising Solana without a real USDC-initialised address would hand every
+ * buyer a challenge whose settlement cannot succeed.
+ */
+export function svmNetwork(env: NetworkEnv): `${string}:${string}` | undefined {
+  if (!env.PAY_TO_ADDRESS_SVM?.trim()) {return undefined;}
+  return isTestnet(env) ? NETWORKS.solanaDevnet : NETWORKS.solanaMainnet;
+}
+
+/**
+ * Networks advertised on discovery surfaces, in CAIP-2 form.
+ *
+ * Derived rather than listed so a network can never appear in the catalog or
+ * the ERC-8004 document while the payment wall cannot actually take money on
+ * it — the failure mode that left `["base"]` hardcoded and correct only by
+ * coincidence.
+ */
+export function supportedNetworks(env: NetworkEnv): string[] {
+  const svm = svmNetwork(env);
+  return svm ? [evmNetwork(env), svm] : [evmNetwork(env)];
+}
 
 // Crawl/map execution bounds. Workers on paid plans allow 10k subrequests per
 // invocation and bill CPU (not network wait), so these are set for predictable

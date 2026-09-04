@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { SUPPORTED_NETWORKS, PRICING, pathExample } from "../config";
+import { supportedNetworks, PRICING, pathExample } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import {
@@ -108,7 +108,7 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
                 info: "/mcp/info",
                 local: "npx -y @weblens/mcp",
             },
-            supportedNetworks: SUPPORTED_NETWORKS,
+            supportedNetworks: supportedNetworks(c.env),
             x402: {
                 version: 2,
                 protocol: "https://x402.org",

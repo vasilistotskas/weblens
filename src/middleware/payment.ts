@@ -8,8 +8,9 @@ import type {RoutesConfig} from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { paymentMiddleware } from "@x402/hono";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
 import type { Context, MiddlewareHandler } from "hono";
-import { SERVICE_ICON_PATH, SERVICE_NAME, tagsForPath } from "../config";
+import { evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork, tagsForPath } from "../config";
 import type { Env, Variables } from "../types";
 import { createLogger } from "../utils/logger";
 
@@ -94,6 +95,10 @@ function envSignature(env: Env): string {
         fingerprint(env.CDP_API_KEY_SECRET),
         env.FACILITATOR_URL ?? "",
         env.PAYAI_FACILITATOR_URL ?? "",
+        // Decides whether the SVM scheme is registered at all, so turning
+        // Solana on or off must rebuild the server rather than wait for the
+        // isolate to be recycled.
+        env.PAY_TO_ADDRESS_SVM ?? "",
     ].join("|");
 }
 
@@ -109,8 +114,10 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
 
     log.info("x402.init_start");
 
-    // CAIP-2 network identifier. Base mainnet = eip155:8453, Base Sepolia = eip155:84532.
-    const NETWORK_CAIP2 = env.NETWORK === "base-sepolia" ? "eip155:84532" : "eip155:8453";
+    // CAIP-2 network identifiers. `svmCaip2` is undefined unless a Solana
+    // payout address is configured — see svmNetwork() in config.ts.
+    const evmCaip2 = evmNetwork(env);
+    const svmCaip2 = svmNetwork(env);
 
     // Facilitator selection (runtime, not config-driven):
     //   - testnet env or explicit x402.org URL → x402.org facilitator (single)
@@ -153,7 +160,17 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     }
 
     const server = new x402ResourceServer(facilitatorClients);
-    server.register(NETWORK_CAIP2, new ExactEvmScheme());
+    server.register(evmCaip2, new ExactEvmScheme());
+    // Solana settles a plain SPL TransferChecked, with transaction fees paid
+    // by a facilitator-sponsored feePayer that arrives in the supported-kind
+    // `extra` (PayAI advertises one for both Solana networks), so this needs
+    // no SOL and no Solana RPC of our own. Only register it when a payout
+    // address is configured: registering a network the facilitator does not
+    // advertise leaves initialize() with no supported kind for it, and
+    // buildPaymentRequirements then throws for every request on the route.
+    if (svmCaip2) {
+        server.register(svmCaip2, new ExactSvmScheme());
+    }
     server.registerExtension(bazaarResourceServerExtension);
 
     // Visibility hooks: without these, every verify or settle failure returns
@@ -189,7 +206,8 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     resourceServerCache.set(key, server);
 
     log.info("x402.init_ready", {
-        network: NETWORK_CAIP2,
+        network: evmCaip2,
+        svmNetwork: svmCaip2 ?? "disabled",
         facilitator: facilitatorLabel,
     });
 
@@ -209,6 +227,8 @@ function createPaymentConfig(
     price: string,
     destinationAddress: string,
     networkCaip2: string,
+    /** Second payment option. Omitted when Solana is not configured. */
+    svmTarget: { network: string; payTo: string } | undefined,
     description: string,
     inputExample?: Record<string, unknown>,
     inputSchema?: Record<string, unknown>,
@@ -238,12 +258,25 @@ function createPaymentConfig(
         // facilitator-side Bazaar indexing stores entries under the right
         // resource tuple. All weblens paid endpoints are POST-only.
         [`POST ${path}`]: {
-            accepts: [{
-                scheme: "exact" as const,
-                price,
-                network: networkCaip2,
-                payTo: destinationAddress,
-            }],
+            // One entry per network we can actually be paid on. Buyers pick;
+            // the price string is identical, and each scheme converts it to
+            // that chain's USDC atomic units through its own parsePrice.
+            accepts: [
+                {
+                    scheme: "exact" as const,
+                    price,
+                    network: networkCaip2,
+                    payTo: destinationAddress,
+                },
+                ...(svmTarget
+                    ? [{
+                        scheme: "exact" as const,
+                        price,
+                        network: svmTarget.network,
+                        payTo: svmTarget.payTo,
+                    }]
+                    : []),
+            ],
             description,
             mimeType: "application/json" as const,
             // These three are RouteConfig fields, deliberately outside
@@ -310,7 +343,11 @@ export function createLazyPaymentMiddleware(
 
         const env = c.env;
         const recipientAddress = env.PAY_TO_ADDRESS;
-        const networkCaip2 = env.NETWORK === "base-sepolia" ? "eip155:84532" : "eip155:8453";
+        const networkCaip2 = evmNetwork(env);
+        const svmCaip2 = svmNetwork(env);
+        const svmTarget = svmCaip2 && env.PAY_TO_ADDRESS_SVM
+            ? { network: svmCaip2, payTo: env.PAY_TO_ADDRESS_SVM }
+            : undefined;
 
         const isStatic = typeof priceOrCalculator === "string";
         const price = isStatic ? priceOrCalculator : await priceOrCalculator(c);
@@ -340,6 +377,9 @@ export function createLazyPaymentMiddleware(
                 price,
                 recipientAddress,
                 networkCaip2,
+                // The advertised accepts list changes with this, so a stale
+                // entry would keep offering (or withholding) Solana.
+                svmTarget ? `${svmTarget.network}|${svmTarget.payTo}` : "",
                 env.CDP_API_KEY_ID ?? "",
                 fingerprint(env.CDP_API_KEY_SECRET),
                 // A bootstrap request must not populate (or read) the cache
@@ -355,6 +395,7 @@ export function createLazyPaymentMiddleware(
                 price,
                 recipientAddress,
                 networkCaip2,
+                svmTarget,
                 description,
                 inputExample,
                 inputSchema,

@@ -8,6 +8,13 @@ import type { Logger } from "./utils/logger";
 // Environment bindings for Cloudflare Workers
 export interface Env {
   PAY_TO_ADDRESS: string;
+  /**
+   * Solana payout address. Optional: setting it turns on a second `accepts`
+   * entry so buyers can pay on Solana as well as Base. It must be an address
+   * whose USDC associated token account already exists — see svmNetwork() in
+   * config.ts. Unset means Solana is not advertised at all.
+   */
+  PAY_TO_ADDRESS_SVM?: string;
   // CDP API keys - REQUIRED for payment verification and Bazaar discovery
   // The @coinbase/x402 facilitator reads these automatically
   CDP_API_KEY_ID?: string;

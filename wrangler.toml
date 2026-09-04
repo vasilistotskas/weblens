@@ -28,6 +28,18 @@ NETWORK = "base"
 LOG_LEVEL = "info"
 # Public wallet address for receiving payments
 PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
+# Solana payout address. Uncomment to advertise a second "accepts" entry so
+# buyers can pay on Solana as well as Base — Solana carried >90% of x402
+# transactions in late Aug 2026, and PayAI settles it with a sponsored
+# feePayer, so this needs no SOL and no Solana RPC.
+#
+# It MUST be an address whose USDC associated token account already exists:
+# an SVM "exact" payment is an SPL TransferChecked and the facilitator is
+# required to verify the destination account exists, so an address that has
+# never held USDC would 402 buyers into a settlement that cannot succeed.
+# Send it any amount of USDC once to initialise the account.
+# Leaving this unset (or blank) keeps Solana entirely unadvertised.
+# PAY_TO_ADDRESS_SVM = "<your-solana-address>"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
 # Do NOT add API keys here — they will be committed to version control
 
