@@ -27,7 +27,7 @@ NETWORK = "base"
 # Structured-log verbosity for src/utils/logger.ts (debug|info|warn|error|silent).
 LOG_LEVEL = "info"
 # Public wallet address for receiving payments
-PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
+PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
 # Solana payout address. Uncomment to advertise a second "accepts" entry so
 # buyers can pay on Solana as well as Base — Solana carried >90% of x402
 # transactions in late Aug 2026, and PayAI settles it with a sponsored
@@ -39,7 +39,14 @@ PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
 # never held USDC would 402 buyers into a settlement that cannot succeed.
 # Send it any amount of USDC once to initialise the account.
 # Leaving this unset (or blank) keeps Solana entirely unadvertised.
-# PAY_TO_ADDRESS_SVM = "<your-solana-address>"
+#
+# The address below is the intended payout wallet. It is a valid pubkey but,
+# as of 2026-09-04, has no USDC token account (getTokenAccountsByOwner for
+# mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v returns none) and holds
+# no SOL, so the line stays commented — uncommenting it before the account
+# exists would advertise a Solana challenge that cannot settle. Send USDC to
+# it once, confirm the token account, then uncomment.
+# PAY_TO_ADDRESS_SVM = "34sd6wPrmoR9UG9rUgYAFtcWYSVzqDNsvH9VkCkycUeb"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
 # Do NOT add API keys here — they will be committed to version control
 
@@ -184,7 +191,7 @@ class_name = "CreditAccountDO"
 # Use Base Sepolia testnet
 NETWORK = "base-sepolia"
 # Payment receiving address (use same or different for testing)
-PAY_TO_ADDRESS = "0x1369f9899B0Eb899336A196003c86262997e7567"
+PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
 
 [env.testnet.browser]
 binding = "BROWSER"
