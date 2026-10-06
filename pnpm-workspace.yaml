@@ -31,18 +31,18 @@ peerDependencyRules:
 # pnpm 11 refuses very recently published versions by default; in loose mode it
 # records the ones we've already accepted here. pnpm appends to this list itself.
 minimumReleaseAgeExclude:
-  - '@cloudflare/workers-types@4.20260526.1 || 5.20260814.1 || 5.20260903.1'
-  - '@typescript-eslint/eslint-plugin@8.60.0'
-  - '@typescript-eslint/parser@8.60.0'
-  - '@typescript-eslint/project-service@8.60.0'
-  - '@typescript-eslint/scope-manager@8.60.0'
-  - '@typescript-eslint/tsconfig-utils@8.60.0'
-  - '@typescript-eslint/type-utils@8.60.0'
-  - '@typescript-eslint/types@8.60.0'
-  - '@typescript-eslint/typescript-estree@8.60.0'
-  - '@typescript-eslint/utils@8.60.0'
-  - '@typescript-eslint/visitor-keys@8.60.0'
-  - typescript-eslint@8.60.0
+  - '@cloudflare/workers-types@4.20260526.1 || 5.20260814.1 || 5.20260903.1 || 5.20261006.1'
+  - '@typescript-eslint/eslint-plugin@8.60.0 || 8.71.1'
+  - '@typescript-eslint/parser@8.60.0 || 8.71.1'
+  - '@typescript-eslint/project-service@8.60.0 || 8.71.1'
+  - '@typescript-eslint/scope-manager@8.60.0 || 8.71.1'
+  - '@typescript-eslint/tsconfig-utils@8.60.0 || 8.71.1'
+  - '@typescript-eslint/type-utils@8.60.0 || 8.71.1'
+  - '@typescript-eslint/types@8.60.0 || 8.71.1'
+  - '@typescript-eslint/typescript-estree@8.60.0 || 8.71.1'
+  - '@typescript-eslint/utils@8.60.0 || 8.71.1'
+  - '@typescript-eslint/visitor-keys@8.60.0 || 8.71.1'
+  - typescript-eslint@8.60.0 || 8.71.1
   - '@cloudflare/vitest-pool-workers@0.16.10 || 0.21.3'
   - '@cloudflare/workerd-darwin-64@1.20260526.1'
   - '@cloudflare/workerd-darwin-arm64@1.20260526.1'
@@ -74,6 +74,8 @@ minimumReleaseAgeExclude:
 # The remaining 17 audit advisories (axios, ip-address, extract-zip, postcss,
 # nanoid, brace-expansion) are dev-only or tree-shaken out — verified absent
 # from the bundle via `wrangler deploy --dry-run` source-map inspection.
-
-patchedDependencies:
-  '@x402/extensions@2.24.0': patches/@x402__extensions@2.24.0.patch
+  - '@scalar/client-side-rendering@0.4.9'
+  - '@scalar/helpers@0.16.1'
+  - '@scalar/hono-api-reference@0.12.10'
+  - '@scalar/schemas@0.13.0'
+  - '@scalar/types@0.23.0'
