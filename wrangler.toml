@@ -40,13 +40,13 @@ PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
 # Send it any amount of USDC once to initialise the account.
 # Leaving this unset (or blank) keeps Solana entirely unadvertised.
 #
-# The address below is the intended payout wallet. It is a valid pubkey but,
-# as of 2026-09-04, has no USDC token account (getTokenAccountsByOwner for
-# mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v returns none) and holds
-# no SOL, so the line stays commented — uncommenting it before the account
-# exists would advertise a Solana challenge that cannot settle. Send USDC to
-# it once, confirm the token account, then uncomment.
-# PAY_TO_ADDRESS_SVM = "34sd6wPrmoR9UG9rUgYAFtcWYSVzqDNsvH9VkCkycUeb"
+# This is the Phantom wallet's Solana address (the same wallet as the Base
+# PAY_TO_ADDRESS). Its USDC associated token account
+# BVo3EAd4faSJS3v66iQyutdcjL9qp2iAFGHYro3VbrFq was initialised 2026-10-07 by a
+# Kraken withdrawal, verified on-chain as the derived ATA for mint
+# EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v. Never close that token account
+# in the wallet: Solana payments would fail to settle until it is re-created.
+PAY_TO_ADDRESS_SVM = "34sd6wPrmoR9UG9rUgYAFtcWYSVzqDNsvH9VkCkycUeb"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
 # Do NOT add API keys here — they will be committed to version control
 
