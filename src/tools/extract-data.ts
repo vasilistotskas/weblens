@@ -6,7 +6,7 @@ import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
-import { safeFetch } from "../utils/safe-fetch";
+import { readDocument, safeFetch, UnsupportedContentError } from "../utils/safe-fetch";
 
 export async function extractData(c: Context<{ Bindings: Env }>) {
   const requestId = c.get("requestId");
@@ -32,7 +32,7 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
       return c.json(createErrorResponse("RENDER_FAILED", `Failed to fetch: ${String(response.status)}`, requestId), 502);
     }
 
-    const html = await response.text();
+    const html = await readDocument(response);
     const content = htmlToMarkdown(html);
 
     const anthropicKey = c.env.ANTHROPIC_API_KEY;
@@ -82,6 +82,9 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    if (error instanceof UnsupportedContentError) {
+      return c.json(createErrorResponse("UNSUPPORTED_CONTENT", message, requestId), 422);
+    }
     return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
   }
 }

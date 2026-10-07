@@ -2,7 +2,7 @@
  * Resilient Fetch Endpoint Handler
  * Agent Prime — Multi-provider fetch with automatic fallback
  *
- * POST /fetch/resilient ($0.025)
+ * POST /fetch/resilient (PRICING.fetch.resilient)
  *
  * Tries the native scraper first, falls back to headless Chromium.
  * Response includes which tier handled the request.

@@ -226,6 +226,7 @@ export type ErrorCode =
   | "MEMORY_KEY_NOT_FOUND"
   | "MEMORY_VALUE_TOO_LARGE"
   | "ACV_FAILED"
+  | "UNSUPPORTED_CONTENT" // Target served binary / non-text content (422)
   // --- Validation middleware (src/middleware/validation.ts) ---
   | "VALIDATION_ERROR" // Zod schema validation failed (400)
   | "INVALID_CONTENT_TYPE" // Non-JSON Content-Type on POST/PUT (400)

@@ -8,8 +8,10 @@
  */
 
 import type { Context } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { ErrorCode, ErrorResponse } from "../types";
 import { loggerFromEnv } from "../utils/logger";
+import { TargetHttpError, UnsupportedContentError } from "../utils/safe-fetch";
 import { getRequestId, getProcessingTime } from "./requestId";
 
 /**
@@ -65,6 +67,9 @@ const ERROR_CODE_MAP: Record<string, ErrorCode> = {
   // ACV Errors
   "verification failed": "ACV_FAILED",
   "Proof verification": "ACV_FAILED",
+
+  // Target content (UnsupportedContentError in utils/safe-fetch.ts)
+  "Unsupported content": "UNSUPPORTED_CONTENT",
 };
 
 /**
@@ -82,7 +87,7 @@ export function getErrorCode(message: string): ErrorCode {
 /**
  * Determine HTTP status code from error code
  */
-export function getHttpStatus(code: ErrorCode): number {
+export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
   switch (code) {
     case "INVALID_REQUEST":
     case "INVALID_URL":
@@ -129,6 +134,7 @@ export function getHttpStatus(code: ErrorCode): number {
     case "PAYLOAD_TOO_LARGE":
       return 413;
     case "ACV_FAILED":
+    case "UNSUPPORTED_CONTENT":
       return 422;
     case "RATE_LIMITED":
       return 429;
@@ -200,5 +206,27 @@ export function errorHandler(error: Error, c: Context): Response {
   c.header("X-Request-Id", requestId);
   c.header("X-Processing-Time", processingTime.toString());
 
-  return c.json(errorResponse, status as 400 | 401 | 402 | 404 | 405 | 413 | 422 | 429 | 500 | 502 | 503);
+  return c.json(errorResponse, status);
+}
+
+/**
+ * Classify a failure from fetching a user-supplied URL (`fetchBasicPage` and
+ * friends). Without this, handlers reported every target-side failure — a 403
+ * from the site, a binary download — as our own 500 INTERNAL_ERROR.
+ */
+export function classifyFetchError(error: unknown): { code: ErrorCode; status: ContentfulStatusCode; message: string } {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  let code: ErrorCode;
+  if (error instanceof UnsupportedContentError) {
+    code = "UNSUPPORTED_CONTENT";
+  } else if (error instanceof TargetHttpError) {
+    code = "FETCH_FAILED";
+  } else if (message.includes("timeout") || message.includes("aborted")) {
+    return { code: "FETCH_TIMEOUT", status: getHttpStatus("FETCH_TIMEOUT"), message: "Target URL failed to respond within timeout period" };
+  } else if (/redirect/iu.test(message)) {
+    code = "REDIRECT_BLOCKED";
+  } else {
+    code = "INTERNAL_ERROR";
+  }
+  return { code, status: getHttpStatus(code), message };
 }

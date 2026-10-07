@@ -31,7 +31,7 @@ import {
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
-import { safeFetch } from "../utils/safe-fetch";
+import { assertTargetOk, HTML_CONTENT_TYPE, readDocument, readTextCapped, safeFetch } from "../utils/safe-fetch";
 
 const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
 
@@ -57,15 +57,9 @@ async function fetchPage(url: string, timeout: number): Promise<FetchedPage> {
         },
         signal: AbortSignal.timeout(timeout),
     });
-    if (!response.ok) {
-        throw new Error(`Failed to fetch: ${String(response.status)} ${response.statusText}`);
-    }
-    // Only parse HTML — a PDF or image would produce garbage markdown.
-    const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType !== "" && !/\b(?:text\/html|application\/xhtml\+xml|text\/plain)\b/iu.test(contentType)) {
-        throw new Error(`Unsupported content type: ${contentType.split(";")[0] ?? contentType}`);
-    }
-    const html = await response.text();
+    await assertTargetOk(response);
+    // Only parse HTML — a PDF or image would produce garbage markdown and no links.
+    const html = await readDocument(response, HTML_CONTENT_TYPE);
     return {
         title: extractMetadata(html).title ?? "",
         content: htmlToMarkdown(html),
@@ -102,7 +96,7 @@ export async function crawlHandler(c: Context<{ Bindings: Env }>) {
                     signal: AbortSignal.timeout(timeout),
                 });
                 if (response.ok) {
-                    robots = parseRobots(await response.text());
+                    robots = parseRobots(await readTextCapped(response));
                 }
             } catch {
                 // No robots.txt (or unreachable) → nothing is disallowed.

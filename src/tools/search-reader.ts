@@ -7,7 +7,7 @@
  */
 
 import type { Context } from "hono";
-import { FREE_TIER } from "../config";
+import { FREE_TIER, PRICING } from "../config";
 import { searchWeb } from "../services/search";
 import type { Env } from "../types";
 
@@ -68,7 +68,7 @@ export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
             const lines = results.map(
                 (r, i) => `${String(i + 1)}. ${r.title}\n   ${r.url}\n   ${r.snippet}`
             );
-            const text = `Search: ${query}\n\n${lines.join("\n\n")}\n\n---\nSearched by WebLens (api.weblens.dev) | More results: POST /search ($0.005)\n`;
+            const text = `Search: ${query}\n\n${lines.join("\n\n")}\n\n---\nSearched by WebLens (api.weblens.dev) | More results: POST /search (${PRICING.search})\n`;
             return c.text(text, 200);
         }
 
@@ -83,7 +83,7 @@ export async function searchReaderHandler(c: Context<{ Bindings: Env }>) {
                 maxResults,
                 rateLimit: `${String(FREE_TIER.maxRequestsPerHour)}/hour`,
                 upgrade: {
-                    moreResults: "POST /search ($0.005) — up to 20 results",
+                    moreResults: `POST /search (${PRICING.search}) — up to 20 results`,
                     docs: "https://api.weblens.dev/docs",
                 },
             },

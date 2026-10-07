@@ -23,7 +23,7 @@ import {
 } from "../services/crawler";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
-import { safeFetch } from "../utils/safe-fetch";
+import { readTextCapped, safeFetch } from "../utils/safe-fetch";
 
 const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
 
@@ -34,7 +34,7 @@ async function fetchText(url: string, timeout: number): Promise<string | null> {
             signal: AbortSignal.timeout(timeout),
         });
         if (!response.ok) { return null; }
-        return await response.text();
+        return await readTextCapped(response);
     } catch {
         return null;
     }

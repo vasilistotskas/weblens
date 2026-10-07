@@ -13,7 +13,7 @@
  * judge it; one who is handed a bare vendor list cannot.
  */
 
-import { safeFetch } from "../utils/safe-fetch";
+import { readHtmlOrEmpty, safeFetch } from "../utils/safe-fetch";
 
 /** Enough HTML to cover head + early body markers without buffering a novel. */
 const MAX_HTML_BYTES = 300_000;
@@ -208,8 +208,7 @@ export async function detectTech(url: string): Promise<TechReport> {
     const contentType = response.headers.get("content-type") ?? "";
     let html = "";
     if (contentType.includes("html") || contentType === "") {
-        const text = await response.text();
-        html = text.slice(0, MAX_HTML_BYTES);
+        html = await readHtmlOrEmpty(response, MAX_HTML_BYTES);
     }
 
     const { technologies, categories, generator } = fingerprint(headerLines, html);

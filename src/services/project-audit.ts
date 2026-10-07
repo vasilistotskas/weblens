@@ -25,7 +25,7 @@
  */
 
 import type { Env } from "../types";
-import { safeFetch } from "../utils/safe-fetch";
+import { readHtmlOrEmpty, safeFetch } from "../utils/safe-fetch";
 import { inspectDomain, normalizeDomain  } from "./domain-intel";
 import type {DomainReport} from "./domain-intel";
 import { fingerprint  } from "./tech-detect";
@@ -173,7 +173,7 @@ async function fetchHomepage(url: string): Promise<Page> {
         response.headers.forEach((v, k) => { headers.push(`${k}: ${v}`); });
         const contentType = response.headers.get("content-type") ?? "";
         const html = contentType.includes("html") || contentType === ""
-            ? (await response.text()).slice(0, MAX_HTML_BYTES)
+            ? await readHtmlOrEmpty(response, MAX_HTML_BYTES)
             : "";
         return { ok: response.ok, status: response.status, html, headers };
     } catch {

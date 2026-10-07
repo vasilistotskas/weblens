@@ -8,7 +8,7 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "../types";
 import { loggerFromEnv } from "../utils/logger";
-import { safeFetch } from "../utils/safe-fetch";
+import { readTextCapped, safeFetch } from "../utils/safe-fetch";
 
 export class MonitorScheduler extends DurableObject<Env> {
 
@@ -173,7 +173,7 @@ export class MonitorScheduler extends DurableObject<Env> {
       // and the next scheduled check).
       const fetcher = async (url: string) => {
         const res = await safeFetch(url, { signal: AbortSignal.timeout(15000) });
-        return await res.text();
+        return await readTextCapped(res);
       };
 
       const result = await checkMonitor(config, monitorId, fetcher);

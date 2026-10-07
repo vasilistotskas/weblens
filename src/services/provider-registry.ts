@@ -18,7 +18,7 @@
 
 import type { Env } from "../types";
 import { hardenPage } from "../utils/browser-guard";
-import { safeFetch } from "../utils/safe-fetch";
+import { readDocument, safeFetch } from "../utils/safe-fetch";
 
 // ============================================
 // Types
@@ -267,7 +267,7 @@ async function fetchViaNative(url: string, timeout: number): Promise<ProviderRes
         // Dynamic import to avoid circular dependencies
         const { htmlToMarkdown, extractMetadata } = await import("../utils/parser");
 
-        const html = await response.text();
+        const html = await readDocument(response);
         const content = htmlToMarkdown(html);
         const metadata = extractMetadata(html);
 

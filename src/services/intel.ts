@@ -7,7 +7,7 @@
  */
 
 import { fetchBasicPage } from "../tools/fetch-basic";
-import { safeFetch } from "../utils/safe-fetch";
+import { readTextCapped, safeFetch } from "../utils/safe-fetch";
 import type { AIServiceConfig } from "./ai";
 import { callClaude } from "./ai";
 import type { SearchResult as SearchServiceResult } from "./search";
@@ -364,7 +364,7 @@ export async function siteAudit(options: SiteAuditOptions): Promise<SiteAudit> {
             signal: AbortSignal.timeout(10000),
         });
         if (htmlResponse.ok) {
-            rawHtml = (await htmlResponse.text()).slice(0, 15000);
+            rawHtml = await readTextCapped(htmlResponse, 15000);
         }
     } catch {
         // Continue with markdown content only

@@ -8,7 +8,7 @@
 import type { Context } from "hono";
 import { z } from "zod/v4";
 import { FREE_TIER } from "../config";
-import { createErrorResponse } from "../middleware/errorHandler";
+import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import { searchWeb } from "../services/search";
 import { validateURL } from "../services/validator";
 import type { Env, FreeTierMetadata } from "../types";
@@ -114,29 +114,8 @@ export async function freeFetch(c: Context<{ Bindings: Env }>) {
             }),
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-
-        if (message.includes("timeout") || message.includes("aborted")) {
-            return c.json(
-                {
-                    error: "FETCH_TIMEOUT",
-                    code: "FETCH_TIMEOUT",
-                    message: "Target URL failed to respond within timeout period",
-                    requestId,
-                },
-                502
-            );
-        }
-
-        return c.json(
-            {
-                error: "INTERNAL_ERROR",
-                code: "INTERNAL_ERROR",
-                message,
-                requestId,
-            },
-            500
-        );
+        const { code, status, message } = classifyFetchError(error);
+        return c.json(createErrorResponse(code, message, requestId), status);
     }
 }
 

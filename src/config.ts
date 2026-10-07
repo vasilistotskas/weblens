@@ -409,6 +409,14 @@ export const CRAWL_LIMITS = {
   maxSitemapDocs: 10,
 } as const;
 
+// Upper bound on a fetched page body. The body is streamed and cut off here, so
+// a multi-megabyte download (e.g. a 33MB gzip served as text/plain) cannot pin
+// an isolate's memory or burn CPU in the HTML-to-markdown pass. Real HTML pages
+// sit well below this; long Wikipedia articles are ~1-2MB.
+export const FETCH_LIMITS = {
+  maxDocumentBytes: 5 * 1024 * 1024,
+} as const;
+
 // Viewport bounds for screenshots
 export const VIEWPORT_BOUNDS = {
   width: { min: 320, max: 3840, default: 1280 },

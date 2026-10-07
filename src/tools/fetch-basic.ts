@@ -3,20 +3,21 @@
  * Fetches webpage without JavaScript rendering (basic tier)
  * 
  * Requirements: 2.1, 2.5
- * - Price: $0.005
+ * - Price: PRICING.fetch.basic
  * - No JS rendering
  * - Includes tier metadata in response
  */
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
+import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import type { FetchRequestSchema } from "../schemas";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, FetchResponse, ProofOfContext } from "../types";
 import { createLogger } from "../utils/logger";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
-import { safeFetch } from "../utils/safe-fetch";
+import { assertTargetOk, readDocument, safeFetch } from "../utils/safe-fetch";
 
 // Module-level logger: fetchBasicPage is a service-style function (takes `env`,
 // not a Hono context) and is also called outside any request (e.g. research).
@@ -57,11 +58,9 @@ export async function fetchBasicPage(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch: ${String(response.status)} ${response.statusText}`);
-  }
+  await assertTargetOk(response);
 
-  const html = await response.text();
+  const html = await readDocument(response);
   const content = htmlToMarkdown(html);
   const metadata = extractMetadata(html);
 
@@ -132,23 +131,7 @@ export async function fetchBasic(c: Context<{ Bindings: Env }>) {
 
     return c.json(response);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    // Check for timeout errors
-    if (message.includes("timeout") || message.includes("aborted")) {
-      return c.json({
-        error: "FETCH_TIMEOUT",
-        code: "FETCH_TIMEOUT",
-        message: "Target URL failed to respond within timeout period",
-        requestId,
-      }, 502);
-    }
-
-    return c.json({
-      error: "INTERNAL_ERROR",
-      code: "INTERNAL_ERROR",
-      message,
-      requestId,
-    }, 500);
+    const { code, status, message } = classifyFetchError(error);
+    return c.json(createErrorResponse(code, message, requestId), status);
   }
 }

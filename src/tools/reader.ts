@@ -7,7 +7,8 @@
  */
 
 import type { Context } from "hono";
-import { FREE_TIER } from "../config";
+import { FREE_TIER, PRICING } from "../config";
+import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import { validateURL } from "../services/validator";
 import type { Env } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
@@ -96,7 +97,7 @@ export async function readerHandler(c: Context<{ Bindings: Env }>) {
 
         // Plain text / markdown response
         if (format === "text" || format === "markdown") {
-            const text = `# ${result.title}\n\n${content}\n\n---\nFetched by WebLens (api.weblens.dev) | Full content: POST /fetch/basic ($0.005)\n`;
+            const text = `# ${result.title}\n\n${content}\n\n---\nFetched by WebLens (api.weblens.dev) | Full content: POST /fetch/basic (${PRICING.fetch.basic})\n`;
             return c.text(text, 200);
         }
 
@@ -114,48 +115,23 @@ export async function readerHandler(c: Context<{ Bindings: Env }>) {
                 limit: `${String(maxLen)} chars`,
                 rateLimit: `${String(FREE_TIER.maxRequestsPerHour)}/hour`,
                 upgrade: {
-                    fullContent: "POST /fetch/basic ($0.005)",
-                    jsRendering: "POST /fetch/pro ($0.015)",
+                    fullContent: `POST /fetch/basic (${PRICING.fetch.basic})`,
+                    jsRendering: `POST /fetch/pro (${PRICING.fetch.pro})`,
                     docs: "https://api.weblens.dev/docs",
                 },
             },
         });
     } catch (error) {
-        const rawMessage = error instanceof Error ? error.message : "Unknown error";
-
-        if (rawMessage.includes("timeout") || rawMessage.includes("aborted")) {
-            if (format === "text") {
-                return c.text("Error: Target URL timed out\n", 502);
-            }
-            return c.json({
-                error: "FETCH_TIMEOUT",
-                code: "FETCH_TIMEOUT",
-                message: "Target URL failed to respond within timeout period",
-                requestId,
-            }, 502);
+        const classified = classifyFetchError(error);
+        let message = classified.message;
+        if (classified.code === "INTERNAL_ERROR") {
+            // Ours, not the target's: log it, and keep internals out of a free public response.
+            c.get("log").error("reader.fetch_failed", { error: message });
+            message = "Failed to fetch the requested URL";
         }
-
-        if (rawMessage.includes("redirect")) {
-            if (format === "text") {
-                return c.text("Error: Target URL returned a redirect. Use the final URL directly.\n", 502);
-            }
-            return c.json({
-                error: "REDIRECT_BLOCKED",
-                code: "REDIRECT_BLOCKED",
-                message: "Target URL returned a redirect. Use the final URL directly.",
-                requestId,
-            }, 502);
-        }
-
-        c.get("log").error("reader.fetch_failed", { error: rawMessage });
         if (format === "text") {
-            return c.text("Error: Failed to fetch the requested URL\n", 500);
+            return c.text(`Error: ${message}\n`, classified.status);
         }
-        return c.json({
-            error: "INTERNAL_ERROR",
-            code: "INTERNAL_ERROR",
-            message: "Failed to fetch the requested URL",
-            requestId,
-        }, 500);
+        return c.json(createErrorResponse(classified.code, message, requestId), classified.status);
     }
 }
