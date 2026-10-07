@@ -79,3 +79,6 @@ minimumReleaseAgeExclude:
   - '@scalar/hono-api-reference@0.12.10'
   - '@scalar/schemas@0.13.0'
   - '@scalar/types@0.23.0'
+
+patchedDependencies:
+  '@x402/extensions@2.28.0': patches/@x402__extensions@2.28.0.patch

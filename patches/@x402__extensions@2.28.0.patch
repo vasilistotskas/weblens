@@ -1,8 +1,8 @@
 diff --git a/dist/cjs/bazaar/index.js b/dist/cjs/bazaar/index.js
-index 917510142e8666a36e11e2c06cc47987798ddfc6..d65f0f5a55a4cfabc79d6e080bfb227f3d656b5c 100644
+index a4da5a3dd59c9f562d4be19d8fa7447791c48202..febde2f0abc735f1add7c9e16d6cfb777b36d73d 100644
 --- a/dist/cjs/bazaar/index.js
 +++ b/dist/cjs/bazaar/index.js
-@@ -723,7 +723,7 @@ function validateDiscoveryExtension(extension) {
+@@ -741,7 +741,7 @@ function validateDiscoveryExtension(extension) {
          errors: ["schema must not contain external $ref/$id references"]
        };
      }
@@ -11,7 +11,7 @@ index 917510142e8666a36e11e2c06cc47987798ddfc6..d65f0f5a55a4cfabc79d6e080bfb227f
      const validate = ajv.compile(extension.schema);
      const valid = validate(extension.info);
      if (valid) {
-@@ -735,10 +735,14 @@ function validateDiscoveryExtension(extension) {
+@@ -753,10 +753,14 @@ function validateDiscoveryExtension(extension) {
      }) || ["Unknown validation error"];
      return { valid: false, errors };
    } catch (error) {
@@ -28,10 +28,10 @@ index 917510142e8666a36e11e2c06cc47987798ddfc6..d65f0f5a55a4cfabc79d6e080bfb227f
      };
    }
 diff --git a/dist/cjs/index.js b/dist/cjs/index.js
-index 54362c09fac07fda852fcb80e8db98b8ff41c925..51552468df79a502eaa18ca4e82994ba16caa539 100644
+index d3d8fe1d1becc768d4acbd1ab5362448c19a476f..cdfb4c02e09682ef062c7b7d9d8035dac4db6d1a 100644
 --- a/dist/cjs/index.js
 +++ b/dist/cjs/index.js
-@@ -847,7 +847,7 @@ function validateDiscoveryExtension(extension) {
+@@ -865,7 +865,7 @@ function validateDiscoveryExtension(extension) {
          errors: ["schema must not contain external $ref/$id references"]
        };
      }
@@ -40,7 +40,7 @@ index 54362c09fac07fda852fcb80e8db98b8ff41c925..51552468df79a502eaa18ca4e82994ba
      const validate = ajv.compile(extension.schema);
      const valid = validate(extension.info);
      if (valid) {
-@@ -859,10 +859,14 @@ function validateDiscoveryExtension(extension) {
+@@ -877,10 +877,14 @@ function validateDiscoveryExtension(extension) {
      }) || ["Unknown validation error"];
      return { valid: false, errors };
    } catch (error) {
@@ -56,7 +56,7 @@ index 54362c09fac07fda852fcb80e8db98b8ff41c925..51552468df79a502eaa18ca4e82994ba
        ]
      };
    }
-@@ -2886,7 +2890,7 @@ function validatePaymentIdentifier(extension) {
+@@ -2904,7 +2908,7 @@ function validatePaymentIdentifier(extension) {
    }
    if (ext.schema) {
      try {
@@ -65,7 +65,7 @@ index 54362c09fac07fda852fcb80e8db98b8ff41c925..51552468df79a502eaa18ca4e82994ba
        const validate = ajv.compile(ext.schema);
        const valid = validate(ext.info);
        if (!valid && validate.errors) {
-@@ -2897,12 +2901,15 @@ function validatePaymentIdentifier(extension) {
+@@ -2915,12 +2919,15 @@ function validatePaymentIdentifier(extension) {
          return { valid: false, errors };
        }
      } catch (error) {
@@ -157,11 +157,11 @@ index a65c53eb0f2153f8a53890a4dfe100e773ba2060..e1e4e9c7f91e8c2fb9f559c75c340ab4
      }
    }
    return { valid: true };
-diff --git a/dist/esm/chunk-XWKAN63N.mjs b/dist/esm/chunk-XWKAN63N.mjs
-index a601d12274230095e09fb9c661c90032b1eb9db8..5e46cff567e1ac2fcf3e496a12ec235f764160af 100644
---- a/dist/esm/chunk-XWKAN63N.mjs
-+++ b/dist/esm/chunk-XWKAN63N.mjs
-@@ -665,7 +665,7 @@ function validateDiscoveryExtension(extension) {
+diff --git a/dist/esm/chunk-SV2YHMOC.mjs b/dist/esm/chunk-SV2YHMOC.mjs
+index 0ec86d395565091c0e4aae1ec8d71ef743f5633f..fb939c6809dc434287d50278cc6b6194446ab306 100644
+--- a/dist/esm/chunk-SV2YHMOC.mjs
++++ b/dist/esm/chunk-SV2YHMOC.mjs
+@@ -683,7 +683,7 @@ function validateDiscoveryExtension(extension) {
          errors: ["schema must not contain external $ref/$id references"]
        };
      }
@@ -170,7 +170,7 @@ index a601d12274230095e09fb9c661c90032b1eb9db8..5e46cff567e1ac2fcf3e496a12ec235f
      const validate = ajv.compile(extension.schema);
      const valid = validate(extension.info);
      if (valid) {
-@@ -677,10 +677,14 @@ function validateDiscoveryExtension(extension) {
+@@ -695,10 +695,14 @@ function validateDiscoveryExtension(extension) {
      }) || ["Unknown validation error"];
      return { valid: false, errors };
    } catch (error) {
