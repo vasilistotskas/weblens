@@ -24,7 +24,7 @@
  */
 
 import { keccak256, stringToHex } from "viem";
-import { PRICING, supportedNetworks, absolutePathPublication } from "../config";
+import { PRICING, supportedNetworks, supportedNetworkNames, absolutePathPublication } from "../config";
 import type { NetworkEnv } from "../config";
 import type { Env } from "../types";
 import { signContext } from "./crypto";
@@ -52,7 +52,7 @@ export function buildRegistration(baseUrl: string, env: NetworkEnv) {
         type: ERC8004_REGISTRATION_TYPE,
         name: "WebLens",
         description:
-            "Premium web intelligence API for AI agents: scraping, search verticals, crawling, extraction, and cited research. Pay per request in USDC on Base via x402 — no accounts, no API keys.",
+            `Premium web intelligence API for AI agents: scraping, search verticals, crawling, extraction, and cited research. Pay per request in USDC on ${supportedNetworkNames(env)} via x402 — no accounts, no API keys.`,
         image: `${baseUrl}/favicon.png`,
         active: true,
         x402Support: true,
@@ -105,8 +105,14 @@ export interface CallReceipt {
     currency: "USD";
     /** "x402" or "credits". */
     paymentMethod?: string;
+    /** CAIP-2 network the x402 payment settled on (e.g. "eip155:8453"). Absent for credits. */
     network?: string;
+    /** Address the x402 payment was made to. Absent for credits. */
     payTo?: string;
+    /** Settlement transaction (EVM tx hash / Solana signature) — the on-chain proof of payment. */
+    transaction?: string;
+    /** Address that paid. */
+    payer?: string;
     servedAt: string;
     /** Symmetric HMAC over the receipt body — see the module header. */
     mac?: string;

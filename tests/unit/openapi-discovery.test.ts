@@ -27,7 +27,7 @@ type Operation = {
 const HTTP_METHODS = ["get", "post", "put", "delete", "patch"] as const;
 
 function allOperations(): [string, Operation][] {
-    const doc = getOpenAPIDocument() as unknown as { paths: Record<string, Record<string, Operation>> };
+    const doc = getOpenAPIDocument({ NETWORK: "base" }) as unknown as { paths: Record<string, Record<string, Operation>> };
     const ops: [string, Operation][] = [];
     for (const [path, methods] of Object.entries(doc.paths)) {
         for (const method of HTTP_METHODS) {
@@ -42,7 +42,7 @@ function allOperations(): [string, Operation][] {
 const USD_AMOUNT = /^\d+\.\d{6}$/u;
 
 describe("openapi.json x402scan discovery contract", () => {
-    const doc = getOpenAPIDocument() as unknown as {
+    const doc = getOpenAPIDocument({ NETWORK: "base" }) as unknown as {
         openapi: string;
         info: Record<string, unknown>;
         paths: Record<string, unknown>;
@@ -99,7 +99,7 @@ describe("openapi.json x402scan discovery contract", () => {
     // our Zod URL validation with 400 — so the prober never sees the 402 and
     // the endpoint is skipped from the marketplace.
     it("makes every required property of a paid op probe-sampleable", () => {
-        const components = (getOpenAPIDocument() as unknown as {
+        const components = (getOpenAPIDocument({ NETWORK: "base" }) as unknown as {
             components: { schemas: Record<string, SchemaObject> };
         }).components.schemas;
 

@@ -5,7 +5,8 @@
 
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
-import { PRICING } from "./config";
+import { PRICING, supportedNetworkNames } from "./config";
+import type { NetworkEnv } from "./config";
 import { MAX_COMPLEXITY_MULTIPLIER, parsePrice } from "./services/pricing";
 import type { Env, Variables } from "./types";
 
@@ -40,7 +41,8 @@ function cachedMin(price: string): number {
 }
 
 // OpenAPI Document (exported for the discovery-contract tests)
-export function getOpenAPIDocument(baseUrl: string = "https://api.weblens.dev") {
+export function getOpenAPIDocument(env: NetworkEnv, baseUrl: string = "https://api.weblens.dev") {
+  const networks = supportedNetworkNames(env);
   return {
     openapi: "3.1.0",
     info: {
@@ -59,13 +61,13 @@ rate only on a $99/month commitment. WebLens has no commitment to reach.
 
 ## Payment Protocol
 All paid endpoints use the [x402 protocol](https://x402.org) for HTTP-native
-micropayments (USDC on Base).
+micropayments (USDC on ${networks}).
 
 ## Cache Discount
 Cached responses are **70% cheaper** than fresh fetches.`,
       "x-guidance":
         "WebLens is a pay-per-call web intelligence API for AI agents — no accounts, API keys, or monthly minimum. " +
-        "Every paid operation is a POST with a JSON body, paid via x402 (USDC on Base): call it, read the " +
+        `Every paid operation is a POST with a JSON body, paid via x402 (USDC on ${networks}): call it, read the ` +
         "PAYMENT-REQUIRED response header from the 402, sign, and retry with Payment-Signature. " +
         `Cheapest and most capable at getting pages: POST /fetch/basic {"url": "..."} scrapes to markdown for ${PRICING.fetch.basic}, ` +
         `POST /crawl {"url": "..."} crawls a whole site for ${PRICING.crawl.perPage}/page, and POST /map {"url": "..."} ` +
@@ -1185,7 +1187,7 @@ export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env; Variables: Vari
   // OpenAPI JSON spec
   app.get("/openapi.json", (c) => {
     const baseUrl = new URL(c.req.url).origin;
-    return c.json(getOpenAPIDocument(baseUrl));
+    return c.json(getOpenAPIDocument(c.env, baseUrl));
   });
 
   // Scalar API Reference UI
@@ -1207,7 +1209,7 @@ export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env; Variables: Vari
 
 WebLens gets pages for AI agents: a single URL as markdown, a whole site crawled,
 a site's URL list from its sitemap, or structured JSON pulled out of any page.
-Paid endpoints settle over the x402 protocol (USDC on Base) — no accounts, no API keys.
+Paid endpoints settle over the x402 protocol (USDC on ${supportedNetworkNames(c.env)}) — no accounts, no API keys.
 
 ## What It Costs
 
@@ -1234,7 +1236,7 @@ cached responses are another 70% off.
 - **Zero friction**: No accounts, API keys, or subscriptions - just pay per request
 - **Cheapest per page**: fetching and crawling run on Cloudflare's edge, and the price reflects it
 - **AI-optimized**: Designed for autonomous agents with structured outputs
-- **Instant settlement**: Payments settle in ~1-2 seconds on Base
+- **Instant settlement**: Payments settle on-chain in seconds (${supportedNetworkNames(c.env)})
 - **No fees**: x402 protocol has 0 platform fees
 - **Discoverable**: Indexed in the PayAI facilitator discovery catalog; standard x402 discovery at /.well-known/x402 and OpenAPI at /openapi.json
 

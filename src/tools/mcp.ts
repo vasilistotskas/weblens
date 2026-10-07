@@ -6,7 +6,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING } from "../config";
+import { PRICING, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -962,7 +962,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
     }),
     pricing: {
       currency: "USDC",
-      network: "base",
+      networks: supportedNetworks(c.env),
       protocol: "x402",
       range: getPriceRange(),
       noFees: true,

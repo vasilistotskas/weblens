@@ -10,7 +10,7 @@ import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/
 import { paymentMiddleware } from "@x402/hono";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import type { Context, MiddlewareHandler } from "hono";
-import { evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork, tagsForPath } from "../config";
+import { EVM_ONLY_PAID_PATHS, evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork, tagsForPath } from "../config";
 import type { Env, Variables } from "../types";
 import { createLogger } from "../utils/logger";
 
@@ -344,7 +344,7 @@ export function createLazyPaymentMiddleware(
         const env = c.env;
         const recipientAddress = env.PAY_TO_ADDRESS;
         const networkCaip2 = evmNetwork(env);
-        const svmCaip2 = svmNetwork(env);
+        const svmCaip2 = EVM_ONLY_PAID_PATHS.includes(path) ? undefined : svmNetwork(env);
         const svmTarget = svmCaip2 && env.PAY_TO_ADDRESS_SVM
             ? { network: svmCaip2, payTo: env.PAY_TO_ADDRESS_SVM }
             : undefined;

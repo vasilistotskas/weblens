@@ -11,6 +11,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { encodePaymentResponseHeader, encodePaymentSignatureHeader } from "@x402/core/http";
 import { receiptMiddleware } from "../../src/middleware/receipt";
 
 interface CtxOptions {
@@ -54,9 +55,25 @@ function makeCtx(o: CtxOptions = {}) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const run = (ctx: any) => receiptMiddleware()(ctx, () => Promise.resolve()) as Promise<void>;
 
+const BASE = "eip155:8453";
+const SOLANA = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+
+/** The headers of a real settled x402 call on `network`, encoded by @x402/core itself. */
+function settled(network: string, payTo: string, amount: string, transaction: string) {
+    const signature = encodePaymentSignatureHeader({
+        x402Version: 2,
+        accepted: { scheme: "exact", network, amount, asset: "usdc", payTo, maxTimeoutSeconds: 300, extra: {} },
+        payload: {},
+    } as unknown as Parameters<typeof encodePaymentSignatureHeader>[0]);
+    const response = encodePaymentResponseHeader({
+        success: true, network, transaction, payer: "buyer",
+    } as unknown as Parameters<typeof encodePaymentResponseHeader>[0]);
+    return { headers: { "Payment-Signature": signature }, responseHeaders: { "PAYMENT-RESPONSE": response } };
+}
+
 describe("receiptMiddleware", () => {
     it("writes a receipt for a paid x402 call that succeeded", async () => {
-        const { ctx, put, resHeaders } = makeCtx({ headers: { "Payment-Signature": "0xsig" } });
+        const { ctx, put, resHeaders } = makeCtx(settled(BASE, "0xPayTo", "15000", "0xtxhash"));
 
         await run(ctx);
 
@@ -70,10 +87,36 @@ describe("receiptMiddleware", () => {
             endpoint: "/search",
             outcome: "success",
             paymentMethod: "x402",
-            network: "base",
+            price: "$0.015",
+            network: BASE,
             payTo: "0xPayTo",
+            transaction: "0xtxhash",
+            payer: "buyer",
         });
         expect(resHeaders.get("X-Receipt-Url")).toBe("https://api.weblens.dev/receipts/wl_test_123");
+    });
+
+    it("records the network actually paid on — a Solana payment is not stamped as Base", async () => {
+        const { ctx, put } = makeCtx(settled(SOLANA, "34sd6wSolanaPayTo", "200000", "5solanaSignature"));
+
+        await run(ctx);
+
+        const receipt = JSON.parse((put.mock.calls[0] as unknown as [string, string])[1]) as Record<string, unknown>;
+        expect(receipt).toMatchObject({
+            network: SOLANA,
+            payTo: "34sd6wSolanaPayTo",
+            price: "$0.2",
+            transaction: "5solanaSignature",
+        });
+    });
+
+    it("issues no receipt for an x402 call that carries no settlement", async () => {
+        const { headers } = settled(BASE, "0xPayTo", "15000", "0xtx");
+        const { ctx, put } = makeCtx({ headers }); // no PAYMENT-RESPONSE: nothing settled
+
+        await run(ctx);
+
+        expect(put).not.toHaveBeenCalled();
     });
 
     it("records the credit price and method for a credit-paid call", async () => {
@@ -99,14 +142,14 @@ describe("receiptMiddleware", () => {
 
     it("issues no receipt when the call failed or was refunded", async () => {
         for (const status of [400, 402, 404, 500, 502]) {
-            const { ctx, put } = makeCtx({ status, headers: { "Payment-Signature": "0xsig" } });
+            const { ctx, put } = makeCtx({ status, ...settled(BASE, "0xPayTo", "15000", "0xtx") });
             await run(ctx);
             expect(put, `status ${String(status)} must not produce a receipt`).not.toHaveBeenCalled();
         }
     });
 
     it("ignores endpoints that are not sold", async () => {
-        const { ctx, put } = makeCtx({ path: "/health", headers: { "Payment-Signature": "0xsig" } });
+        const { ctx, put } = makeCtx({ path: "/health", ...settled(BASE, "0xPayTo", "15000", "0xtx") });
 
         await run(ctx);
 
@@ -114,7 +157,7 @@ describe("receiptMiddleware", () => {
     });
 
     it("never fails the request when the receipt write throws", async () => {
-        const { ctx } = makeCtx({ headers: { "Payment-Signature": "0xsig" } });
+        const { ctx } = makeCtx(settled(BASE, "0xPayTo", "15000", "0xtx"));
         (ctx.env.CACHE.put as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("KV down"));
 
         // The buyer already paid — a bookkeeping failure must not surface.

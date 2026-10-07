@@ -397,6 +397,34 @@ export function supportedNetworks(env: NetworkEnv): string[] {
   return svm ? [evmNetwork(env), svm] : [evmNetwork(env)];
 }
 
+/**
+ * Paid paths that must only be offered on the EVM network.
+ *
+ * `/credits/buy` credits the account of the payer it reads from the EIP-3009
+ * `authorization.from`, and credit accounts are EVM wallets authenticated by
+ * EIP-191 signatures (X-CREDIT-WALLET). A Solana payment has neither, so the
+ * handler can only reject it — advertising Solana there offers buyers an
+ * option that always fails.
+ */
+export const EVM_ONLY_PAID_PATHS: readonly string[] = ["/credits/buy"];
+
+const NETWORK_DISPLAY_NAMES = new Map<string, string>([
+  [NETWORKS.baseMainnet, "Base"],
+  [NETWORKS.baseSepolia, "Base Sepolia"],
+  [NETWORKS.solanaMainnet, "Solana"],
+  [NETWORKS.solanaDevnet, "Solana devnet"],
+]);
+
+/**
+ * The live networks as prose for docs and descriptions — "Base or Solana".
+ * Derived from {@link supportedNetworks} so prose cannot drift from the wall.
+ */
+export function supportedNetworkNames(env: NetworkEnv): string {
+  const names = supportedNetworks(env).map((id) => NETWORK_DISPLAY_NAMES.get(id) ?? id);
+  const last = names.pop() ?? "";
+  return names.length > 0 ? `${names.join(", ")} or ${last}` : last;
+}
+
 // Crawl/map execution bounds. Workers on paid plans allow 10k subrequests per
 // invocation and bill CPU (not network wait), so these are set for predictable
 // latency rather than platform headroom.

@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { evmNetwork, NETWORKS, supportedNetworks, svmNetwork } from "../../src/config";
+import { evmNetwork, NETWORKS, supportedNetworkNames, supportedNetworks, svmNetwork } from "../../src/config";
 
 /** Any well-formed base58 address; these tests never settle anything. */
 const SVM_ADDRESS = "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4";
@@ -97,5 +97,14 @@ describe("advertised networks", () => {
         for (const id of supportedNetworks({ PAY_TO_ADDRESS_SVM: SVM_ADDRESS })) {
             expect(id).toMatch(/^[a-z0-9]+:[A-Za-z0-9]+$/u);
         }
+    });
+});
+
+describe("supportedNetworkNames", () => {
+    it("names exactly the networks the wall accepts", () => {
+        expect(supportedNetworkNames({})).toBe("Base");
+        expect(supportedNetworkNames({ PAY_TO_ADDRESS_SVM: SVM_ADDRESS })).toBe("Base or Solana");
+        expect(supportedNetworkNames({ NETWORK: "base-sepolia", PAY_TO_ADDRESS_SVM: SVM_ADDRESS }))
+            .toBe("Base Sepolia or Solana devnet");
     });
 });

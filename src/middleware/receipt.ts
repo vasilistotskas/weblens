@@ -10,10 +10,54 @@
  * a receipt is an add-on to a call the buyer already paid for.
  */
 
+import { decodePaymentResponseHeader, decodePaymentSignatureHeader } from "@x402/core/http";
 import type { MiddlewareHandler } from "hono";
 import { PAID_ENDPOINTS } from "../config";
 import { recordReceipt } from "../services/erc8004";
+import type { CallReceipt } from "../services/erc8004";
 import type { Env, Variables } from "../types";
+
+/** USDC uses 6 decimals on every chain WebLens accepts (Base and Solana). */
+const USDC_DECIMALS = 6;
+
+/** Atomic USDC units -> "$0.015". */
+function formatUsdc(atomic: string): string {
+    const units = BigInt(atomic);
+    const scale = 10n ** BigInt(USDC_DECIMALS);
+    const fraction = (units % scale).toString().padStart(USDC_DECIMALS, "0").replace(/0+$/u, "");
+    return `$${(units / scale).toString()}${fraction ? `.${fraction}` : ""}`;
+}
+
+/**
+ * Describe what an x402 call actually settled, for the receipt.
+ *
+ * Network, transaction and payer come from `PAYMENT-RESPONSE` — the
+ * facilitator's settle result, which `@x402/hono` attaches only after a
+ * successful settlement. Price and payTo come from the requirement the buyer
+ * accepted in `Payment-Signature`; the server only settles a payload whose
+ * `accepted` matches one of its own requirements. Reading these from env
+ * instead stamped a Solana payment as "base" with the EVM payout address.
+ */
+function settledX402Payment(
+    signatureHeader: string | undefined,
+    responseHeader: string | null,
+): Pick<CallReceipt, "price" | "network" | "payTo" | "transaction" | "payer"> | null {
+    if (!signatureHeader || !responseHeader) { return null; }
+    try {
+        const settled = decodePaymentResponseHeader(responseHeader);
+        if (!settled.success) { return null; }
+        const { accepted } = decodePaymentSignatureHeader(signatureHeader);
+        return {
+            price: formatUsdc(accepted.amount),
+            network: settled.network,
+            payTo: accepted.payTo,
+            transaction: settled.transaction,
+            payer: settled.payer,
+        };
+    } catch {
+        return null;
+    }
+}
 
 export function receiptMiddleware(): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
     return async (c, next) => {
@@ -34,17 +78,21 @@ export function receiptMiddleware(): MiddlewareHandler<{ Bindings: Env; Variable
         if (!requestId) { return; }
 
         try {
+            const payment = paidWithCredits
+                ? { price: c.res.headers.get("Credit-Cost") ?? undefined }
+                : settledX402Payment(c.req.header("Payment-Signature"), c.res.headers.get("PAYMENT-RESPONSE"));
+            // An x402 call with no settlement to cite sold nothing — no receipt.
+            if (!payment) { return; }
+
             const receipt = await recordReceipt(c.env, {
                 requestId,
                 endpoint: path,
                 method: c.req.method,
                 status,
                 outcome: "success",
-                price: c.res.headers.get("Credit-Cost") ?? undefined,
                 currency: "USD",
                 paymentMethod: paidWithCredits ? "credits" : "x402",
-                network: c.env.NETWORK ?? "base",
-                payTo: c.env.PAY_TO_ADDRESS,
+                ...payment,
                 servedAt: new Date().toISOString(),
             });
             if (receipt) {

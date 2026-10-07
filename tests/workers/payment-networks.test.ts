@@ -16,7 +16,7 @@
 
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { supportedNetworks } from "../../src/config";
+import { evmNetwork, supportedNetworks } from "../../src/config";
 
 interface Accept {
     scheme: string;
@@ -27,11 +27,11 @@ interface Accept {
 }
 
 /** Fetch a real 402 and decode the base64 PAYMENT-REQUIRED challenge. */
-async function challenge(path: string): Promise<{ accepts: Accept[] }> {
+async function challenge(path: string, body: unknown = { url: "https://example.com" }): Promise<{ accepts: Accept[] }> {
     const res = await SELF.fetch(`https://api.weblens.dev${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: "https://example.com" }),
+        body: JSON.stringify(body),
     });
 
     expect(res.status, `${path} should hit the payment wall`).toBe(402);
@@ -85,5 +85,13 @@ describe("advertised payment networks", () => {
         } else {
             expect(solana).toHaveLength(0);
         }
+    });
+
+    it("offers credit purchases on the EVM network only", async () => {
+        // Credit accounts are EVM wallets; a Solana payment carries no
+        // EIP-3009 `authorization.from` for /credits/buy to credit.
+        const { accepts } = await challenge("/credits/buy", { amount: 10 });
+
+        expect(accepts.map((a) => a.network)).toEqual([evmNetwork(env)]);
     });
 });

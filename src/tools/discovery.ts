@@ -4,7 +4,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, FREE_TIER, pathPublication, absolutePathPublication } from "../config";
+import { PRICING, FREE_TIER, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -19,12 +19,11 @@ export const SERVICE_CATALOG = {
     name: "WebLens",
     version: "2.0.0",
     tagline: "Give your AI agents web superpowers",
-    description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments. No API keys, no accounts, just pay per request with USDC on Base.",
+    description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments. No API keys, no accounts, just pay per request in USDC.",
     baseUrl: "https://api.weblens.dev",
     protocol: {
         name: "x402",
         version: 2,
-        network: "base",
         token: "USDC",
         facilitator: "payai+cdp",
         bazaarListed: false,
@@ -38,9 +37,9 @@ export const SERVICE_CATALOG = {
     whyChooseUs: [
         "Zero friction - No accounts, API keys, or subscriptions",
         "AI-optimized - Structured outputs designed for autonomous agents",
-        "Instant settlement - Payments settle in ~1-2 seconds on Base",
+        "Instant settlement - Each payment settles on-chain in seconds",
         "No fees - x402 protocol has 0 platform fees",
-        "Bazaar listed - Discoverable via Coinbase Bazaar",
+        "Discoverable - Listed in the PayAI facilitator discovery catalog",
         "MCP support - Native Model Context Protocol integration",
         "Cache discount - 70% off for cached responses",
         "Free previews - POST /preview returns the price and a real response sample before you pay",
@@ -454,10 +453,9 @@ export const SERVICE_CATALOG = {
     ],
     pricing: {
         currency: "USDC",
-        network: "base",
         cacheDiscount: "70% off for cached responses",
         noFees: "x402 protocol has 0 fees",
-        instantSettlement: "~1-2 seconds on Base",
+        instantSettlement: "Seconds, on-chain",
         priceRange: getPriceRange(),
     },
     integration: {
@@ -472,7 +470,7 @@ export const SERVICE_CATALOG = {
         },
         paymentMethods: [
             {
-                name: "x402 (USDC on Base)",
+                name: "x402 (on-chain USDC)",
                 path: "POST <any paid endpoint>",
                 description: "Pay per request with on-chain USDC. No account needed.",
             },
@@ -604,9 +602,13 @@ export function discoveryHandler(c: Context<{ Bindings: Env }>) {
         (m) => fiatEnabled || !m.path.includes("/credits/deposit/fiat")
     );
 
+    const networks = supportedNetworks(c.env);
+
     return c.json({
         ...SERVICE_CATALOG,
         baseUrl,
+        protocol: { ...SERVICE_CATALOG.protocol, networks },
+        pricing: { ...SERVICE_CATALOG.pricing, networks },
         documentation: {
             ...SERVICE_CATALOG.documentation,
             interactive: `${baseUrl}/docs`,
@@ -642,7 +644,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
         description: "Premium Web Intelligence API with x402 micropayments. Features Autonomous Context Verification (ACV), Dynamic Pricing, and Truth-as-a-Service for AI agents.",
         baseUrl,
         facilitator: "payai+cdp",
-        network: "base",
+        networks: supportedNetworks(c.env),
         token: "USDC",
         bazaarListed: false,
         keywords: [
