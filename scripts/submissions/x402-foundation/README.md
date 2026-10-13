@@ -23,6 +23,6 @@ WebLens is an x402-monetized web intelligence API on Cloudflare Workers:
 - Live at https://api.weblens.dev (128+ days)
 - 18 paid endpoints (fetch, screenshot, search, extract, research, intel)
 - USDC on Base mainnet via PayAI (primary) + CDP (fallback) facilitators
-- Also ships an MCP server (@weblens/mcp) and Coinbase AgentKit provider
+- Also serves a remote MCP endpoint (/mcp)
 - Discovery: https://api.weblens.dev/.well-known/x402  ·  /discovery  ·  /llms.txt
 ```

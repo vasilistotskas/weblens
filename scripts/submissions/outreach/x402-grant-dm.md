@@ -15,7 +15,7 @@ and intel. Live since late 2025.
 Your x402 PROJECT-IDEAS.md mentions grants for real demand/supply — I'd like
 to pitch WebLens for one. The implementation exercises the full stack:
 PayAI + CDP facilitators, Bazaar discovery extension, a Coinbase AgentKit
-action provider (`WebLensActionProvider`), an MCP server (`@weblens/mcp`),
+action provider (`WebLensActionProvider`), a remote MCP endpoint (`/mcp`),
 and now a Stripe fiat onramp so non-crypto-native agent devs can buy credits
 with a card and still pay per-request in USDC.
 

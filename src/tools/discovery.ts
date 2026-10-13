@@ -460,7 +460,6 @@ export const SERVICE_CATALOG = {
     integration: {
         mcp: {
             remote: "https://api.weblens.dev/mcp",
-            local: "npx -y @weblens/mcp",
             description: "Model Context Protocol for AI agents (Claude, Kiro, etc.)",
         },
         http: {

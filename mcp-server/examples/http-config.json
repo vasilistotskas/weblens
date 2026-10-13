@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "weblens": {
-      "url": "https://api.weblens.dev/mcp"
-    }
-  }
-}

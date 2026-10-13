@@ -970,7 +970,6 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
     },
     integration: {
       remote: `${baseUrl}/mcp`,
-      local: "npx -y @weblens/mcp",
     },
     documentation: {
       interactive: `${baseUrl}/docs`,

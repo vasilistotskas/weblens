@@ -105,7 +105,6 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
             mcp: {
                 remote: "/mcp",
                 info: "/mcp/info",
-                local: "npx -y @weblens/mcp",
             },
             supportedNetworks: supportedNetworks(c.env),
             x402: {

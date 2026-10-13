@@ -3,9 +3,7 @@
  *
  * Regression: the published tool list advertised `waitFor` as a NUMBER
  * ("wait time in ms") for /fetch/pro, but FetchRequestSchema expects a CSS
- * selector STRING — an agent following the advertised schema got a 400. The
- * standalone mcp-server package had the same drift plus an `extract_data`
- * tool that posted `selectors` when /extract requires `schema`.
+ * selector STRING — an agent following the advertised schema got a 400.
  *
  * This samples every MCP tool's declared inputSchema the way an agent would
  * (required properties, type-appropriate values) and asserts the endpoint's

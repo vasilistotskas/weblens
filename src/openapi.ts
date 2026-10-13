@@ -1615,21 +1615,6 @@ For AI agents using Model Context Protocol:
 }
 \`\`\`
 
-### Local with auto-payment
-\`\`\`json
-{
-  "mcpServers": {
-    "weblens": {
-      "command": "npx",
-      "args": ["-y", "@weblens/mcp"],
-      "env": {
-        "PRIVATE_KEY": "0xYourPrivateKeyHere"
-      }
-    }
-  }
-}
-\`\`\`
-
 ## Available MCP Tools
 
 - \`preview_endpoint\` - Price + real response sample for any paid endpoint, before paying — free

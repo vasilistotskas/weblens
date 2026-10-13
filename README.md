@@ -165,21 +165,6 @@ Dynamically-priced endpoints (`/fetch/pro`, `/extract`) apply a complexity multi
 { "mcpServers": { "weblens": { "url": "https://api.weblens.dev/mcp" } } }
 ```
 
-**Local with automatic payment:**
-```json
-{
-  "mcpServers": {
-    "weblens": {
-      "command": "npx",
-      "args": ["-y", "@weblens/mcp"],
-      "env": { "PRIVATE_KEY": "0xYourPrivateKeyHere" }
-    }
-  }
-}
-```
-
-See [mcp-server/README.md](./mcp-server/README.md) for the full tool list and setup.
-
 ## API usage
 
 ```bash

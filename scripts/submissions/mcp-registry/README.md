@@ -26,8 +26,5 @@ mcp-publisher publish server.json
 
 ## Prerequisites before publishing
 
-1. `@weblens/mcp` must be published to npm first:
-   ```bash
-   cd mcp-server && npm publish --access public
-   ```
-2. The `version` field in `server.json` must match the published npm version.
+1. WebLens is listed as a **remote** server only (`https://api.weblens.dev/mcp`); there is no npm
+   package. Write a fresh `server.json` with a `remotes` entry when re-publishing.

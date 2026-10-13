@@ -13,7 +13,7 @@ CDP fallback facilitators.
 
 18 paid endpoints covering scraping (static + JS render), search, structured
 and NL data extraction, research, PDF, batch, monitor, persistent agent memory,
-and competitive/market intel. Also ships an MCP server (`@weblens/mcp`), a
+and competitive/market intel. Also serves a remote MCP endpoint (`/mcp`), a
 Coinbase AgentKit provider, and a fiat onramp via Stripe Checkout.
 
 Three asks:
