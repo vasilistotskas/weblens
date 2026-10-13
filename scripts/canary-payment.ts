@@ -95,6 +95,8 @@ interface Challenge {
 
 interface PaymentReceipt {
     success?: boolean;
+    errorReason?: string;
+    errorMessage?: string;
     transaction?: string;
     network?: string;
     payer?: string;
@@ -236,9 +238,25 @@ async function probe(apiUrl: string, path: string, caip2: string): Promise<Plan 
 }
 
 /** True for transient settle failures worth one more attempt (e.g. CDP #1065 gas estimation). */
-function isRetryableSettleError(err: unknown): boolean {
-    const text = err instanceof AxiosError ? JSON.stringify(err.response?.data ?? err.message) : String(err);
-    return /unable to estimate gas|gas required exceeds|settle.*failed|timeout|settlement_pending/iu.test(text);
+function isRetryableSettleFailure(reason: string): boolean {
+    return /unable to estimate gas|gas required exceeds|settle.*failed|timeout|settlement_pending/iu.test(reason);
+}
+
+/**
+ * Why a paid request did not settle. The x402 wrapper accepts a 402 on its
+ * paid retry, so a failed payment resolves rather than throws: the reason is
+ * in the settlement receipt (`errorReason`) or, when verification failed, in
+ * the fresh challenge's `error`.
+ */
+function failureReason(status: number, headers: Record<string, unknown>, receipt: PaymentReceipt | null): string {
+    if (receipt?.errorReason) {
+        const { errorReason, errorMessage } = receipt;
+        return errorMessage && errorMessage !== errorReason ? `${errorReason}: ${errorMessage}` : errorReason;
+    }
+    const challenge = typeof headers["payment-required"] === "string"
+        ? decodeB64Json(headers["payment-required"]) as { error?: string } | null
+        : null;
+    return challenge?.error ?? `HTTP ${String(status)} without a settlement receipt`;
 }
 
 async function pay(
@@ -258,12 +276,22 @@ async function pay(
                 headers: bootstrapSecret ? { "X-Bazaar-Bootstrap": bootstrapSecret } : {},
             });
             const receipt = decodeB64Json((res.headers["payment-response"] as string | undefined) ?? "") as PaymentReceipt | null;
-            return { ok: receipt?.success === true, tx: receipt?.transaction, detail: receipt ? undefined : "no PAYMENT-RESPONSE header", attempts: attempt };
+            if (receipt?.success === true) {
+                return { ok: true, tx: receipt.transaction, attempts: attempt };
+            }
+            const reason = failureReason(res.status, res.headers, receipt);
+            if (attempt < retries && isRetryableSettleFailure(reason)) {
+                const backoff = 2000 * attempt;
+                console.log(`      attempt ${String(attempt)} failed (retryable), waiting ${String(backoff)}ms: ${reason.slice(0, 160)}`);
+                await new Promise((r) => setTimeout(r, backoff));
+                continue;
+            }
+            return { ok: false, detail: reason, attempts: attempt };
         } catch (err) {
             const detail = err instanceof AxiosError
                 ? `HTTP ${String(err.response?.status ?? 0)} ${JSON.stringify(err.response?.data ?? {}).slice(0, 300)}`
                 : err instanceof Error ? err.message : String(err);
-            if (attempt < retries && isRetryableSettleError(err)) {
+            if (attempt < retries && isRetryableSettleFailure(detail)) {
                 const backoff = 2000 * attempt;
                 console.log(`      attempt ${String(attempt)} failed (retryable), waiting ${String(backoff)}ms: ${detail.slice(0, 160)}`);
                 await new Promise((r) => setTimeout(r, backoff));
