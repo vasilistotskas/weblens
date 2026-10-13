@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { PRICING } from "../../src/config";
-import { PAID_ENDPOINTS } from "../../src/endpoints";
+import { ENDPOINTS, PAID_ENDPOINTS } from "../../src/endpoints";
 import { SERVICE_CATALOG } from "../../src/tools/discovery";
 
 // ============================================
@@ -24,9 +24,9 @@ describe("advertised service catalogue", () => {
     const advertised = new Set(SERVICE_CATALOG.services.map((s) => s.endpoint));
 
     it("advertises every paid endpoint", () => {
-        // /credits/buy is a funding call, not a data service — it is sold but
-        // deliberately not listed as a capability.
-        const sellable = PAID_ENDPOINTS.filter((e) => e !== "/credits/buy");
+        // Billing actions (group "Credits") are sold but deliberately not
+        // listed as capabilities.
+        const sellable = ENDPOINTS.filter((e) => e.group !== "Credits").map((e) => e.path);
         const missing = sellable.filter((e) => !advertised.has(e));
         expect(missing, `paid but not advertised: ${missing.join(", ")}`).toEqual([]);
     });

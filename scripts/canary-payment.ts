@@ -60,7 +60,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { Buffer } from "node:buffer";
 import process from "node:process";
 import { NETWORKS } from "../src/config";
-import { EVM_ONLY_PAID_PATHS, PAID_ENDPOINTS } from "../src/endpoints";
+import { endpointForPath, EVM_ONLY_PAID_PATHS, PAID_ENDPOINTS } from "../src/endpoints";
 
 const CDP_VALIDATE = "https://api.cdp.coinbase.com/platform/v2/x402/validate";
 
@@ -269,7 +269,7 @@ async function run(): Promise<void> {
 
     // Never self-pay a billing action (credits move money into our own ledger),
     // and EVM-only paths cannot be paid on Solana at all.
-    const candidates = (explicit ?? PAID_ENDPOINTS).filter((p) => p !== "/credits/buy"
+    const candidates = (explicit ?? PAID_ENDPOINTS).filter((p) => endpointForPath(p)?.group !== "Credits"
         && !(network === "solana" && EVM_ONLY_PAID_PATHS.includes(p)));
 
     console.log("━".repeat(64));

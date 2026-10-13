@@ -36,6 +36,7 @@ const searchPricing: PriceModel<{ includeContent: boolean; contentResults: numbe
     },
     min: parsePrice(PRICING.search),
     max: parsePrice(PRICING.search) + SEARCH_CONTENT_RESULTS.max * parsePrice(PRICING.contents.perUrl),
+    describe: `${PRICING.search}, plus ${PRICING.contents.perUrl} per result page fetched with includeContent`,
 };
 
 /** Priced per depth tier. */
@@ -43,12 +44,17 @@ const deepResearchPricing: PriceModel<{ depth: DeepResearchDepth }> = {
     resolve: (body) => PRICING.deepResearch[body?.depth ?? DEEP_RESEARCH_DEFAULT_DEPTH],
     min: Math.min(...Object.values(PRICING.deepResearch).map(parsePrice)),
     max: Math.max(...Object.values(PRICING.deepResearch).map(parsePrice)),
+    describe: describeDeepResearchTiers(),
 };
 
 export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search",
         title: "Web Search",
+        group: "Search",
+        mcpTool: "search_web",
+        latency: "1-2 seconds",
+        previewSummary: "Ranked web results; set includeContent to get page markdown too.",
         description: "Real-time web search powered by Google. Returns ranked results with titles, URLs, and snippets. Set includeContent to also fetch the top result pages as markdown in the same call.",
         catalogTags: SEARCH_TAGS,
         input: SearchRequestSchema,
@@ -74,6 +80,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/news",
         title: "News Search",
+        group: "Search",
+        mcpTool: "search_news",
+        latency: "1-2 seconds",
+        previewSummary: "Google News articles with source, date, and thumbnail.",
         description: "Real-time news search via Google News. Returns ranked articles with source, date, and thumbnail.",
         catalogTags: SEARCH_TAGS,
         input: VerticalSearchRequestSchema,
@@ -99,6 +109,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/images",
         title: "Image Search",
+        group: "Search",
+        mcpTool: "search_images",
+        latency: "1-2 seconds",
+        previewSummary: "Direct image URLs with dimensions and source pages.",
         description: "Google Images search. Returns direct image URLs with dimensions, thumbnails, and source pages.",
         catalogTags: SEARCH_TAGS,
         input: VerticalSearchRequestSchema,
@@ -124,6 +138,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/places",
         title: "Places Search",
+        group: "Search",
+        mcpTool: "search_places",
+        latency: "1-3 seconds",
+        previewSummary: "Local businesses: address, rating, reviews, phone, coordinates.",
         description: "Local business search via Google Local. Returns names, addresses, ratings, reviews, phone numbers, websites, and coordinates.",
         catalogTags: SEARCH_TAGS,
         input: PlacesSearchRequestSchema,
@@ -151,6 +169,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/shopping",
         title: "Shopping Search",
+        group: "Search",
+        mcpTool: "search_shopping",
+        latency: "1-2 seconds",
+        previewSummary: "Products with prices, sellers, and ratings.",
         description: "Google Shopping product search. Returns products with prices, sellers, ratings, and links.",
         catalogTags: SEARCH_TAGS,
         input: VerticalSearchRequestSchema,
@@ -176,6 +198,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/scholar",
         title: "Scholar Search",
+        group: "Search",
+        mcpTool: "search_scholar",
+        latency: "1-2 seconds",
+        previewSummary: "Academic papers with publication info and citation counts.",
         description: "Google Scholar academic search. Returns papers with snippets, publication info, and citation counts.",
         catalogTags: SEARCH_TAGS,
         input: VerticalSearchRequestSchema,
@@ -201,6 +227,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/autocomplete",
         title: "Autocomplete",
+        group: "Search",
+        mcpTool: "search_autocomplete",
+        latency: "<1 second",
+        previewSummary: "Query suggestions — keyword and intent research.",
         description: "Google Autocomplete suggestions for a partial query. Useful for keyword research and intent discovery.",
         catalogTags: SEARCH_TAGS,
         input: VerticalSearchRequestSchema,
@@ -226,6 +256,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/search/trends",
         title: "Trends Search",
+        group: "Search",
+        mcpTool: "search_trends",
+        latency: "1-3 seconds",
+        previewSummary: "Interest-over-time timeline for a topic.",
         description: "Google Trends interest-over-time for a query. Returns a timeline of relative search interest.",
         catalogTags: SEARCH_TAGS,
         input: TrendsRequestSchema,
@@ -251,6 +285,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/social/youtube/transcript",
         title: "YouTube Transcript",
+        group: "Social",
+        mcpTool: "youtube_transcript",
+        latency: "1-3 seconds",
+        previewSummary: "Full video transcript with timestamps.",
         description: "Full transcript of any YouTube video with timestamps. Accepts a video ID or any YouTube URL.",
         catalogTags: ["video", "transcript", "youtube"],
         input: YoutubeTranscriptRequestSchema,
@@ -278,6 +316,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/answer",
         title: "Grounded Answer",
+        group: "Research",
+        mcpTool: "answer_question",
+        latency: "5-20 seconds",
+        previewSummary: "A direct answer with inline [n] citations to real sources.",
         description: "Grounded answer with inline [n] citations: searches the web, fetches sources, and answers strictly from them.",
         catalogTags: ["search", "ai", "question-answering"],
         input: AnswerRequestSchema,
@@ -307,6 +349,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/research/deep",
         title: "Deep Research",
+        group: "Research",
+        mcpTool: "deep_research",
+        latency: "30-60 seconds",
+        previewSummary: "Multi-step research: sub-questions, cited answer, and gaps.",
         description: `Multi-step research in one call: plans sub-questions, searches each, fetches and dedupes sources, and synthesizes an answer with inline [n] citations, key findings, and gaps. Tiers: ${describeDeepResearchTiers()}`,
         catalogTags: ["research", "ai", "multi-step"],
         input: DeepResearchRequestSchema,
@@ -344,6 +390,10 @@ export const SEARCH_ENDPOINTS = [
     defineEndpoint({
         path: "/discussions",
         title: "Discussions",
+        group: "Search",
+        mcpTool: "search_discussions",
+        latency: "1-3 seconds",
+        previewSummary: "What Hacker News said about a topic, with points, comments and aggregates.",
         description: "What Hacker News said about a topic: matching stories with points, comment counts and links to the threads, plus aggregates — total matches, points and comments returned, the domains most often submitted, and the first/last time it was discussed.",
         catalogTags: ["search", "social"],
         input: DiscussionsRequestSchema,

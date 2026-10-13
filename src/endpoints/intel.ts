@@ -17,6 +17,10 @@ export const INTEL_ENDPOINTS = [
     defineEndpoint({
         path: "/domain",
         title: "Domain Intelligence",
+        group: "Intelligence",
+        mcpTool: "domain_intel",
+        latency: "1-3 seconds",
+        previewSummary: "Who owns a domain, how old it is, what runs on it, and whether it looks risky — one call.",
         description: "Domain intelligence in one call: RDAP registration (registrar, age, expiry, status), live DNS (A/AAAA/MX/NS/TXT), the mail and DNS providers behind them, the SaaS vendors the domain's TXT verification tokens reveal, SPF/DMARC posture, and risk signals like newly-registered or no-registrar-lock.",
         catalogTags: ["domain", "whois"],
         input: DomainRequestSchema,
@@ -63,6 +67,10 @@ export const INTEL_ENDPOINTS = [
     defineEndpoint({
         path: "/package",
         title: "Package Intelligence",
+        group: "Intelligence",
+        mcpTool: "package_intel",
+        latency: "1-3 seconds",
+        previewSummary: "Should you depend on this package? npm or PyPI health in one call.",
         description: "Should you depend on this package? Version, license, deprecation (with the maintainer's reason), weekly and monthly downloads, last release date, maintainer count, npm quality/popularity/maintenance scores, and health signals — npm or PyPI, one call.",
         catalogTags: ["package", "registry"],
         input: PackageRequestSchema,
@@ -99,6 +107,10 @@ export const INTEL_ENDPOINTS = [
     defineEndpoint({
         path: "/tech",
         title: "Tech Detection",
+        group: "Intelligence",
+        mcpTool: "detect_tech",
+        latency: "1-4 seconds",
+        previewSummary: "What a site is built and run on — framework, CMS, CDN, analytics, payments — with the evidence for each.",
         description: "What a site is built and run on, from a single fetch: frameworks, CMS, ecommerce platform, CDN, analytics, payments, support widgets and web server — each with the header or HTML marker that proves it.",
         catalogTags: ["technology", "fingerprinting"],
         input: TechRequestSchema,
@@ -130,6 +142,10 @@ export const INTEL_ENDPOINTS = [
     defineEndpoint({
         path: "/intel/project",
         title: "Project Due Diligence",
+        group: "Intelligence",
+        mcpTool: "project_due_diligence",
+        latency: "2-6 seconds",
+        previewSummary: "Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see.",
         description: "Off-chain due diligence on a project's web presence — the half on-chain rug checkers cannot see. Domain age and registrar, whether a team page, whitepaper, docs and socials exist, whether the site is an off-the-shelf template, and a cross-check of the contract address you are about to trade against the addresses actually printed on the project's own website. Returns weighted risk signals and an A-F grade. Reads nothing on-chain.",
         catalogTags: ["intelligence", "diligence", "crypto"],
         input: ProjectAuditRequestSchema,

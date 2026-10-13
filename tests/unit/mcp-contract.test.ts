@@ -12,60 +12,16 @@
 
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import {
-    FetchRequestSchema,
-    ScreenshotRequestSchema,
-    SearchRequestSchema,
-    ExtractRequestSchema,
-    PdfRequestSchema,
-    VerticalSearchRequestSchema,
-    PlacesSearchRequestSchema,
-    TrendsRequestSchema,
-    YoutubeTranscriptRequestSchema,
-    ContentsRequestSchema,
-    AnswerRequestSchema,
-    MapRequestSchema,
-    DomainRequestSchema,
-    ProjectAuditRequestSchema,
-    PackageRequestSchema,
-    TechRequestSchema,
-    DiscussionsRequestSchema,
-    CrawlRequestSchema,
-    DeepResearchRequestSchema,
-    PreviewRequestSchema,
-} from "../../src/schemas";
+import { ENDPOINTS } from "../../src/endpoints";
+import { PreviewRequestSchema } from "../../src/schemas";
 import { TOOLS, TOOL_ENDPOINTS } from "../../src/tools/mcp";
 
 /** Endpoint path → the schema its route registers with validateRequest. */
-const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
+const SCHEMA_BY_ENDPOINT: ReadonlyMap<string, z.ZodType> = new Map<string, z.ZodType>([
     // Free, but still contract-checked: the tool must match the route's schema.
-    "/preview": PreviewRequestSchema,
-    "/fetch/basic": FetchRequestSchema,
-    "/fetch/pro": FetchRequestSchema,
-    "/fetch/resilient": FetchRequestSchema,
-    "/screenshot": ScreenshotRequestSchema,
-    "/search": SearchRequestSchema,
-    "/search/news": VerticalSearchRequestSchema,
-    "/search/images": VerticalSearchRequestSchema,
-    "/search/places": PlacesSearchRequestSchema,
-    "/search/shopping": VerticalSearchRequestSchema,
-    "/search/scholar": VerticalSearchRequestSchema,
-    "/search/autocomplete": VerticalSearchRequestSchema,
-    "/search/trends": TrendsRequestSchema,
-    "/social/youtube/transcript": YoutubeTranscriptRequestSchema,
-    "/contents": ContentsRequestSchema,
-    "/answer": AnswerRequestSchema,
-    "/extract": ExtractRequestSchema,
-    "/research/deep": DeepResearchRequestSchema,
-    "/map": MapRequestSchema,
-    "/domain": DomainRequestSchema,
-    "/intel/project": ProjectAuditRequestSchema,
-    "/package": PackageRequestSchema,
-    "/tech": TechRequestSchema,
-    "/discussions": DiscussionsRequestSchema,
-    "/crawl": CrawlRequestSchema,
-    "/pdf": PdfRequestSchema,
-};
+    ["/preview", PreviewRequestSchema],
+    ...ENDPOINTS.map((endpoint): [string, z.ZodType] => [endpoint.path, endpoint.input]),
+]);
 
 interface JsonSchemaProp {
     type?: string;
@@ -151,7 +107,7 @@ describe("MCP tool contracts", () => {
         for (const tool of tools) {
             const endpoint = TOOL_ENDPOINTS[tool.name]?.endpoint;
             if (!endpoint) { continue; }
-            const schema = SCHEMA_BY_ENDPOINT[endpoint];
+            const schema = SCHEMA_BY_ENDPOINT.get(endpoint);
             if (!schema) {
                 failures.push(`${tool.name}: no canonical schema known for ${endpoint}`);
                 continue;
@@ -173,7 +129,7 @@ describe("MCP tool contracts", () => {
         const phantoms: string[] = [];
         for (const tool of tools) {
             const endpoint = TOOL_ENDPOINTS[tool.name]?.endpoint;
-            const schema = endpoint ? SCHEMA_BY_ENDPOINT[endpoint] : undefined;
+            const schema = endpoint ? SCHEMA_BY_ENDPOINT.get(endpoint) : undefined;
             if (!schema) { continue; }
             const props = tool.inputSchema.properties ?? {};
             for (const [key, prop] of Object.entries(props)) {
@@ -192,7 +148,7 @@ describe("MCP tool contracts", () => {
         const failures: string[] = [];
         for (const tool of tools) {
             const endpoint = TOOL_ENDPOINTS[tool.name]?.endpoint;
-            const schema = endpoint ? SCHEMA_BY_ENDPOINT[endpoint] : undefined;
+            const schema = endpoint ? SCHEMA_BY_ENDPOINT.get(endpoint) : undefined;
             if (!schema) { continue; }
             const props = tool.inputSchema.properties ?? {};
             const full: Record<string, unknown> = sampleBody(tool);

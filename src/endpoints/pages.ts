@@ -28,6 +28,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/fetch/basic",
         title: "Fetch Webpage (Basic)",
+        group: "Pages",
+        mcpTool: "fetch_webpage",
+        latency: "1-3 seconds",
+        previewSummary: "Any webpage as clean markdown, no JavaScript rendering.",
         description: "Fetch and convert any webpage to clean markdown. Fast, no JavaScript rendering. Perfect for static content, articles, and documentation.",
         catalogTags: ["fetch", "scraping", "markdown"],
         input: FetchRequestSchema,
@@ -49,6 +53,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/fetch/pro",
         title: "Fetch Webpage (Pro)",
+        group: "Pages",
+        mcpTool: "fetch_webpage_pro",
+        latency: "3-8 seconds",
+        previewSummary: "Same, but rendered in headless Chromium first — for SPAs.",
         description: "Fetch webpage with full JavaScript rendering using headless browser. Perfect for SPAs, React/Vue apps, and dynamic content that requires JS execution.",
         catalogTags: ["fetch", "scraping", "markdown"],
         input: FetchRequestSchema,
@@ -75,6 +83,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/fetch/resilient",
         title: "Resilient Fetch",
+        group: "Pages",
+        mcpTool: "fetch_resilient",
+        latency: "2-10 seconds",
+        previewSummary: "Native fetch, falling back to headless Chromium when it fails.",
         description: "Resilient fetch with automatic fallback. Tries the fast native scraper first, then re-fetches through headless Chromium for client-rendered pages and sites that refuse bare HTTP clients. The response reports which tier served it.",
         catalogTags: ["fetch", "scraping", "markdown"],
         input: FetchRequestSchema,
@@ -102,6 +114,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/screenshot",
         title: "Screenshot Capture",
+        group: "Pages",
+        mcpTool: "screenshot",
+        latency: "2-5 seconds",
+        previewSummary: "PNG screenshot of a page, base64-encoded.",
         description: "Capture high-quality screenshots of any webpage using headless browser.",
         catalogTags: ["screenshot", "rendering"],
         input: ScreenshotRequestSchema,
@@ -127,6 +143,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/contents",
         title: "Page Contents",
+        group: "Pages",
+        mcpTool: "get_contents",
+        latency: "2-10 seconds",
+        previewSummary: "Bulk page text for 1-20 URLs, truncated to your character cap.",
         description: `Cheap bulk page text: fetch ${String(PRICING.contents.minUrls)}-${String(PRICING.contents.maxUrls)} URLs and get clean markdown, truncated to a per-page cap. ${PRICING.contents.perUrl} per URL.`,
         catalogTags: ["fetch", "scraping", "batch"],
         input: ContentsRequestSchema,
@@ -147,7 +167,7 @@ export const PAGE_ENDPOINTS = [
         },
         price: perUnitPricing<{ urls: string[] }>(
             PRICING.contents.perUrl,
-            { min: PRICING.contents.minUrls, max: PRICING.contents.maxUrls },
+            { min: PRICING.contents.minUrls, max: PRICING.contents.maxUrls, unit: "URL" },
             (body) => body?.urls.length ?? PRICING.contents.minUrls,
         ),
         acceptsCredits: true,
@@ -156,6 +176,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/map",
         title: "Site Map",
+        group: "Pages",
+        mcpTool: "map_site",
+        latency: "1-5 seconds",
+        previewSummary: "Every URL on a site, from sitemaps and links — no page fetches.",
         description: "Discover a site's URLs without fetching page content. Reads robots.txt sitemap directives, sitemap.xml and nested sitemap indexes, falling back to homepage link extraction.",
         catalogTags: ["crawling", "sitemap"],
         input: MapRequestSchema,
@@ -187,6 +211,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/crawl",
         title: "Site Crawl",
+        group: "Pages",
+        mcpTool: "crawl_site",
+        latency: "5-30 seconds",
+        previewSummary: "Whole-site crawl returning markdown per page, in one call.",
         description: `Crawl a site and get clean markdown for every page, in one call. Same-host BFS with depth and page-budget limits, robots.txt honoured by default. ${PRICING.crawl.perPage} per requested page (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}).`,
         catalogTags: ["crawling", "scraping"],
         input: CrawlRequestSchema,
@@ -213,7 +241,7 @@ export const PAGE_ENDPOINTS = [
         // Billed on the requested page budget, not on pages returned.
         price: perUnitPricing<{ limit: number }>(
             PRICING.crawl.perPage,
-            { min: PRICING.crawl.minPages, max: PRICING.crawl.maxPages },
+            { min: PRICING.crawl.minPages, max: PRICING.crawl.maxPages, unit: "requested page" },
             (body) => body?.limit ?? PRICING.crawl.defaultPages,
         ),
         acceptsCredits: true,
@@ -222,6 +250,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/pdf",
         title: "PDF Text Extraction",
+        group: "Extraction",
+        mcpTool: "extract_pdf",
+        latency: "2-10 seconds",
+        previewSummary: "Text and metadata out of a PDF, page by page.",
         description: "Extract text and metadata from PDF documents. Supports page-specific extraction and returns structured content.",
         catalogTags: ["pdf", "documents"],
         input: PdfRequestSchema,
@@ -251,6 +283,10 @@ export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/extract",
         title: "Structured Data Extraction",
+        group: "Extraction",
+        mcpTool: "extract_data",
+        latency: "3-6 seconds",
+        previewSummary: "Structured JSON pulled from a page against your schema.",
         description: "Extract structured data from any webpage using JSON schema. AI-powered extraction that understands page context.",
         catalogTags: ["extraction", "ai", "structured-data"],
         input: ExtractRequestSchema,

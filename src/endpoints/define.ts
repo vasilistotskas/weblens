@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import { PRICING } from "../config";
 import {
     calculatePrice,
     complexityBasePrice,
@@ -43,7 +44,26 @@ export interface PriceModel<Body> {
     readonly min: number;
     /** Dearest price any valid request produces, in USD. */
     readonly max: number;
+    /** The pricing rule in words, e.g. "$0.0015 per URL (1-20)". */
+    readonly describe: string;
 }
+
+/**
+ * Sections of the catalog, in the order the docs present them. Each becomes
+ * an OpenAPI tag and an llms.txt section. "Credits" holds billing actions,
+ * which discovery catalogs leave out of the product list.
+ */
+export const ENDPOINT_GROUPS = {
+    Pages: "Fetch, render, map and crawl web pages",
+    Extraction: "Structured data from pages and PDFs",
+    Search: "Web search, its verticals, and Hacker News discussions",
+    Research: "Cited answers and multi-step research",
+    Social: "Social platform data",
+    Intelligence: "Facts about a domain, a site's stack, a package, or a project",
+    Credits: "Prepaid credit",
+} as const;
+
+export type EndpointGroup = keyof typeof ENDPOINT_GROUPS;
 
 /** A request body schema: whatever it outputs, it accepts a JSON object. */
 export type RequestSchema = z.ZodType<unknown, Record<string, unknown>>;
@@ -52,10 +72,17 @@ export interface EndpointDefinition<Path extends string = string, Input extends 
     path: Path;
     /** Short product name; also the label on credit ledger entries. */
     title: string;
+    group: EndpointGroup;
     /** What the buyer gets. Catalogs and the 402 challenge show it; keep it at most 500 characters. */
     description: string;
     /** Intent keywords facilitator catalogs index (x402 RouteConfig `tags`). */
     catalogTags: readonly string[];
+    /** MCP tool name; endpoints without one are not offered as MCP tools. */
+    mcpTool?: string;
+    /** Typical wall-clock time, as advertised in the discovery catalog. */
+    latency: string;
+    /** One line on what the caller gets for the money (free previews). */
+    previewSummary: string;
     /** Request body. Validates every paid call and generates the advertised input schema. */
     input: Input;
     inputExample: z.input<Input>;
@@ -80,7 +107,7 @@ export function defineEndpoint<const Path extends string, Input extends RequestS
 /** A price that never varies with the request. */
 export function fixedPrice(price: string): PriceModel<unknown> {
     const amount = parsePrice(price);
-    return { resolve: () => price, min: amount, max: amount };
+    return { resolve: () => price, min: amount, max: amount, describe: price };
 }
 
 /**
@@ -89,13 +116,14 @@ export function fixedPrice(price: string): PriceModel<unknown> {
  */
 export function perUnitPricing<Body>(
     unitPrice: string,
-    bounds: { min: number; max: number },
+    bounds: { min: number; max: number; unit: string },
     units: (body: Body | undefined) => number,
 ): PriceModel<Body> {
     return {
         resolve: (body) => perUnitPrice(unitPrice, units(body)),
         min: parsePrice(perUnitPrice(unitPrice, bounds.min)),
         max: parsePrice(perUnitPrice(unitPrice, bounds.max)),
+        describe: `${unitPrice} per ${bounds.unit} (${String(bounds.min)}-${String(bounds.max)})`,
     };
 }
 
@@ -110,7 +138,16 @@ export function complexityPricing(type: ComplexityPricedEndpoint): PriceModel<{ 
         resolve: (body) => (body ? calculatePrice(body.url, type) : base),
         min: parsePrice(base),
         max: parsePrice(base) * MAX_COMPLEXITY_MULTIPLIER,
+        describe: `${base}, up to ${String(MAX_COMPLEXITY_MULTIPLIER)}x on bot-protected or complex sites`,
     };
+}
+
+/** The pricing rule in words, including the cache discount where it applies. */
+export function describePrice(endpoint: EndpointDefinition): string {
+    const { describe } = endpoint.price;
+    return endpoint.cacheKey
+        ? `${describe} (${String(Math.round(PRICING.cacheDiscount * 100))}% off when served from cache)`
+        : describe;
 }
 
 /**

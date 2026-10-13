@@ -6,7 +6,10 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, DEEP_RESEARCH_DEPTHS, describeDeepResearchTiers, supportedNetworkNames, supportedNetworks } from "../config";
+import { supportedNetworkNames, supportedNetworks } from "../config";
+import { ENDPOINTS } from "../endpoints";
+import { describePrice, requestBodySchema } from "../endpoints/define";
+import { PreviewRequestSchema } from "../schemas";
 import { getPriceRange } from "../services/pricing";
 import type { AppEnv, Env } from "../types";
 
@@ -155,375 +158,35 @@ async function toolErrorMessage(response: Response): Promise<string> {
   return text;
 }
 
-// Tool definitions for WebLens
-// Exported for the MCP-contract test, which samples each tool's declared
-// inputSchema and asserts the endpoint's canonical Zod schema accepts it.
+/** Paid endpoints offered as MCP tools: every registry definition with an `mcpTool` name. */
+const PAID_TOOLS = ENDPOINTS.flatMap((endpoint) =>
+  endpoint.mcpTool === undefined ? [] : [{ name: endpoint.mcpTool, endpoint }]);
+
+// Tool definitions. Exported for the MCP-contract test, which samples each
+// tool's declared inputSchema and asserts the endpoint's Zod schema accepts it.
 export const TOOLS = [
   {
     name: "preview_endpoint",
     description: "FREE. See what a paid WebLens endpoint costs and what it returns before paying: the live price, a one-line summary, and a recorded sample of the exact response shape. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; SerpAPI- and Anthropic-backed endpoints return the recorded sample only, because free live runs there would burn upstream credits. Price: free",
-    inputSchema: {
-      type: "object",
-      properties: {
-        endpoint: { type: "string", description: "Paid endpoint path to preview, e.g. \"/answer\"" },
-        url: { type: "string", description: "Fetch-backed endpoints only (/fetch/basic, /contents, /map): run a real truncated preview of this URL" },
-      },
-      required: ["endpoint"],
-    },
+    inputSchema: requestBodySchema(PreviewRequestSchema),
   },
-  {
-    name: "fetch_webpage",
-    description: `Fetch and convert a webpage to clean markdown. Fast, no JavaScript rendering. Price: ${PRICING.fetch.basic}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The URL to fetch" },
-        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Request timeout in ms (default 10000)" },
-        cache: { type: "boolean", description: "Serve from cache when available (default true; cached responses cost 70% less)" },
-        cacheTtl: { type: "number", minimum: 60, maximum: 86400, description: "Cache TTL in seconds (default 3600)" },
-      },
-      required: ["url"],
-    },
-  },
-  {
-    name: "fetch_webpage_pro",
-    description: `Fetch webpage with full JavaScript rendering. Use for SPAs and dynamic content. Price: ${PRICING.fetch.pro}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The URL to fetch" },
-        waitFor: { type: "string", description: "CSS selector to wait for before capturing content (e.g. \".content\")" },
-        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Request timeout in ms (default 15000)" },
-      },
-      required: ["url"],
-    },
-  },
-  {
-    name: "screenshot",
-    description: `Capture a screenshot of a webpage. Returns base64 PNG image. Price: ${PRICING.screenshot}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The URL to screenshot" },
-        width: { type: "number", minimum: 320, maximum: 3840, description: "Viewport width (default 1280)" },
-        height: { type: "number", minimum: 240, maximum: 2160, description: "Viewport height (default 720)" },
-        fullPage: { type: "boolean", description: "Capture full page scroll" },
-      },
-      required: ["url"],
-    },
-  },
-
-  {
-    name: "search_web",
-    description: `Search the web and get real-time results with snippets. Set includeContent to also fetch the top result pages as markdown (+${PRICING.contents.perUrl}/result). Price: ${PRICING.search}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search query" },
-        limit: { type: "number", description: "Number of results (default: 10)" },
-        includeContent: { type: "boolean", description: `Also fetch top result pages as markdown (+${PRICING.contents.perUrl}/result)` },
-        contentResults: { type: "number", description: "How many top results to fetch content for (1-10, default: 5)" },
-        contentChars: { type: "number", minimum: 500, maximum: 20000, description: "Per-page content character cap (default 8000)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_news",
-    description: `Search Google News for real-time articles with source, date, and thumbnail. Price: ${PRICING.searchVerticals.news}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "News search query" },
-        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_images",
-    description: `Search Google Images for direct image URLs with dimensions, thumbnails, and source pages. Price: ${PRICING.searchVerticals.images}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Image search query" },
-        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_places",
-    description: `Search local businesses via Google Local: names, addresses, ratings, reviews, phone, website, coordinates. Price: ${PRICING.searchVerticals.places}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "What to search for (e.g. coffee shops)" },
-        location: { type: "string", description: "Free-text location bias, e.g. \"Austin, Texas\"" },
-        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_shopping",
-    description: `Search Google Shopping for products with prices, sellers, ratings, and links. Price: ${PRICING.searchVerticals.shopping}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Product search query" },
-        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_scholar",
-    description: `Search Google Scholar for academic papers with snippets, publication info, and citation counts. Price: ${PRICING.searchVerticals.scholar}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Academic search query" },
-        limit: { type: "number", description: "Number of results (default: 10, max: 20)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_autocomplete",
-    description: `Get Google Autocomplete suggestions for a partial query — keyword research and intent discovery. Price: ${PRICING.searchVerticals.autocomplete}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Partial query to complete" },
-        limit: { type: "number", description: "Max suggestions (default: 10, max: 20)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "search_trends",
-    description: `Get Google Trends interest-over-time timeline for a query. Price: ${PRICING.searchVerticals.trends}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Topic to get trend data for" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "youtube_transcript",
-    description: `Get the full transcript of a YouTube video with timestamps. Accepts a video ID or any YouTube URL. Price: ${PRICING.youtubeTranscript}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        videoId: { type: "string", description: "YouTube video ID (e.g. dQw4w9WgXcQ) or full video URL" },
-        lang: { type: "string", description: "Transcript language code (default: video default)" },
-      },
-      required: ["videoId"],
-    },
-  },
-  {
-    name: "get_contents",
-    description: `Fetch 1-20 URLs and get clean markdown per page, truncated to a character cap. Price: ${PRICING.contents.perUrl}/URL`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        urls: { type: "array", items: { type: "string" }, description: "URLs to fetch (1-20)" },
-        maxChars: { type: "number", minimum: 500, maximum: 50000, description: "Per-page content character cap (default 20000)" },
-        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Per-URL timeout in ms (default 10000)" },
-      },
-      required: ["urls"],
-    },
-  },
-  {
-    name: "answer_question",
-    description: `Get a grounded answer with inline [n] citations: searches the web, fetches sources, and answers strictly from them. Price: ${PRICING.answer}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "The question to answer" },
-        sources: { type: "number", description: "Web sources to search, fetch, and cite (1-5, default: 3)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "extract_data",
-    description: `Extract structured data from a webpage using a JSON schema. AI-powered extraction. Price: ${PRICING.extract}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The URL to extract from" },
-        schema: { type: "object", description: "JSON schema defining the data structure to extract" },
-        instructions: { type: "string", description: "Natural language instructions to guide extraction" },
-      },
-      required: ["url", "schema"],
-    },
-  },
-  {
-    name: "deep_research",
-    description: `Multi-step cited research in one call: plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. SLOW: a standard run takes ~30-60 seconds — use a generous client timeout and do not retry on timeout. Price by depth: ${describeDeepResearchTiers()}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "The research question (1-500 chars)" },
-        depth: { type: "string", enum: [...DEEP_RESEARCH_DEPTHS], description: `Research tier: ${describeDeepResearchTiers()}` },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "extract_pdf",
-    description: `Extract text and metadata from a PDF document. Price: ${PRICING.pdf}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "URL of the PDF to extract" },
-      },
-      required: ["url"],
-    },
-  },
-  {
-    name: "domain_intel",
-    description: `Everything about a domain in one call: who registered it and when, when it expires, its DNS records, the mail and DNS providers behind them, the SaaS vendors its TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, Okta, …), SPF/DMARC posture, and risk flags like newly-registered or no-registrar-lock. Use for vendor due diligence, security triage, phishing checks and prospect research. Price: ${PRICING.domain}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        domain: { type: "string", description: "Domain to inspect, e.g. \"stripe.com\". A full URL is reduced to its hostname." },
-      },
-      required: ["domain"],
-    },
-  },
-  {
-    name: "project_due_diligence",
-    description: `Off-chain due diligence on a project's web presence — the half an on-chain rug checker cannot see. Returns domain age and registrar, whether a team page, whitepaper, docs and socials exist, whether the site is an off-the-shelf template, and a cross-check of a contract address against the addresses actually printed on the project's own website (a mismatch is a strong impersonation signal). Gives weighted risk signals and an A-F grade. Reads NOTHING on-chain — pair it with a contract/liquidity checker. Price: ${PRICING.intel.project}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        domain: { type: "string", minLength: 3, maxLength: 253, description: "Project website, e.g. \"example.org\"" },
-        tokenAddress: { type: "string", minLength: 20, maxLength: 80, description: "Optional contract address to cross-check against the site" },
-        chain: { type: "string", minLength: 2, maxLength: 32, description: "Optional chain label, e.g. base, ethereum, solana" },
-      },
-      required: ["domain"],
-    },
-  },
-  {
-    name: "package_intel",
-    description: `Should you depend on this package? One call returns version, license, deprecation status WITH the maintainer's reason, weekly/monthly downloads, last release date, maintainer count, npm's quality/popularity/maintenance scores, and health signals (deprecated, no-recent-release, no-license, single-maintainer, no-public-repository). Supports npm and PyPI. Price: ${PRICING.package}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Package name, e.g. \"express\" or \"@scope/pkg\"" },
-        registry: { type: "string", enum: ["npm", "pypi"], description: "Registry to look in (default npm)" },
-      },
-      required: ["name"],
-    },
-  },
-  {
-    name: "detect_tech",
-    description: `What a website is built and run on, from a single fetch: framework, CMS, ecommerce platform, CDN, analytics, payments, support widgets and web server — each reported with the response header or HTML marker that proves it. Use for competitive research, sales prospecting and vendor due diligence. Price: ${PRICING.tech}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "Site URL to fingerprint" },
-      },
-      required: ["url"],
-    },
-  },
-  {
-    name: "search_discussions",
-    description: `What Hacker News said about a topic: matching stories with points, comment counts and links to the threads, plus aggregates — total matches, points and comments returned, most-submitted domains, and when it was first and last discussed. Price: ${PRICING.discussions}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "What to search Hacker News for" },
-        limit: { type: "number", minimum: 1, maximum: 50, description: "Stories to return (default 10)" },
-        sort: { type: "string", enum: ["relevance", "recent"], description: "Ranking (default relevance)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "map_site",
-    description: `Discover a site's URLs without fetching page content — reads robots.txt sitemap directives, sitemap.xml and nested sitemap indexes, falling back to homepage link extraction. Price: ${PRICING.map}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "Site URL to map" },
-        limit: { type: "number", description: "Maximum URLs to return (1-5000, default: 1000)" },
-        include: { type: "array", items: { type: "string" }, description: "Only URLs whose path+query contains one of these substrings" },
-        exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
-        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Timeout in ms (default 10000)" },
-      },
-      required: ["url"],
-    },
-  },
-  {
-    name: "crawl_site",
-    description: `Crawl a site and get clean markdown for every page in one synchronous call (no polling). Same-host BFS with depth and page-budget limits, robots.txt honoured by default. Price: ${PRICING.crawl.perPage} per requested page (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}) — you are billed for the requested budget, not the pages returned`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "Start URL — the crawl stays on this host" },
-        limit: { type: "number", description: `Page budget (${String(PRICING.crawl.minPages)}-${String(PRICING.crawl.maxPages)}, default: 10) — charged per requested page` },
-        maxDepth: { type: "number", description: "Link depth from the start URL (0-3, default: 2)" },
-        include: { type: "array", items: { type: "string" }, description: "Only crawl URLs whose path+query contains one of these substrings" },
-        exclude: { type: "array", items: { type: "string" }, description: "Skip URLs whose path+query contains one of these substrings" },
-        respectRobots: { type: "boolean", description: "Honour robots.txt (default: true; disable only for sites you control)" },
-        maxChars: { type: "number", minimum: 500, maximum: 50000, description: "Per-page content character cap (default 8000)" },
-        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Per-page timeout in ms (default 10000)" },
-      },
-      required: ["url"],
-    },
-  },
-  {
-    name: "fetch_resilient",
-    description: `Resilient fetch with automatic fallback: native scraper first, then headless Chromium for JS-rendered or bot-walled pages. Price: ${PRICING.fetch.resilient}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The URL to fetch" },
-        timeout: { type: "number", minimum: 5000, maximum: 30000, description: "Timeout in ms (default 10000)" },
-      },
-      required: ["url"],
-    },
-  },
+  ...PAID_TOOLS.map(({ name, endpoint }) => ({
+    name,
+    description: `${endpoint.description} Price: ${describePrice(endpoint)}`,
+    inputSchema: requestBodySchema(endpoint.input),
+  })),
 ];
 
-// MCP tool name → REST endpoint, method, and price.
 // Single source of truth used by both `tools/call` (to forward the request to
 // the right HTTP endpoint) and `/mcp/info` (to expose structured pricing).
 // `Partial<Record<...>>` lets us safely index by an unknown tool name and
 // branch on undefined for unknown tools.
 export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: string; price: string }>> = {
-  preview_endpoint:  { endpoint: "/preview",         method: "POST", price: "free" },
-  fetch_webpage:     { endpoint: "/fetch/basic",     method: "POST", price: PRICING.fetch.basic },
-  fetch_webpage_pro: { endpoint: "/fetch/pro",       method: "POST", price: PRICING.fetch.pro },
-  fetch_resilient:   { endpoint: "/fetch/resilient", method: "POST", price: PRICING.fetch.resilient },
-  screenshot:        { endpoint: "/screenshot",      method: "POST", price: PRICING.screenshot },
-  search_web:        { endpoint: "/search",          method: "POST", price: PRICING.search },
-  search_news:       { endpoint: "/search/news",     method: "POST", price: PRICING.searchVerticals.news },
-  search_images:     { endpoint: "/search/images",   method: "POST", price: PRICING.searchVerticals.images },
-  search_places:     { endpoint: "/search/places",   method: "POST", price: PRICING.searchVerticals.places },
-  search_shopping:   { endpoint: "/search/shopping", method: "POST", price: PRICING.searchVerticals.shopping },
-  search_scholar:    { endpoint: "/search/scholar",  method: "POST", price: PRICING.searchVerticals.scholar },
-  search_autocomplete: { endpoint: "/search/autocomplete", method: "POST", price: PRICING.searchVerticals.autocomplete },
-  search_trends:     { endpoint: "/search/trends",   method: "POST", price: PRICING.searchVerticals.trends },
-  youtube_transcript: { endpoint: "/social/youtube/transcript", method: "POST", price: PRICING.youtubeTranscript },
-  get_contents:      { endpoint: "/contents",        method: "POST", price: PRICING.contents.perUrl },
-  answer_question:   { endpoint: "/answer",          method: "POST", price: PRICING.answer },
-  extract_data:      { endpoint: "/extract",         method: "POST", price: PRICING.extract },
-  deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.quick}-${PRICING.deepResearch.deep}` },
-  domain_intel:      { endpoint: "/domain",          method: "POST", price: PRICING.domain },
-  project_due_diligence: { endpoint: "/intel/project", method: "POST", price: PRICING.intel.project },
-  package_intel:     { endpoint: "/package",         method: "POST", price: PRICING.package },
-  detect_tech:       { endpoint: "/tech",            method: "POST", price: PRICING.tech },
-  search_discussions:{ endpoint: "/discussions",     method: "POST", price: PRICING.discussions },
-  map_site:          { endpoint: "/map",             method: "POST", price: PRICING.map },
-  crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
-  extract_pdf:       { endpoint: "/pdf",             method: "POST", price: PRICING.pdf },
+  preview_endpoint: { endpoint: "/preview", method: "POST", price: "free" },
+  ...Object.fromEntries(PAID_TOOLS.map(({ name, endpoint }) => [
+    name,
+    { endpoint: endpoint.path, method: "POST", price: describePrice(endpoint) },
+  ])),
 };
 
 // Server identity, as the `serverInfo` object the initialize result requires.
@@ -813,9 +476,6 @@ export function mcpInfoHandler(c: Context<AppEnv>) {
       "ai-powered-analysis",
       "pdf-extraction",
       "batch-operations",
-      "url-monitoring",
-      "persistent-memory",
-      "url-comparison",
       "web-intelligence",
     ],
     // Each tool exposes its REST endpoint and price as structured fields
