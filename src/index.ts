@@ -11,7 +11,6 @@ import { logger } from "hono/logger";
 
 // Middleware
 import { errorHandler } from "./middleware/errorHandler";
-import { paymentDebugMiddleware } from "./middleware/payment-debug";
 import { receiptMiddleware } from "./middleware/receipt";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { paidEndpointsArePostOnly, pathTemplateMiddleware, routeMethodGuard } from "./middleware/routing";
@@ -76,9 +75,6 @@ app.use("*", cors({
     ],
     maxAge: 600,
 }));
-
-// Authentication / Payment Debugging
-app.use("*", paymentDebugMiddleware);
 
 // Request ID and processing time
 app.use("*", requestIdMiddleware);
