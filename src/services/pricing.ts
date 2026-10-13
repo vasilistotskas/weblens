@@ -63,7 +63,6 @@ export function getComplexityMultiplier(url: string): number {
 
 /** Base price of each complexity-priced endpoint. */
 const COMPLEXITY_PRICED_BASE = {
-    "fetch-basic": PRICING.fetch.basic,
     "fetch-pro": PRICING.fetch.pro,
     extract: PRICING.extract,
 } as const;

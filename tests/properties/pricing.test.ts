@@ -5,8 +5,8 @@
  * **Validates: Requirements 2.1, 2.2**
  *
  * For any request to a tiered endpoint (`/fetch/basic`, `/fetch/pro`),
- * the 402 Payment Required response SHALL contain the correct price
- * for that tier ($0.005 for basic, $0.015 for pro).
+ * the configured list price is the tier's price ($0.002 for basic, $0.006
+ * for pro); the 402 itself charges at least PRICING.x402Minimum.
  */
 
 import { describe, it, expect } from "vitest";
@@ -26,14 +26,14 @@ const TIERED_PRICES: Record<string, string> = {
 
 describe("Property 3: Tier pricing consistency", () => {
   /**
-   * Property: /fetch/basic is always priced at $0.005
+   * Property: /fetch/basic is always priced at $0.002
    */
   it("fetch/basic tier has the correct configured price ($0.002)", () => {
     expect(PRICING.fetch.basic).toBe("$0.002");
   });
 
   /**
-   * Property: /fetch/pro is always priced at $0.015
+   * Property: /fetch/pro is always priced at $0.006
    */
   it("fetch/pro tier has the correct configured price ($0.006)", () => {
     expect(PRICING.fetch.pro).toBe("$0.006");

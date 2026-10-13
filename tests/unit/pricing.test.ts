@@ -27,9 +27,9 @@ describe('Pricing Service', () => {
     });
 
     describe('calculatePrice', () => {
-        it('should calculate base price for fetch-basic', () => {
-            const price = calculatePrice('https://example.com', 'fetch-basic');
-            expect(parseFloat(price.replace('$', ''))).toBe(parseFloat(PRICING.fetch.basic.replace('$', '')));
+        it('should charge the base price for a simple URL', () => {
+            const price = calculatePrice('https://example.com', 'fetch-pro');
+            expect(parseFloat(price.replace('$', ''))).toBe(parseFloat(PRICING.fetch.pro.replace('$', '')));
         });
 
         it('should apply complexity multiplier for fetch-pro', () => {
