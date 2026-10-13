@@ -16,24 +16,23 @@
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { CRAWL_LIMITS } from "../config";
+import { BOT_USER_AGENT, CRAWL_LIMITS } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { CrawlRequestSchema } from "../schemas";
 import {
     EMPTY_ROBOTS,
     extractLinks,
+    fetchRobots,
     isAllowedByRobots,
     isSameHost,
     matchesPathFilters,
     normalizeUrl,
-    parseRobots,
 } from "../services/crawler";
 import { validateURL } from "../services/validator";
 import type { AppEnv } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
-import { assertTargetOk, HTML_CONTENT_TYPE, readDocument, readTextCapped, safeFetch } from "../utils/safe-fetch";
+import { assertTargetOk, HTML_CONTENT_TYPE, readDocument, safeFetch } from "../utils/safe-fetch";
 
-const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
 
 interface CrawlPage {
     url: string;
@@ -52,7 +51,7 @@ interface FetchedPage { title: string; content: string; links: string[] }
 async function fetchPage(url: string, timeout: number): Promise<FetchedPage> {
     const response = await safeFetch(url, {
         headers: {
-            "User-Agent": UA,
+            "User-Agent": BOT_USER_AGENT,
             Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
         signal: AbortSignal.timeout(timeout),
@@ -88,20 +87,7 @@ export async function crawlHandler(c: Context<AppEnv>) {
         const origin = new URL(start).origin;
 
         // robots.txt — fetched once, applied to every candidate URL.
-        let robots = EMPTY_ROBOTS;
-        if (respectRobots) {
-            try {
-                const response = await safeFetch(`${origin}/robots.txt`, {
-                    headers: { "User-Agent": UA, Accept: "text/plain" },
-                    signal: AbortSignal.timeout(timeout),
-                });
-                if (response.ok) {
-                    robots = parseRobots(await readTextCapped(response));
-                }
-            } catch {
-                // No robots.txt (or unreachable) → nothing is disallowed.
-            }
-        }
+        const robots = respectRobots ? await fetchRobots(origin, timeout) : EMPTY_ROBOTS;
         if (respectRobots && !isAllowedByRobots(start, robots)) {
             return c.json(
                 createErrorResponse("FORBIDDEN", "robots.txt disallows crawling this URL. Set respectRobots=false only for sites you control.", requestId),

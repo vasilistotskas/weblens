@@ -30,6 +30,7 @@ import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "@x40
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mask } from "../utils/logger";
 import type { Logger } from "../utils/logger";
+import { isRecord } from "../utils/narrow";
 
 /**
  * Where a paid-route request ended up.
@@ -232,10 +233,6 @@ function tryDecode<T>(decode: (header: string) => T, header: string | null | und
 }
 
 /** Build the single funnel event for a request that went through the payment wall. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /**
  * The payer a payment payload claims: the EIP-3009 or Permit2 `from` on EVM,
  * the token-transfer authority on Solana. It is unverified (it comes from the

@@ -25,15 +25,15 @@
  */
 
 import type { Env } from "../types";
-import { readHtmlOrEmpty, safeFetch } from "../utils/safe-fetch";
 import { inspectDomain, normalizeDomain  } from "./domain-intel";
 import type {DomainReport} from "./domain-intel";
+import { fetchSitePage, findSocials, pageHrefs } from "./site-pages";
+import type { SitePage } from "./site-pages";
 import { fingerprint  } from "./tech-detect";
 import type {Detection} from "./tech-detect";
 
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_HTML_BYTES = 400_000;
-const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
 
 /** Site builders that indicate an off-the-shelf page rather than a built product. */
 const TEMPLATE_PLATFORMS = new Set(["Wix", "Squarespace", "Webflow", "WordPress", "Ghost"]);
@@ -46,16 +46,6 @@ const PAGE_PATTERNS: [key: string, pattern: RegExp][] = [
     ["tokenomics", /\b(tokenomics|token[- ]?economics|distribution)\b/iu],
     ["audit", /\b(audit|audited|certik|hacken|slowmist)\b/iu],
     ["roadmap", /\broadmap\b/iu],
-];
-
-/** Social presences worth reporting, matched against link hrefs. */
-const SOCIAL_PATTERNS: [key: string, pattern: RegExp][] = [
-    ["twitter", /(?:twitter\.com|x\.com)\/[A-Za-z0-9_]{2,}/u],
-    ["telegram", /t\.me\/[A-Za-z0-9_]{3,}/u],
-    ["discord", /discord\.(?:gg|com\/invite)\/[A-Za-z0-9]{4,}/u],
-    ["github", /github\.com\/[A-Za-z0-9-]{2,}/u],
-    ["medium", /medium\.com\/@?[A-Za-z0-9-]{2,}/u],
-    ["linkedin", /linkedin\.com\/(?:company|in)\/[A-Za-z0-9-]{2,}/u],
 ];
 
 /** EVM contract addresses. Solana keys are checked by exact match instead —
@@ -99,7 +89,7 @@ const DISCLAIMER =
 
 /** Extract every href and the visible text, cheaply, without a DOM. */
 function linksAndText(html: string): { hrefs: string[]; text: string } {
-    const hrefs = [...html.matchAll(/href=["']([^"']+)["']/giu)].map((m) => m[1] ?? "");
+    const hrefs = pageHrefs(html);
     const text = html
         .replace(/<script[\s\S]*?<\/script>/giu, " ")
         .replace(/<style[\s\S]*?<\/style>/giu, " ")
@@ -155,37 +145,17 @@ export async function auditProject(
     const homepage = `https://${domain}`;
     const [domainReport, page] = await Promise.all([
         inspectDomain(domain, env),
-        fetchHomepage(homepage),
+        fetchSitePage(homepage, { timeoutMs: FETCH_TIMEOUT_MS, maxHtmlBytes: MAX_HTML_BYTES }),
     ]);
 
     return build(input, domain, domainReport, page, tokenAddress, chain);
-}
-
-interface Page { ok: boolean; status?: number; html: string; headers: string[] }
-
-async function fetchHomepage(url: string): Promise<Page> {
-    try {
-        const response = await safeFetch(url, {
-            headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,*/*" },
-            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
-        const headers: string[] = [];
-        response.headers.forEach((v, k) => { headers.push(`${k}: ${v}`); });
-        const contentType = response.headers.get("content-type") ?? "";
-        const html = contentType.includes("html") || contentType === ""
-            ? await readHtmlOrEmpty(response, MAX_HTML_BYTES)
-            : "";
-        return { ok: response.ok, status: response.status, html, headers };
-    } catch {
-        return { ok: false, html: "", headers: [] };
-    }
 }
 
 function build(
     input: string,
     domain: string,
     domainReport: DomainReport,
-    page: Page,
+    page: SitePage,
     tokenAddress?: string,
     chain?: string,
 ): ProjectAudit {
@@ -195,11 +165,7 @@ function build(
     const pages: Record<string, boolean> = {};
     for (const [key, pattern] of PAGE_PATTERNS) { pages[key] = pattern.test(haystack); }
 
-    const socials: Record<string, string> = {};
-    for (const [key, pattern] of SOCIAL_PATTERNS) {
-        const hit = pattern.exec(hrefs.join(" "));
-        if (hit) { socials[key] = hit[0].startsWith("http") ? hit[0] : `https://${hit[0]}`; }
-    }
+    const socials = findSocials(hrefs);
 
     const contractAddresses = [...new Set((page.html.match(EVM_ADDRESS) ?? []).map((a) => a.toLowerCase()))];
 

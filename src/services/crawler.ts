@@ -10,6 +10,8 @@
  * input — it comes from the crawled page itself.
  */
 
+import { BOT_USER_AGENT } from "../config";
+import { readTextCapped, safeFetch } from "../utils/safe-fetch";
 import { validateURL } from "./validator";
 
 // ============================================
@@ -147,6 +149,22 @@ function matchLength(path: string, pattern: string): number {
  * RFC 9309 precedence: the longest matching rule wins; on a tie, Allow beats
  * Disallow. No matching Disallow means allowed.
  */
+/**
+ * The site's robots.txt rules, fetched as BOT_USER_AGENT. A missing or
+ * unreachable robots.txt disallows nothing.
+ */
+export async function fetchRobots(origin: string, timeoutMs: number): Promise<RobotsRules> {
+    try {
+        const response = await safeFetch(`${origin}/robots.txt`, {
+            headers: { "User-Agent": BOT_USER_AGENT, Accept: "text/plain" },
+            signal: AbortSignal.timeout(timeoutMs),
+        });
+        return response.ok ? parseRobots(await readTextCapped(response)) : EMPTY_ROBOTS;
+    } catch {
+        return EMPTY_ROBOTS;
+    }
+}
+
 export function isAllowedByRobots(url: string, rules: RobotsRules): boolean {
     let path: string;
     try {

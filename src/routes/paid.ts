@@ -21,6 +21,7 @@ import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
 import { answerHandler } from "../tools/answer";
+import { companyHandler } from "../tools/company";
 import { contentsHandler } from "../tools/contents";
 import { crawlHandler } from "../tools/crawl";
 import { buyCreditsHandler } from "../tools/credits";
@@ -76,6 +77,7 @@ const HANDLERS: Record<PaidPath, Handler<AppEnv>> = {
     "/domain": domainHandler,
     "/package": packageHandler,
     "/tech": techHandler,
+    "/company": companyHandler,
     "/intel/project": projectAuditHandler,
     "/credits/buy": buyCreditsHandler,
 };

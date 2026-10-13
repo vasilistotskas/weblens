@@ -13,12 +13,12 @@
  * judge it; one who is handed a bare vendor list cannot.
  */
 
+import { BOT_USER_AGENT } from "../config";
 import { readHtmlOrEmpty, safeFetch } from "../utils/safe-fetch";
 
 /** Enough HTML to cover head + early body markers without buffering a novel. */
 const MAX_HTML_BYTES = 300_000;
 const FETCH_TIMEOUT_MS = 12_000;
-const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
 
 export type Category =
     | "framework" | "cms" | "ecommerce" | "cdn" | "analytics"
@@ -196,7 +196,7 @@ export function fingerprint(headerLines: string[], html: string): {
 
 export async function detectTech(url: string): Promise<TechReport> {
     const response = await safeFetch(url, {
-        headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,*/*" },
+        headers: { "User-Agent": BOT_USER_AGENT, Accept: "text/html,application/xhtml+xml,*/*" },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 

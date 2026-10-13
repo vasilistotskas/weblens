@@ -14,6 +14,7 @@
  */
 
 import { PAID_UPSTREAMS } from "../config";
+import { asRecords, num, str } from "../utils/narrow";
 
 export interface SearchResult {
   title: string;
@@ -80,14 +81,6 @@ export async function searchWeb({ query, limit, serpApiKey }: SearchOptions): Pr
   }));
 }
 
-function asRecords(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter((v): v is Record<string, unknown> => typeof v === "object" && v !== null)
-    : [];
-}
-
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
 
 export interface NewsResult {
   position: number; title: string; url: string; source?: string; date?: string; isoDate?: string; thumbnail?: string;

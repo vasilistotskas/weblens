@@ -9,7 +9,7 @@
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { CRAWL_LIMITS } from "../config";
+import { BOT_USER_AGENT, CRAWL_LIMITS } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { MapRequestSchema } from "../schemas";
 import {
@@ -25,12 +25,11 @@ import { validateURL } from "../services/validator";
 import type { AppEnv } from "../types";
 import { readTextCapped, safeFetch } from "../utils/safe-fetch";
 
-const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
 
 async function fetchText(url: string, timeout: number): Promise<string | null> {
     try {
         const response = await safeFetch(url, {
-            headers: { "User-Agent": UA, Accept: "*/*" },
+            headers: { "User-Agent": BOT_USER_AGENT, Accept: "*/*" },
             signal: AbortSignal.timeout(timeout),
         });
         if (!response.ok) { return null; }

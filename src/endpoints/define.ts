@@ -18,6 +18,7 @@ import {
     perUnitPrice,
 } from "../services/pricing";
 import type { ComplexityPricedEndpoint } from "../services/pricing";
+import { isRecord } from "../utils/narrow";
 
 /** A JSON object's schema, as advertised for a response body. */
 export interface JsonObjectSchema {
@@ -190,10 +191,6 @@ export function describePrice(endpoint: EndpointDefinition): string {
 export function requestBodySchema(input: z.ZodType): Record<string, unknown> {
     const { $schema: _dialect, ...schema } = z.toJSONSchema(input, { io: "input" });
     return schema;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

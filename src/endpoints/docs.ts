@@ -6,6 +6,7 @@
  * and accept.
  */
 
+import { isRecord } from "../utils/narrow";
 import { describePrice, ENDPOINT_GROUPS, endpointBodySchema, requestBodySchema, x402PriceBounds } from "./define";
 import type { EndpointDefinition, EndpointGroup } from "./define";
 import { ENDPOINTS } from "./index";
@@ -13,10 +14,6 @@ import { ENDPOINTS } from "./index";
 const DEFINITIONS: readonly EndpointDefinition[] = ENDPOINTS;
 
 const ERROR_CONTENT = { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /**
  * x402scan's x-payment-info (https://www.x402scan.com/discovery/spec): a fixed

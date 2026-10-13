@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+    CACHE_TTL_SECONDS,
     CREDIT_PURCHASE_USD,
     DEEP_RESEARCH_DEFAULT_DEPTH,
     DEEP_RESEARCH_DEPTHS,
@@ -23,6 +24,18 @@ const timeoutSchema = z.number().min(TIMEOUT_CONFIG.min).max(TIMEOUT_CONFIG.max)
 const limitSchema = z.number().min(1).max(20).optional().default(10).describe("Maximum results to return");
 const searchQuerySchema = z.string().min(1).max(500).describe("Search query");
 
+/**
+ * Response-cache controls for endpoints with a registry cacheKey. The cache
+ * middleware reads them from the raw body, before validation, and clamps the
+ * TTL to the same CACHE_TTL_SECONDS bounds.
+ */
+const cacheOptions = {
+    cache: z.boolean().optional().default(true)
+        .describe(`Serve a cached copy when one exists (cached responses are ${String(Math.round(PRICING.cacheDiscount * 100))}% off)`),
+    cacheTtl: z.number().min(CACHE_TTL_SECONDS.min).max(CACHE_TTL_SECONDS.max).optional().default(CACHE_TTL_SECONDS.default)
+        .describe("How long to cache this response, in seconds"),
+};
+
 // ============================================
 // Core Endpoints
 // ============================================
@@ -30,10 +43,7 @@ const searchQuerySchema = z.string().min(1).max(500).describe("Search query");
 export const FetchRequestSchema = z.object({
     url: urlSchema,
     timeout: timeoutSchema,
-    cache: z.boolean().optional().default(true)
-        .describe(`Serve a cached copy when one exists (cached responses are ${String(Math.round(PRICING.cacheDiscount * 100))}% off)`),
-    cacheTtl: z.number().min(60).max(86400).optional().default(3600)
-        .describe("How long to cache this response, in seconds"),
+    ...cacheOptions,
     waitFor: z.string().optional().describe("CSS selector to wait for (Pro tier only)"),
 });
 
@@ -176,6 +186,12 @@ export const DiscussionsRequestSchema = z.object({
 export const DomainRequestSchema = z.object({
     domain: z.string().min(3).max(253)
         .describe("Domain to inspect, e.g. \"stripe.com\". A full URL is accepted and reduced to its hostname."),
+});
+
+export const CompanyRequestSchema = z.object({
+    domain: DomainRequestSchema.shape.domain
+        .describe("The company's website domain, e.g. \"vercel.com\". A full URL is accepted and reduced to its hostname."),
+    ...cacheOptions,
 });
 
 export const DeepResearchRequestSchema = z.object({

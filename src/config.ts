@@ -95,6 +95,12 @@ export const PRICING = {
   tech: "$0.005",
   discussions: "$0.004",
 
+  // Company profile from a domain: a handful of free page/DNS/job-board
+  // fetches plus one capped AI_MODEL pass (~$0.002). Priced against the
+  // account-gated incumbents: PredictLeads $0.01-0.04 a request, Diffbot
+  // ~$0.025 an entity, Wappalyzer ~$0.05 a lookup for the tech stack alone.
+  company: "$0.05",
+
   // Bounded whole-site crawl. Priced per requested page (the page budget the
   // caller reserves), consistent with batch fetch. Native fetch + markdown,
   // so marginal cost is CPU only.
@@ -480,6 +486,44 @@ export const TIMEOUT_CONFIG = {
   default: 10000, // 10 seconds
   min: 5000, // 5 seconds
   max: 30000, // 30 seconds
+} as const;
+
+/** Response-cache TTL bounds and default, in seconds (services/cache.ts clamps to them). */
+export const CACHE_TTL_SECONDS = { min: 60, max: 86_400, default: 3_600 } as const;
+
+/** How WebLens identifies itself when it fetches a site on a caller's behalf (robots.txt rules match it). */
+export const BOT_USER_AGENT = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
+
+/**
+ * Bounds for /company. They are its cost model: pages fetched are free
+ * subrequests, and the one AI_MODEL pass reads at most `pagesForAI` pages of
+ * `charsPerPage` each (~10k tokens, ~$0.001) and writes at most `maxTokens`.
+ */
+export const COMPANY_PROFILE = {
+  /** Per-request fetch timeout for the site's own pages and the job board. */
+  timeoutMs: 12_000,
+  /** Largest HTML document read from a page the model reads. */
+  maxHtmlBytes: 400_000,
+  /**
+   * Largest careers page read, only to find the job board it links to. Sites
+   * embed their board data deep in the page: Vercel's careers page is 1.4 MB
+   * with its first Greenhouse link at 1.32 MB.
+   */
+  maxCareersHtmlBytes: 4 * 1024 * 1024,
+  /** Tried when the homepage links no careers page: the conventional path. */
+  careersPath: "/careers",
+  /** Characters of each page's text the model reads. */
+  charsPerPage: 6_000,
+  /** Homepage, about and pricing: the pages that say what the company sells. */
+  pagesForAI: 3,
+  maxTokens: 1_500,
+  /** Open roles listed by title in `hiring.sample`. */
+  sampleRoles: 10,
+  /**
+   * Largest job-board response read. Lever and Ashby return every posting with
+   * its full description: Palantir's Lever board (312 roles) is 6.1 MB.
+   */
+  maxBoardBytes: 16 * 1024 * 1024,
 } as const;
 
 // ============================================

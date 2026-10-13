@@ -10,11 +10,8 @@
  * KV get/put with a bounded TTL.
  */
 
+import { CACHE_TTL_SECONDS } from "../config";
 import { hashContent } from "./crypto";
-
-const MIN_TTL_SECONDS = 60;
-const MAX_TTL_SECONDS = 86400; // 24h
-const DEFAULT_TTL_SECONDS = 3600; // 1h
 
 /** Deterministic JSON serialization with recursively-sorted object keys. */
 function stableStringify(value: unknown): string {
@@ -41,12 +38,12 @@ export async function buildCacheKey(endpoint: string, params: unknown): Promise<
     return `weblens:${endpoint}:${hash.slice(0, 12)}`;
 }
 
-/** Clamp a requested TTL into the supported 60–86400s window (default 3600s). */
+/** Clamp a requested TTL into CACHE_TTL_SECONDS (its default when none was asked for). */
 export function clampCacheTtl(ttl: unknown): number {
     if (typeof ttl !== "number" || !Number.isFinite(ttl)) {
-        return DEFAULT_TTL_SECONDS;
+        return CACHE_TTL_SECONDS.default;
     }
-    return Math.min(MAX_TTL_SECONDS, Math.max(MIN_TTL_SECONDS, Math.floor(ttl)));
+    return Math.min(CACHE_TTL_SECONDS.max, Math.max(CACHE_TTL_SECONDS.min, Math.floor(ttl)));
 }
 
 /** Read a cached JSON value. Returns null on miss or any KV error. */
