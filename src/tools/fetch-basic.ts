@@ -12,16 +12,10 @@ import type { Context } from "hono";
 import type { z } from "zod/v4";
 import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import type { FetchRequestSchema } from "../schemas";
-import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, FetchResponse, ProofOfContext } from "../types";
-import { createLogger } from "../utils/logger";
+import type { Env, FetchResponse } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { assertTargetOk, readDocument, safeFetch } from "../utils/safe-fetch";
-
-// Module-level logger: fetchBasicPage is a service-style function (takes `env`,
-// not a Hono context) and is also called outside any request (e.g. research).
-const log = createLogger();
 
 export interface FetchBasicResult {
   url: string;
@@ -46,8 +40,7 @@ export interface FetchBasicResult {
 export async function fetchBasicPage(
   url: string,
   timeout: number = 10000,
-  env?: Env
-): Promise<FetchBasicResult & { proof?: ProofOfContext }> {
+): Promise<FetchBasicResult> {
   const response = await safeFetch(url, {
     headers: {
       "User-Agent":
@@ -64,7 +57,7 @@ export async function fetchBasicPage(
   const content = htmlToMarkdown(html);
   const metadata = extractMetadata(html);
 
-  const result: FetchBasicResult & { proof?: ProofOfContext } = {
+  return {
     url,
     title: metadata.title ?? "",
     content,
@@ -76,28 +69,6 @@ export async function fetchBasicPage(
     tier: "basic",
     fetchedAt: new Date().toISOString(),
   };
-
-  // Generate ACV Proof if environment provided
-  if (env && (env.SIGNING_PRIVATE_KEY || env.CDP_API_KEY_SECRET)) {
-    try {
-      const hash = await hashContent(html);
-      const { mac, keyId, alg } = await signContext(url, hash, result.fetchedAt, env);
-      result.proof = {
-        hash,
-        timestamp: result.fetchedAt,
-        alg,
-        mac,
-        keyId
-      };
-    } catch (e) {
-      log.warn("acv.proof_failed", {
-        endpoint: "fetch-basic",
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }
-
-  return result;
 }
 
 /**
@@ -121,8 +92,8 @@ export async function fetchBasic(c: Context<{ Bindings: Env }>) {
       }, 400);
     }
 
-    // Fetch the page with ACV
-    const result = await fetchBasicPage(urlValidation.normalized ?? url, timeout, c.env);
+    // Fetch the page
+    const result = await fetchBasicPage(urlValidation.normalized ?? url, timeout);
 
     const response: FetchResponse = {
       ...result,

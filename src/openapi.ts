@@ -465,7 +465,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         get: {
           tags: ["Discovery"], summary: "Get Call Receipt", operationId: "getReceipt",
           security: [],
-          description: "Receipt for a paid call — endpoint, status, outcome, charged price, payment method, network and pay-to address. Every paid response carries `X-Receipt-Id` and `X-Receipt-Url` headers pointing here. Receipts are kept for 30 days. When signing is configured the receipt also carries `mac`/`keyId`/`alg`: a symmetric HMAC tag (the same construction as proof-of-context) that only a key holder can verify — it is NOT a third-party-verifiable signature.",
+          description: "Receipt for a paid call — endpoint, status, outcome, charged price, payment method, network, pay-to address, settlement transaction and payer. Every paid response carries `X-Receipt-Id` and `X-Receipt-Url` headers pointing here. Receipts are kept for 30 days. A receipt is unsigned: its evidence is the settlement transaction, which anyone can check on-chain.",
           parameters: [{ name: "requestId", in: "path", required: true, schema: { type: "string" }, description: "The X-Request-Id / X-Receipt-Id of the paid call" }],
           responses: {
             "200": { description: "Receipt for the call", content: { "application/json": { schema: { $ref: "#/components/schemas/CallReceipt" } } } },
@@ -579,7 +579,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             tier: { type: "string" },
             fetchedAt: { type: "string" },
             cache: { type: "object" },
-            proof: { $ref: "#/components/schemas/ProofOfContext" },
             requestId: { type: "string" }
           },
         },
@@ -611,7 +610,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         AnswerRequest: { type: "object", required: ["query"], properties: { query: { type: "string", description: "The question to answer" }, sources: { type: "integer", minimum: 1, maximum: 5, description: "Web sources to search, fetch, and cite (default 3)" } } },
         AnswerResponse: { type: "object", properties: { query: { type: "string" }, answer: { type: "string", description: "Answer text with inline [n] citation markers" }, citations: { type: "array", items: { type: "object", properties: { index: { type: "integer" }, url: { type: "string" }, title: { type: "string" } } } }, confidence: { type: "number" }, answeredAt: { type: "string" }, requestId: { type: "string" } } },
         ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string", format: "uri", example: "https://example.com/product" }, schema: { type: "object", example: { name: { type: "string" }, price: { type: "number" } } }, instructions: { type: "string" } } },
-        ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, proof: { $ref: "#/components/schemas/ProofOfContext" }, requestId: { type: "string" } } },
+        ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
         BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 20, example: ["https://example.com/1", "https://example.com/2"] }, timeout: { type: "integer" }, tier: { type: "string" } } },
         BatchFetchResponse: { type: "object", properties: { results: { type: "array" }, summary: { type: "object" }, totalPrice: { type: "string" }, requestId: { type: "string" } } },
         ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" }, timeout: { type: "integer" } } },
@@ -940,10 +939,9 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             paymentMethod: { type: "string", description: "\"x402\" or \"credits\"" },
             network: { type: "string" },
             payTo: { type: "string" },
+            transaction: { type: "string", description: "Settlement transaction (EVM tx hash or Solana signature) — the on-chain proof of payment. Absent for credits." },
+            payer: { type: "string", description: "Address that paid" },
             servedAt: { type: "string" },
-            mac: { type: "string", description: "Symmetric HMAC tag over the receipt — verifiable only by the key holder, NOT a third-party-verifiable signature" },
-            keyId: { type: "string" },
-            alg: { type: "string" },
           },
         },
         FeedbackDocument: {
@@ -973,17 +971,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             note: { type: "string" },
             requestId: { type: "string" },
           },
-        },
-        ProofOfContext: {
-          type: "object",
-          required: ["hash", "timestamp", "alg", "mac", "keyId"],
-          properties: {
-            hash: { type: "string", description: "SHA-256 hash of the content" },
-            timestamp: { type: "string", description: "ISO timestamp of verification" },
-            alg: { type: "string", description: "MAC algorithm (e.g. HMAC-SHA256)" },
-            mac: { type: "string", description: "Symmetric HMAC tag over {url, hash, timestamp} — not third-party verifiable" },
-            keyId: { type: "string", description: "Identifier of the oracle key that produced the MAC" },
-          }
         },
       },
       responses: {
@@ -1125,9 +1112,8 @@ because there is no on-chain registration; \`supportedTrust\` is ["feedback"]. (
 #### GET /receipts/{requestId}
 The receipt for a paid call — your payment evidence. Every paid response returns \`X-Receipt-Id\`
 and \`X-Receipt-Url\` headers pointing at it. Kept 30 days. (Free)
-- Returns: \`{"type": "weblens-call-receipt-v1", "requestId", "endpoint", "method", "status", "outcome", "price?", "currency", "paymentMethod", "network", "payTo", "servedAt", "mac?", "keyId?", "alg?"}\`
-- \`mac\` is a symmetric HMAC tag (same construction as proof-of-context): only a key holder can
-  verify it. It is NOT a third-party-verifiable signature — do not treat it as one.
+- Returns: \`{"type": "weblens-call-receipt-v1", "requestId", "endpoint", "method", "status", "outcome", "price?", "currency", "paymentMethod", "network", "payTo", "transaction?", "payer?", "servedAt"}\`
+- The receipt is unsigned. Its evidence is \`transaction\`, which anyone can check on-chain.
 
 #### POST /feedback
 Host a feedback document YOU author, and get back the pair \`giveFeedback()\` wants. WebLens stores

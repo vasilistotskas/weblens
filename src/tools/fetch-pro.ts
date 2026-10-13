@@ -14,16 +14,10 @@ import type { Context } from "hono";
 import type { z } from "zod/v4";
 import { VIEWPORT_BOUNDS } from "../config";
 import type { FetchRequestSchema } from "../schemas";
-import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
-import type { Env, FetchResponse, ProofOfContext } from "../types";
+import type { Env, FetchResponse } from "../types";
 import { hardenPage } from "../utils/browser-guard";
-import { createLogger } from "../utils/logger";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
-
-// Module-level logger: the fetch-pro render path is a service-style function
-// chain (takes `env`, not a Hono context), so it cannot use `c.get("log")`.
-const log = createLogger();
 
 export interface FetchProResult {
   url: string;
@@ -36,7 +30,6 @@ export interface FetchProResult {
   };
   tier: "pro";
   fetchedAt: string;
-  proof?: ProofOfContext;
 }
 
 /**
@@ -58,7 +51,6 @@ async function sleep(ms: number): Promise<void> {
  */
 async function fetchProPageWithRetry(
   browserBinding: Fetcher,
-  env: Env,
   url: string,
   timeout: number = 10000,
   waitFor?: string,
@@ -68,7 +60,7 @@ async function fetchProPageWithRetry(
   const baseDelay = 1000; // Start with 1 second
 
   try {
-    return await fetchProPageInternal(browserBinding, env, url, timeout, waitFor);
+    return await fetchProPageInternal(browserBinding, url, timeout, waitFor);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -85,7 +77,7 @@ async function fetchProPageWithRetry(
       // Exponential backoff: 1s, 2s
       const delay = baseDelay * Math.pow(2, retryCount);
       await sleep(delay);
-      return fetchProPageWithRetry(browserBinding, env, url, timeout, waitFor, retryCount + 1);
+      return fetchProPageWithRetry(browserBinding, url, timeout, waitFor, retryCount + 1);
     }
 
     // Not retryable or max retries exceeded
@@ -98,7 +90,6 @@ async function fetchProPageWithRetry(
  */
 async function fetchProPageInternal(
   browserBinding: Fetcher,
-  env: Env,
   url: string,
   timeout: number = 10000,
   waitFor?: string
@@ -169,29 +160,6 @@ async function fetchProPageInternal(
       fetchedAt: new Date().toISOString(),
     };
 
-    // Generate ACV Proof if possible
-    if (env.SIGNING_PRIVATE_KEY || env.CDP_API_KEY_SECRET) {
-      try {
-        const timestamp = result.fetchedAt;
-        const hash = await hashContent(html);
-        const { mac, keyId, alg } = await signContext(url, hash, timestamp, env);
-
-        result.proof = {
-          hash,
-          timestamp,
-          alg,
-          mac,
-          keyId
-        };
-      } catch (err) {
-        log.warn("acv.proof_failed", {
-          endpoint: "fetch-pro",
-          error: err instanceof Error ? err.message : String(err),
-        });
-        // Do not fail the request, just omit the proof
-      }
-    }
-
     return result;
   } finally {
     await browser.close();
@@ -209,12 +177,11 @@ async function fetchProPageInternal(
  */
 async function fetchProPage(
   browserBinding: Fetcher,
-  env: Env,
   url: string,
   timeout: number = 10000,
   waitFor?: string
 ): Promise<FetchProResult> {
-  return fetchProPageWithRetry(browserBinding, env, url, timeout, waitFor);
+  return fetchProPageWithRetry(browserBinding, url, timeout, waitFor);
 }
 
 /**
@@ -251,7 +218,6 @@ export async function fetchPro(c: Context<{ Bindings: Env }>) {
     // Fetch the page with JS rendering
     const result = await fetchProPage(
       c.env.BROWSER,
-      c.env,
       urlValidation.normalized ?? url,
       timeout,
       waitFor

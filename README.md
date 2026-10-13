@@ -72,9 +72,8 @@ no agent id, and writes nothing to any registry.**
 
 Two more things worth stating plainly:
 
-- A receipt's `mac` is a **symmetric HMAC tag** (the same construction as proof-of-context). Only a
-  holder of the key can verify it — it is not a third-party-verifiable signature, and nothing here
-  is trustless.
+- A receipt is unsigned. Its evidence is the settlement `transaction` it names, which anyone can
+  check on-chain; nothing else here is trustless.
 - The **buyer** authors the feedback document and posts `giveFeedback()` themselves. WebLens only
   hosts the document verbatim and returns its hash; it never authors, edits, or submits feedback.
 
@@ -230,7 +229,6 @@ wrangler secret put CDP_API_KEY_SECRET
 | `NETWORK` | `base` (production) or `base-sepolia` (testnet) |
 | `SERP_API_KEY` | SerpAPI key — search, verticals, YouTube transcripts |
 | `ANTHROPIC_API_KEY` | Claude — extraction, research, answers, intel |
-| `SIGNING_PRIVATE_KEY` | Optional: HMAC key for proof-of-context tags |
 | `PAYAI_FACILITATOR_URL` | Optional: override the facilitator endpoint |
 
 ### Testing against testnet

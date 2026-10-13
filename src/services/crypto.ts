@@ -1,11 +1,4 @@
-import type { Env } from "../types";
-import { createLogger } from "../utils/logger";
-
 const subtle = crypto.subtle;
-
-// Module-level logger: signContext is a pure service called from multiple
-// handlers and has no Hono context to thread.
-const log = createLogger();
 
 /**
  * Calculate SHA-256 hash of the content (DOM/Text)
@@ -21,60 +14,4 @@ export async function hashContent(content: string): Promise<string> {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
     return hashHex;
-}
-
-/**
- * Sign the context data using the CDP Server Wallet (simulated for now with a local key if CDP direct signing isn't available)
- * 
- * NOTE: In a full production env with CDP Server Wallet, we would use the wallet.sign() method.
- * For this implementation, we will use a derived signing key from the CDP_API_KEY_SECRET 
- * (or a dedicated private key if available) to simulate the "Server Wallet" signature 
- * until the CDP SDK fully exposes arbitrary message signing in this environment.
- * 
- * This provides the PROOF that WebLens (holder of the secret) verified this data.
- */
-export async function signContext(
-    url: string,
-    contentHash: string,
-    timestamp: string,
-    env: Env
-): Promise<{ mac: string; keyId: string; alg: string }> {
-
-    // payload to authenticate
-    const payload = JSON.stringify({ url, hash: contentHash, timestamp });
-    const encoder = new TextEncoder();
-    const data = encoder.encode(payload);
-
-    // Prefer a dedicated signing secret; fall back to the CDP secret only when
-    // that's all that's configured (avoids overloading the payment credential).
-    const secretKey = env.SIGNING_PRIVATE_KEY ?? env.CDP_API_KEY_SECRET;
-    if (!secretKey) {
-        throw new Error("Missing signing secret (SIGNING_PRIVATE_KEY or CDP_API_KEY_SECRET)");
-    }
-
-    // NOTE: This produces a SYMMETRIC HMAC tag (a MAC), not a public-key
-    // signature — only the secret holder can verify it, so it is NOT
-    // third-party verifiable. The field names reflect that. ECDSA is a roadmap
-    // item (would publish a real verifying key).
-    try {
-        const key = await subtle.importKey(
-            "raw",
-            encoder.encode(secretKey),
-            { name: "HMAC", hash: "SHA-256" },
-            false,
-            ["sign"]
-        );
-
-        const macBuffer = await subtle.sign("HMAC", key, data);
-        const macHex = Array.from(new Uint8Array(macBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
-
-        return {
-            mac: macHex,
-            keyId: "weblens-oracle-v1",
-            alg: "HMAC-SHA256",
-        };
-    } catch (e) {
-        log.error("acv.signing_failed", { error: e instanceof Error ? e.message : String(e) });
-        throw new Error("Internal signing error");
-    }
 }

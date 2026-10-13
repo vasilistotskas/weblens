@@ -15,10 +15,8 @@
  *      URI + KECCAK-256 hash, ready to pass to giveFeedback
  *
  * WHAT THIS IS NOT: WebLens is not registered on-chain, holds no agent id,
- * and writes nothing to any registry. A receipt is signed with the same
- * symmetric HMAC as proof-of-context, so it attests "WebLens served this
- * call" to anyone holding the key — it is NOT a third-party-verifiable
- * signature and must not be described as one.
+ * and writes nothing to any registry. A receipt is unsigned: its evidence is
+ * the settlement transaction it names, which anyone can check on-chain.
  *
  * Spec: https://eips.ethereum.org/EIPS/eip-8004
  */
@@ -27,7 +25,6 @@ import { keccak256, stringToHex } from "viem";
 import { supportedNetworks, supportedNetworkNames, absolutePathPublication } from "../config";
 import type { NetworkEnv } from "../config";
 import type { Env } from "../types";
-import { signContext } from "./crypto";
 import { getPriceRange } from "./pricing";
 
 export const ERC8004_REGISTRATION_TYPE =
@@ -115,10 +112,6 @@ export interface CallReceipt {
     /** Address that paid. */
     payer?: string;
     servedAt: string;
-    /** Symmetric HMAC over the receipt body — see the module header. */
-    mac?: string;
-    keyId?: string;
-    alg?: string;
 }
 
 function receiptKey(requestId: string): string {
@@ -179,25 +172,9 @@ export function feedbackHash(document: unknown): string {
  */
 export async function recordReceipt(
     env: Env,
-    receipt: Omit<CallReceipt, "type" | "mac" | "keyId" | "alg">,
+    receipt: Omit<CallReceipt, "type">,
 ): Promise<CallReceipt | null> {
     const full: CallReceipt = { type: "weblens-call-receipt-v1", ...receipt };
-
-    try {
-        if (env.SIGNING_PRIVATE_KEY ?? env.CDP_API_KEY_SECRET) {
-            const { mac, keyId, alg } = await signContext(
-                full.endpoint,
-                feedbackHash(full),
-                full.servedAt,
-                env,
-            );
-            full.mac = mac;
-            full.keyId = keyId;
-            full.alg = alg;
-        }
-    } catch {
-        // Unsigned receipt is still useful evidence of the call.
-    }
 
     try {
         await env.CACHE?.put(receiptKey(full.requestId), JSON.stringify(full), {

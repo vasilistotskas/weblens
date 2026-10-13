@@ -65,10 +65,6 @@ const ERROR_CODE_MAP: Record<string, ErrorCode> = {
   unavailable: "SERVICE_UNAVAILABLE",
   Unavailable: "SERVICE_UNAVAILABLE",
 
-  // ACV Errors
-  "verification failed": "ACV_FAILED",
-  "Proof verification": "ACV_FAILED",
-
   // Target content (UnsupportedContentError in utils/safe-fetch.ts)
   "Unsupported content": "UNSUPPORTED_CONTENT",
 };
@@ -126,7 +122,6 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
       return 405;
     case "PAYLOAD_TOO_LARGE":
       return 413;
-    case "ACV_FAILED":
     case "UNSUPPORTED_CONTENT":
       return 422;
     case "RATE_LIMITED":

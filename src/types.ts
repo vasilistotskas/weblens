@@ -40,7 +40,6 @@ export interface Env {
   // per-resource and driven by CDP's own settles). Unset = feature off.
   // Set via: wrangler secret put BAZAAR_BOOTSTRAP_SECRET
   BAZAAR_BOOTSTRAP_SECRET?: string;
-  SIGNING_PRIVATE_KEY?: string;
   // Stripe fiat onramp — agents/devs without on-chain wallets can buy
   // credits via card. Webhook credits the wallet on `checkout.session.completed`.
   // Set via: wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET
@@ -126,20 +125,7 @@ export interface FetchResponse {
   metadata: PageMetadata;
   tier: "basic" | "pro";
   fetchedAt: string; // ISO timestamp
-  proof?: ProofOfContext; // ACV Proof
   requestId: string;
-}
-
-// ============================================
-// ACV Types (Autonomous Context Verification)
-// ============================================
-
-export interface ProofOfContext {
-  hash: string;       // SHA-256 hash of the content
-  timestamp: string;  // ISO timestamp of verification
-  alg: string;        // MAC algorithm (e.g. "HMAC-SHA256")
-  mac: string;        // Symmetric HMAC tag over { url, hash, timestamp } — NOT a public-key signature
-  keyId: string;      // Identifier of the oracle key that produced `mac`
 }
 
 // ============================================
@@ -168,7 +154,6 @@ export interface ExtractResponse {
   url: string;
   data: Record<string, unknown>;
   extractedAt: string;
-  proof?: ProofOfContext; // ACV Proof
   requestId: string;
 }
 
@@ -197,7 +182,6 @@ export type ErrorCode =
   | "EXTRACTION_FAILED"
   | "RESEARCH_FAILED"
   | "AI_UNAVAILABLE"
-  | "ACV_FAILED"
   | "UNSUPPORTED_CONTENT" // Target served binary / non-text content (422)
   // --- Validation middleware (src/middleware/validation.ts) ---
   | "VALIDATION_ERROR" // Zod schema validation failed (400)

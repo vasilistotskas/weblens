@@ -4,7 +4,6 @@ import { PAID_UPSTREAMS } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { ExtractRequestSchema } from "../schemas";
 import { isAIAvailable } from "../services/ai";
-import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
@@ -52,28 +51,6 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
       extractedAt: new Date().toISOString(),
       requestId,
     };
-
-    // Generate ACV Proof if possible
-    if (c.env.SIGNING_PRIVATE_KEY || c.env.CDP_API_KEY_SECRET) {
-      try {
-        const timestamp = result.extractedAt;
-        const hash = await hashContent(html);
-        const { mac, keyId, alg } = await signContext(url, hash, timestamp, c.env);
-
-        result.proof = {
-          hash,
-          timestamp,
-          alg,
-          mac,
-          keyId
-        };
-      } catch (err) {
-        c.get("log").warn("acv.proof_failed", {
-            endpoint: "extract",
-            error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
 
     return c.json(result);
   } catch (error) {
