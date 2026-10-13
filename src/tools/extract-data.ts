@@ -1,13 +1,14 @@
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { PAID_UPSTREAMS } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { ExtractRequestSchema } from "../schemas";
-import { isAIAvailable } from "../services/ai";
+import { AIUnavailableError, callClaude, isAIAvailable } from "../services/ai";
 import { validateURL } from "../services/validator";
 import type { AppEnv, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
 import { readDocument, safeFetch, UnsupportedContentError } from "../utils/safe-fetch";
+
+const EXTRACTION_MAX_TOKENS = 2000;
 
 export async function extractData(c: Context<AppEnv>) {
   const requestId = c.get("requestId");
@@ -58,9 +59,20 @@ export async function extractData(c: Context<AppEnv>) {
     if (error instanceof UnsupportedContentError) {
       return c.json(createErrorResponse("UNSUPPORTED_CONTENT", message, requestId), 422);
     }
+    // Either way the paid call fails, so the payment is cancelled (or the
+    // credit refunded) instead of charging for a degraded answer.
+    if (error instanceof AIUnavailableError) {
+      return c.json(createErrorResponse("AI_UNAVAILABLE", message, requestId), 503);
+    }
+    if (error instanceof ExtractionFailedError) {
+      return c.json(createErrorResponse("EXTRACTION_FAILED", message, requestId), 502);
+    }
     return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
   }
 }
+
+/** Thrown when the model's answer is not the JSON object the schema asked for. */
+class ExtractionFailedError extends Error {}
 
 async function aiExtraction(
   content: string,
@@ -80,32 +92,15 @@ ${content.slice(0, 8000)}
 
 Respond ONLY with valid JSON matching the schema. No explanations.`;
 
-  const response = await fetch(PAID_UPSTREAMS.anthropicMessages, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
-    }),
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`AI extraction failed: ${String(response.status)}`);
-  }
-
-  interface ClaudeResponse { content: { text?: string }[] }
-  const result: ClaudeResponse = await response.json();
-  const text = result.content[0]?.text ?? "{}";
-
+  const text = await callClaude({ apiKey, maxTokens: EXTRACTION_MAX_TOKENS }, prompt);
+  let parsed: unknown;
   try {
-    return JSON.parse(text) as Record<string, unknown>;
+    parsed = JSON.parse(text);
   } catch {
-    return { raw: text };
+    throw new ExtractionFailedError("The model did not return JSON for this schema");
   }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new ExtractionFailedError("The model did not return a JSON object for this schema");
+  }
+  return parsed as Record<string, unknown>;
 }

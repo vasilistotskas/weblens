@@ -147,12 +147,24 @@ export const SEARCH_CONTENT_RESULTS = { min: 1, max: 10, default: 5 } as const;
 export const CREDIT_PURCHASE_USD = { min: 2, max: 1000 } as const;
 
 /**
+ * The Claude model every AI step uses: extraction, answers, research planning
+ * and synthesis. Claude Haiku 5.5 is Anthropic's model for high-volume
+ * extraction and routing: $0.10 / $0.50 per MTok for prompts up to 100k tokens
+ * (5x above that), and its tokenizer counts ~30% more tokens than Haiku 4.5.
+ * Verified active on 2026-10-13, retirement not before 2027-10-07
+ * (platform.claude.com/docs/en/about-claude/model-deprecations). The previous
+ * /extract model, claude-sonnet-4-20250514, was retired on 2026-06-15.
+ */
+export const AI_MODEL = "claude-haiku-5-5";
+
+/**
  * Deep research depth tiers. The bounds ARE the cost model: each sub-question
  * costs one search, and sources are capped and truncated before a capped
- * Haiku 4.5 synthesis ($1/$5 per MTok). Worst case at SerpAPI's $0.015/search:
- *   quick:    1 search   ($0.015) + ~$0.02 AI = ~$0.035 -> $0.08 (2.3x), no planning call
- *   standard: 3 searches ($0.045) + ~$0.02 AI = ~$0.065 -> $0.20 (3x)
- *   deep:     5 searches ($0.075) + ~$0.03 AI = ~$0.105 -> $0.35 (3.3x)
+ * Haiku 5.5 synthesis (AI_MODEL; under $0.005 even for the deep tier's ~20k
+ * input tokens). Worst case at SerpAPI's $0.015/search:
+ *   quick:    1 search   ($0.015) + AI = ~$0.02 -> $0.08 (4x), no planning call
+ *   standard: 3 searches ($0.045) + AI = ~$0.05 -> $0.20 (4x)
+ *   deep:     5 searches ($0.075) + AI = ~$0.08 -> $0.35 (4.4x)
  * Changing a tier's bounds changes its cost floor: reprice PRICING.deepResearch
  * with it (tests/unit/deep-research.test.ts asserts price > worst-case cost).
  */

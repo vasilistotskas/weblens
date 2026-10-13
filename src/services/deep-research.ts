@@ -13,7 +13,7 @@
  * COST CONTROL (the price floor depends on these bounds — see DEEP_RESEARCH_TIERS in config.ts):
  *   - sub-questions are capped per depth tier; each costs one SerpAPI call
  *   - sources are capped and truncated per source before they reach the model
- *   - synthesis runs on Haiku 4.5 ($1/$5 per MTok) with a hard output cap
+ *   - planning and synthesis run on AI_MODEL (Haiku 5.5) with hard output caps
  * Worst case stays well under half the sale price at every tier.
  */
 
@@ -25,8 +25,7 @@ import type { AIServiceConfig } from "./ai";
 import { searchWeb } from "./search";
 import type { SearchResult } from "./search";
 
-/** Cheap model with a hard output cap keeps the worst-case AI spend bounded. */
-const RESEARCH_MODEL = "claude-haiku-4-5";
+/** Hard output caps keep the worst-case AI spend bounded. */
 const PLAN_MAX_TOKENS = 400;
 const SYNTHESIS_MAX_TOKENS = 2000;
 
@@ -68,7 +67,7 @@ Respond ONLY with valid JSON.`;
 
     try {
         const raw = await callClaude(
-            { ...aiConfig, model: RESEARCH_MODEL, maxTokens: PLAN_MAX_TOKENS },
+            { ...aiConfig, maxTokens: PLAN_MAX_TOKENS },
             prompt,
             systemPrompt,
         );
@@ -176,7 +175,7 @@ gaps the sources did not cover.
 Respond ONLY with valid JSON.`;
 
     const raw = await callClaude(
-        { ...aiConfig, model: RESEARCH_MODEL, maxTokens: SYNTHESIS_MAX_TOKENS },
+        { ...aiConfig, maxTokens: SYNTHESIS_MAX_TOKENS },
         prompt,
         systemPrompt,
     );

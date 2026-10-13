@@ -16,8 +16,7 @@ import { searchWeb } from "../services/search";
 import type { AppEnv } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
 
-// Cost control: cheap model + hard caps on per-source content and output.
-const ANSWER_MODEL = "claude-haiku-4-5-20251001";
+// Cost control: hard caps on per-source content and output (model: AI_MODEL).
 const ANSWER_MAX_TOKENS = 1200;
 const PER_SOURCE_CHARS = 8000;
 
@@ -76,7 +75,7 @@ ${sourceBlocks.join("\n\n")}
 Respond ONLY with valid JSON.`;
 
         const raw = await callClaude(
-            { apiKey: c.env.ANTHROPIC_API_KEY, model: ANSWER_MODEL, maxTokens: ANSWER_MAX_TOKENS },
+            { apiKey: c.env.ANTHROPIC_API_KEY, maxTokens: ANSWER_MAX_TOKENS },
             prompt,
             systemPrompt,
         );

@@ -8,15 +8,13 @@
  * - Use Claude for comparison analysis
  */
 
-import { PAID_UPSTREAMS } from "../config";
+import { AI_MODEL, PAID_UPSTREAMS } from "../config";
 
 export interface AIServiceConfig {
   apiKey: string;
-  model?: string;
   maxTokens?: number;
 }
 
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const DEFAULT_MAX_TOKENS = 4000;
 
 /**
@@ -33,8 +31,12 @@ function stripCodeFences(text: string): string {
 }
 
 /**
- * Call Claude API with a prompt
- * Exported as callClaudePublic for use by intel service workflows
+ * Call Claude (AI_MODEL) with a prompt and return its text.
+ *
+ * Thinking is turned off: every caller has a hard output cap and a cost
+ * ceiling priced on the visible answer, and Haiku 5.5's adaptive thinking would
+ * spend that budget before the answer (thinking counts toward max_tokens).
+ * Haiku 5.5 accepts `thinking: {type: "disabled"}` at its default effort.
  */
 export async function callClaude(
   config: AIServiceConfig,
@@ -49,8 +51,9 @@ export async function callClaude(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: config.model ?? DEFAULT_MODEL,
+      model: AI_MODEL,
       max_tokens: config.maxTokens ?? DEFAULT_MAX_TOKENS,
+      thinking: { type: "disabled" },
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
     }),
@@ -70,9 +73,10 @@ export async function callClaude(
     throw new AIUnavailableError(`Claude API error: ${String(status)}`);
   }
 
-  interface ClaudeResponse { content: { text?: string }[] }
+  // The reply is a list of content blocks; the answer is the text block.
+  interface ClaudeResponse { content: { type: string; text?: string }[] }
   const result: ClaudeResponse = await response.json();
-  return stripCodeFences(result.content[0]?.text ?? "");
+  return stripCodeFences(result.content.find((block) => block.type === "text")?.text ?? "");
 }
 
 /**
