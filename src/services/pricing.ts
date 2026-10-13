@@ -104,16 +104,15 @@ export function getCachedPrice(basePrice: string): string {
 }
 
 /**
- * Calculate batch fetch price (linear: N URLs x per-URL rate).
+ * Price of `units` units at `unitPrice` each (linear), for the per-unit
+ * products (/contents per URL, /crawl per requested page).
  * @returns Price string with $ prefix
  */
-export function getBatchFetchPrice(urlCount: number): string {
-    const perUrlAmount = parsePrice(PRICING.batchFetch.perUrl);
-    const totalAmount = urlCount * perUrlAmount;
-    // 4 decimals, like every other resolver: at a sub-$0.001 per-unit price
+export function perUnitPrice(unitPrice: string, units: number): string {
+    // 4 decimals, like every other resolver: at a sub-$0.001 unit price
     // 3 decimals rounds an odd unit count UP (3 x $0.0015 = $0.0045 -> $0.005),
     // which overcharges and breaks linearity. USDC carries 6 decimals.
-    return `$${totalAmount.toFixed(4)}`;
+    return `$${(units * parsePrice(unitPrice)).toFixed(4)}`;
 }
 
 /**

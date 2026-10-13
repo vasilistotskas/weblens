@@ -60,12 +60,6 @@ export const PRICING = {
   cacheDiscount: 0.7, // 70% off for cached responses
 
   // Batch fetch pricing
-  batchFetch: {
-    perUrl: "$0.0015",
-    minUrls: 2,
-    maxUrls: 20,
-  },
-
   // Site URL discovery (sitemap/robots/link based). A handful of subrequests
   // regardless of site size, so a flat price stays profitable.
   map: "$0.004",
@@ -145,7 +139,7 @@ export const PRICING = {
 // that probe without reading the spec still discover a payable resource.
 export const PAID_ENDPOINTS: readonly string[] = [
   "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
-  "/batch/fetch", "/research", "/pdf",
+  "/research", "/pdf",
   "/credits/buy",
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
@@ -458,7 +452,6 @@ const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
   ["/fetch", ["fetch", "scraping", "markdown"]],
   ["/search", ["search", "serp"]],
   ["/extract", ["extraction", "ai", "structured-data"]],
-  ["/batch/fetch", ["fetch", "scraping", "batch"]],
   ["/research", ["research", "ai"]],
   ["/screenshot", ["screenshot", "rendering"]],
   ["/credits", ["billing", "credits"]],

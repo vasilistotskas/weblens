@@ -13,7 +13,6 @@
  */
 
 import { PAID_ENDPOINTS, PRICING } from "../config";
-import { getBatchFetchPrice } from "./pricing";
 
 /**
  * Endpoints whose marginal cost is a native fetch (no paid upstream API), so
@@ -126,10 +125,6 @@ export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
         summary: "PNG screenshot of a page, base64-encoded.",
         sample: { url: "https://example.com", image: "iVBORw0KGgoAAAANSUhEUgAA...(base64 PNG)", dimensions: { width: 1280, height: 720 }, capturedAt: "2026-07-31T12:00:00.000Z" },
     },
-    "/batch/fetch": {
-        summary: "2-20 URLs fetched in parallel in one call.",
-        sample: { results: [{ url: "https://example.com/1", status: "success", title: "Page 1", content: "Content..." }], summary: { total: 2, successful: 2, failed: 0 }, totalPrice: getBatchFetchPrice(2) },
-    },
     "/map": {
         summary: "Every URL on a site, from sitemaps and links — no page fetches.",
         sample: { url: "https://example.com", urls: ["https://example.com/about", "https://example.com/blog/post-1"], total: 2, source: "sitemap", sitemapsChecked: 1 },
@@ -205,8 +200,6 @@ export function describePrice(endpoint: string): string {
     switch (endpoint) {
         case "/contents":
             return `${PRICING.contents.perUrl} per URL`;
-        case "/batch/fetch":
-            return `${PRICING.batchFetch.perUrl} per URL`;
         case "/crawl":
             return `${PRICING.crawl.perPage} per requested page`;
         case "/research/deep":

@@ -19,7 +19,7 @@ import {
     ContentsRequestSchema,
     AnswerRequestSchema,
 } from "../schemas";
-import { parsePrice } from "../services/pricing";
+import { perUnitPrice } from "../services/pricing";
 import { answerHandler } from "../tools/answer";
 import { contentsHandler } from "../tools/contents";
 import {
@@ -307,7 +307,7 @@ export function registerVerticalRoutes(app: Hono<{ Bindings: Env; Variables: Var
     const contentsPrice = (c: AppContext): string => {
         const body = c.get("validatedBody") as { urls?: unknown[] } | undefined;
         const n = Array.isArray(body?.urls) ? body.urls.length : PRICING.contents.minUrls;
-        return `$${(n * parsePrice(PRICING.contents.perUrl)).toFixed(4)}`;
+        return perUnitPrice(PRICING.contents.perUrl, n);
     };
     app.use(
         "/contents",

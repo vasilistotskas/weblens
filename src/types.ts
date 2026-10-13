@@ -259,31 +259,6 @@ export interface URLValidationResult {
 }
 
 // ============================================
-// Batch Fetch Types (Requirement 1)
-// ============================================
-
-export interface BatchFetchResult {
-  url: string;
-  status: "success" | "error";
-  content?: string;         // Markdown content if success
-  title?: string;
-  metadata?: PageMetadata;
-  error?: string;           // Error message if failed
-  fetchedAt: string;
-}
-
-export interface BatchFetchResponse {
-  results: BatchFetchResult[];
-  summary: {
-    total: number;
-    successful: number;
-    failed: number;
-  };
-  totalPrice: string;       // e.g., "$0.030" for 10 URLs
-  requestId: string;
-}
-
-// ============================================
 // Research Types (Requirement 2)
 // ============================================
 

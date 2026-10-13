@@ -90,7 +90,6 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 | `/fetch/resilient` | Auto-fallback: native scraper → headless Chromium | $0.008 |
 | `/contents` | Bulk page text for 1–20 URLs | $0.0015/URL |
 | `/screenshot` | Capture a webpage screenshot (PNG) | $0.008 |
-| `/batch/fetch` | Fetch 2–20 URLs in parallel | $0.0015/URL |
 | `/map` | Discover a site's URLs (sitemaps + links, no page fetches) | $0.004 |
 | `/domain` | Registration + DNS + SaaS stack + risk signals for a domain | $0.005 |
 | `/tech` | Detect a site's framework, CMS, CDN, analytics and payments stack | $0.005 |

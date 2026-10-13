@@ -2,9 +2,8 @@
  * Contents Endpoint Handler
  * POST /contents — cheap bulk page-text retrieval (PRICING.contents.perUrl per URL)
  *
- * The "give me the page text" primitive at market clearing price. Unlike
- * /batch/fetch it accepts a single URL, has no tier/proof overhead, and
- * truncates content to a per-page cap so responses stay LLM-sized.
+ * The "give me the page text" primitive: fetches 1-20 URLs in parallel and
+ * truncates each page to a per-page cap so responses stay LLM-sized.
  */
 
 import type { Context } from "hono";

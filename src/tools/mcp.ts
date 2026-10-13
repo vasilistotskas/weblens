@@ -398,17 +398,6 @@ export const TOOLS = [
     },
   },
   {
-    name: "batch_fetch",
-    description: `Fetch multiple URLs in parallel. Efficient for bulk operations. Price: ${PRICING.batchFetch.perUrl}/URL`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        urls: { type: "array", items: { type: "string" }, description: "URLs to fetch (2-20)" },
-      },
-      required: ["urls"],
-    },
-  },
-  {
     name: "domain_intel",
     description: `Everything about a domain in one call: who registered it and when, when it expires, its DNS records, the mail and DNS providers behind them, the SaaS vendors its TXT verification tokens reveal (Google Workspace, Microsoft 365, Salesforce, Atlassian, Okta, …), SPF/DMARC posture, and risk flags like newly-registered or no-registrar-lock. Use for vendor due diligence, security triage, phishing checks and prospect research. Price: ${PRICING.domain}`,
     inputSchema: {
@@ -540,7 +529,6 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   extract_data:      { endpoint: "/extract",         method: "POST", price: PRICING.extract },
   research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
   deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
-  batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
   domain_intel:      { endpoint: "/domain",          method: "POST", price: PRICING.domain },
   project_due_diligence: { endpoint: "/intel/project", method: "POST", price: PRICING.intel.project },
   package_intel:     { endpoint: "/package",         method: "POST", price: PRICING.package },

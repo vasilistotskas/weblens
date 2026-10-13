@@ -271,16 +271,6 @@ export const SERVICE_CATALOG = {
             rateLimit: "10/minute",
         },
         {
-            endpoint: "/batch/fetch",
-            method: "POST",
-            name: "Batch Fetch",
-            description: "Fetch 2-20 URLs in parallel for efficient bulk operations",
-            price: `${PRICING.batchFetch.perUrl}/URL`,
-            tags: ["batch", "parallel", "bulk", "efficient"],
-            latency: "5-15 seconds",
-            rateLimit: "20/minute",
-        },
-        {
             endpoint: "/domain",
             method: "POST",
             name: "Domain Intelligence",

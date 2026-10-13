@@ -4,7 +4,6 @@ import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
 import {
-    BatchFetchRequestSchema,
     ResearchRequestSchema,
     PdfRequestSchema,
     MapRequestSchema,
@@ -15,10 +14,9 @@ import {
     TechRequestSchema,
     DiscussionsRequestSchema
 } from "../schemas";
-import { getBatchFetchPrice, parsePrice } from "../services/pricing";
+import { perUnitPrice } from "../services/pricing";
 
 // Tool Handlers
-import { batchFetchHandler } from "../tools/batch-fetch";
 import { crawlHandler } from "../tools/crawl";
 import { deepResearchHandler } from "../tools/deep-research";
 import { discussionsHandler } from "../tools/discussions";
@@ -33,63 +31,6 @@ import type { Env, Variables } from "../types";
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
 export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
-
-    // ============================================
-    // /batch/fetch
-    // ============================================
-    //
-    // Pricing is dynamic — N URLs × PRICING.batchFetch.perUrl. validateRequest runs
-    // before both credit and payment middleware, so by the time pricing is
-    // calculated `validatedBody` is guaranteed to be a parsed BatchFetchRequest
-    // with `urls` populated.
-    const batchFetchPriceCalc = (
-        c: { get: (k: "validatedBody") => unknown }
-    ): string => {
-        const body = c.get("validatedBody") as { urls?: unknown[] } | undefined;
-        const n = Array.isArray(body?.urls) ? body.urls.length : PRICING.batchFetch.minUrls;
-        return getBatchFetchPrice(n);
-    };
-    app.use(
-        "/batch/fetch",
-        validateRequest(BatchFetchRequestSchema),
-        createCreditMiddleware(
-            (c) => batchFetchPriceCalc(c),
-            "Batch URL Fetching"
-        ),
-        createLazyPaymentMiddleware(
-            "/batch/fetch",
-            // Dynamic price — re-evaluated per request from the parsed body.
-            (c) => Promise.resolve(batchFetchPriceCalc(c)),
-            `Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at ${PRICING.batchFetch.perUrl}/URL.`,
-            { urls: ["https://example.com/1", "https://example.com/2"], timeout: 10000, tier: "basic" },
-            {
-                properties: {
-                    urls: { type: "array", description: "Array of URLs to fetch (2-20)" },
-                    timeout: { type: "number", description: "Per-URL timeout in ms (default: 10000)" },
-                    tier: { type: "string", description: "Fetch tier: basic or pro (default: basic)" },
-                },
-                required: ["urls"],
-            },
-            {
-                results: [
-                    { url: "https://example.com/1", status: "success", title: "Page 1", content: "Content 1..." },
-                    { url: "https://example.com/2", status: "success", title: "Page 2", content: "Content 2..." },
-                ],
-                summary: { total: 2, successful: 2, failed: 0 },
-                totalPrice: getBatchFetchPrice(2),
-                requestId: "req_batch123",
-            },
-            {
-                properties: {
-                    results: { type: "array", description: "Array of fetch results with url, status, content, title" },
-                    summary: { type: "object", description: "Summary with total, successful, failed counts" },
-                    totalPrice: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        )
-    );
-    app.post("/batch/fetch", batchFetchHandler);
 
     // ============================================
     // /research
@@ -414,7 +355,7 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     const crawlPrice = (c: AppContext): string => {
         const body = c.get("validatedBody") as { limit?: number } | undefined;
         const pages = typeof body?.limit === "number" ? body.limit : 10;
-        return `$${(pages * parsePrice(PRICING.crawl.perPage)).toFixed(4)}`;
+        return perUnitPrice(PRICING.crawl.perPage, pages);
     };
     app.use(
         "/crawl",

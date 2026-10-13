@@ -276,18 +276,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Data extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/ExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
-      "/batch/fetch": {
-        post: {
-          tags: ["Core"], summary: "Batch Fetch", operationId: "batchFetch",
-          description: `Fetch 2-20 URLs in parallel. Price: ${PRICING.batchFetch.perUrl}/URL`,
-          "x-payment-info": dynamicPayment(
-            parsePrice(PRICING.batchFetch.perUrl) * PRICING.batchFetch.minUrls,
-            parsePrice(PRICING.batchFetch.perUrl) * PRICING.batchFetch.maxUrls,
-          ),
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchRequest" }, example: { urls: ["https://example.com/1", "https://example.com/2"] } } } },
-          responses: { "200": { description: "Batch results", content: { "application/json": { schema: { $ref: "#/components/schemas/BatchFetchResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
-        },
-      },
       "/fetch/resilient": {
         post: {
           tags: ["Core"], summary: "Resilient Fetch (Agent Prime)", operationId: "resilientFetch",
@@ -611,8 +599,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         AnswerResponse: { type: "object", properties: { query: { type: "string" }, answer: { type: "string", description: "Answer text with inline [n] citation markers" }, citations: { type: "array", items: { type: "object", properties: { index: { type: "integer" }, url: { type: "string" }, title: { type: "string" } } } }, confidence: { type: "number" }, answeredAt: { type: "string" }, requestId: { type: "string" } } },
         ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string", format: "uri", example: "https://example.com/product" }, schema: { type: "object", example: { name: { type: "string" }, price: { type: "number" } } }, instructions: { type: "string" } } },
         ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
-        BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 20, example: ["https://example.com/1", "https://example.com/2"] }, timeout: { type: "integer" }, tier: { type: "string" } } },
-        BatchFetchResponse: { type: "object", properties: { results: { type: "array" }, summary: { type: "object" }, totalPrice: { type: "string" }, requestId: { type: "string" } } },
         ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" }, timeout: { type: "integer" } } },
         ResilientFetchResponse: { type: "object", properties: { url: { type: "string" }, title: { type: "string" }, content: { type: "string" }, provider: { type: "object" }, tier: { type: "string" }, fetchedAt: { type: "string" }, requestId: { type: "string" } } },
         MapRequest: {
@@ -1047,7 +1033,7 @@ Paid endpoints settle over the x402 protocol (USDC on ${supportedNetworkNames(c.
 | One page as markdown | POST /fetch/basic | ${PRICING.fetch.basic} |
 | Whole site, crawled | POST /crawl | ${PRICING.crawl.perPage}/page |
 | A site's URLs (sitemap) | POST /map | ${PRICING.map} |
-| Many pages at once | POST /batch/fetch | ${PRICING.batchFetch.perUrl}/URL |
+| Many pages at once | POST /contents | ${PRICING.contents.perUrl}/URL |
 | JavaScript-rendered page | POST /fetch/pro | ${PRICING.fetch.pro} |
 | Structured JSON from a page | POST /extract | ${PRICING.extract} |
 | Who owns a domain + its stack | POST /domain | ${PRICING.domain} |
@@ -1188,12 +1174,6 @@ Capture a screenshot of any webpage. Returns base64 PNG.
 - Price: ${PRICING.screenshot}
 - Body: \`{"url": "string", "viewport?": {"width": number, "height": number}, "fullPage?": boolean, "selector?": "string"}\`
 - Returns: \`{"url", "image", "dimensions", "capturedAt", "requestId"}\`
-
-#### POST /batch/fetch
-Fetch multiple URLs in parallel. Efficient for bulk operations.
-- Price: ${PRICING.batchFetch.perUrl} per URL (${PRICING.batchFetch.minUrls}-${PRICING.batchFetch.maxUrls} URLs)
-- Body: \`{"urls": ["string"], "tier?": "basic"|"pro", "timeout?": number}\`
-- Returns: \`{"results": [...], "summary", "totalPrice", "requestId"}\`
 
 #### POST /fetch/resilient
 Resilient fetch with automatic fallback: plain fetch first, then headless Chromium (JS rendering) when that fails. Best-effort retrieval in one call.
@@ -1416,7 +1396,6 @@ For AI agents using Model Context Protocol:
 - \`extract_data\` - Extract structured data with JSON schema — ${PRICING.extract}
 - \`research\` - Search + fetch + AI summary — ${PRICING.research}
 - \`deep_research\` - Multi-step cited research (sub-questions + inline [n] citations; 30-60s) — ${PRICING.deepResearch.standard} standard / ${PRICING.deepResearch.deep} deep
-- \`batch_fetch\` - Fetch multiple URLs in parallel — ${PRICING.batchFetch.perUrl}/URL
 - \`map_site\` - Discover a site's URLs via sitemap/robots/links — ${PRICING.map}
 - \`crawl_site\` - Bounded same-host crawl to markdown (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages} pages) — ${PRICING.crawl.perPage}/requested page
 - \`extract_pdf\` - Extract text from PDFs — ${PRICING.pdf}

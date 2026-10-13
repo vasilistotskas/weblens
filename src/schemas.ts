@@ -184,12 +184,6 @@ export const ExtractRequestSchema = z.object({
 // Advanced Endpoints
 // ============================================
 
-export const BatchFetchRequestSchema = z.object({
-    urls: z.array(urlSchema).min(2).max(20),
-    timeout: timeoutSchema,
-    tier: z.enum(["basic", "pro"]).optional().default("basic"),
-});
-
 export const ResearchRequestSchema = z.object({
     query: z.string().min(1).max(500),
     resultCount: z.number().min(1).max(10).optional().default(5),
