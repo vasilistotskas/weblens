@@ -362,14 +362,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           },
         },
       },
-      "/dashboard": {
-        get: {
-          tags: ["System"], summary: "Agent Dashboard", operationId: "getDashboard",
-          description: "HTML dashboard for connecting wallet, viewing balance, and transaction history.",
-          security: [],
-          responses: { "200": { description: "HTML Dashboard" } },
-        },
-      },
       "/credits/buy": {
         post: {
           tags: ["Credits"], summary: "Buy Credits", operationId: "buyCredits",
@@ -1455,9 +1447,6 @@ Purchase credits with x402. Pay $2-$1000; deposit bonuses: 20% at $10+, 30% at $
 Check current credit balance.
 - Header: \`X-CREDIT-WALLET\`: Your wallet address
 - Header: \`X-CREDIT-SIGNATURE\`: Signature of "WebLens Auth..." message
-
-#### GET /dashboard
-Human-friendly UI to manage credits and view history.
 
 ## Response Headers
 

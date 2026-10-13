@@ -15,7 +15,7 @@ import { PAID_ENDPOINTS, PARAMETERIZED_ROUTES } from "../../src/config";
 const ORIGIN = "https://api.weblens.dev";
 
 /** Paths registered for GET only, which agents were POSTing to. */
-const GET_ONLY_PATHS = ["/", "/discovery", "/dashboard", "/mcp/info", "/credits/history"];
+const GET_ONLY_PATHS = ["/", "/discovery", "/mcp/info", "/credits/history"];
 
 describe("method not allowed", () => {
     it.each(GET_ONLY_PATHS)("POST %s answers 405 with an Allow header, not 404", async (path) => {

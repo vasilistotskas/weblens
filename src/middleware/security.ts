@@ -64,38 +64,19 @@ const LANDING_SECURITY_HEADERS = {
 const BLOCKED_HEADERS = ["X-Powered-By", "Server"];
 
 /**
- * Relaxed security headers for dashboard (needs to load Tailwind, Modules, etc.)
- */
-const DASHBOARD_SECURITY_HEADERS = {
-  ...SECURITY_HEADERS,
-  "Content-Security-Policy":
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh https://static.cloudflareinsights.com; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "connect-src 'self' https:; " +
-    "img-src 'self' data: https:; " +
-    "worker-src 'self' blob:; " +
-    "frame-ancestors 'none'",
-  "Cross-Origin-Resource-Policy": "cross-origin",
-};
-
-/**
  * Security middleware - adds security headers to all responses
  */
 export async function securityMiddleware(c: Context, next: Next) {
   await next();
 
-  // Use relaxed CSP for documentation and dashboard pages
+  // Use relaxed CSP for the documentation and landing pages
   const path = c.req.path;
   const isDocsPage = path === "/docs" || path.startsWith("/docs/");
-  const isDashboardPage = path === "/dashboard";
   const isLandingPage = path === "/" && c.req.header("Accept")?.includes("text/html");
 
   let headers = SECURITY_HEADERS;
   if (isDocsPage) {
     headers = DOCS_SECURITY_HEADERS;
-  } else if (isDashboardPage) {
-    headers = DASHBOARD_SECURITY_HEADERS;
   } else if (isLandingPage) {
     headers = LANDING_SECURITY_HEADERS;
   }

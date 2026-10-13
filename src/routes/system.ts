@@ -3,7 +3,6 @@ import { FREE_TIER, supportedNetworks, pathExample } from "../config";
 import { registerOpenAPIRoutes } from "../openapi";
 
 // Tool Handlers
-import { dashboardHandler } from "../tools/dashboard";
 import { discoveryHandler, wellKnownX402Handler, x402ResourceCatalogHandler } from "../tools/discovery";
 import { faviconSvgHandler, faviconIcoHandler, faviconPngHandler } from "../tools/favicon";
 import { health } from "../tools/health";
@@ -35,7 +34,6 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     // were added, so it is a distinct client, not a stale cache.
     app.get("/x402/discovery/resources", x402ResourceCatalogHandler);
     app.get("/health", health);
-    app.get("/dashboard", dashboardHandler);
 
     // Favicons — probed by x402scan's origin checker and used by /docs + landing
     app.get("/favicon.svg", faviconSvgHandler);
