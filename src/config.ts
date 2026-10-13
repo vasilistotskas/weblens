@@ -309,12 +309,19 @@ export const FREE_TIER = {
   fetchMaxContentLength: 2000, // chars
 } as const;
 
-// CAIP-2 chain identifiers for every network WebLens can be paid on.
+// Default facilitator base URLs; `PAYAI_FACILITATOR_URL` / `FACILITATOR_URL`
+// override them. CDP's URL comes from `@coinbase/x402`'s facilitator config.
 //
 // Facilitator selection is NOT configured here — it happens at runtime in
 // src/middleware/payment.ts based on env vars (NETWORK, CDP_API_KEY_ID,
 // CDP_API_KEY_SECRET, FACILITATOR_URL, PAYAI_FACILITATOR_URL). See
-// getResourceServer() in payment.ts for the full branch logic.
+// facilitatorEntries() in payment.ts for the full branch logic.
+export const FACILITATOR_URLS = {
+  payai: "https://facilitator.payai.network",
+  testnet: "https://x402.org/facilitator",
+} as const;
+
+// CAIP-2 chain identifiers for every network WebLens can be paid on.
 //
 // The Solana ids are the genesis-hash prefixes CAIP-2 mandates, and match
 // what facilitator.payai.network/supported advertises for `exact`.

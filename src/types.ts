@@ -3,6 +3,7 @@
  * All request/response interfaces for the API
  */
 
+import type { FacilitatorLabel } from "./services/payment-telemetry";
 import type { Logger } from "./utils/logger";
 
 // Environment bindings for Cloudflare Workers
@@ -34,6 +35,14 @@ export interface Env {
   LOG_LEVEL?: string;
   // Facilitator URL override (PayAI fallback for multi-chain support)
   PAYAI_FACILITATOR_URL?: string;
+  // PayAI facilitator API key (services/payai-auth.ts). Without it PayAI
+  // settles only within a free allowance counted per payout wallet (and drawn
+  // from a shared pool for requests from cloud IPs); beyond that, settles are
+  // paid from the key's prepaid credits. Both halves or neither: PayAI
+  // rejects a bad credential instead of falling back to anonymous access.
+  // Set via: wrangler secret put PAYAI_API_KEY_ID / PAYAI_API_KEY_SECRET
+  PAYAI_API_KEY_ID?: string;
+  PAYAI_API_KEY_SECRET?: string;
   // Seeds CDP Bazaar listings: a request carrying this secret in
   // `X-Bazaar-Bootstrap` settles through the CDP facilitator instead of PayAI,
   // which is the only way a resource enters CDP's catalog (indexing is
@@ -247,10 +256,8 @@ export interface HealthResponse {
   services: {
     cache: ServiceStatus;
     browserRendering: ServiceStatus;
-    facilitators: {
-      cdp: ServiceStatus;
-      payai: ServiceStatus;
-    };
+    /** Every facilitator this deployment settles through, keyed by name. */
+    facilitators: Partial<Record<FacilitatorLabel, ServiceStatus>>;
   };
 }
 

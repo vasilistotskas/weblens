@@ -7,13 +7,10 @@
  */
 
 import type { Context } from "hono";
-import type { AppEnv, Env, HealthResponse, ServiceStatus } from "../types";
-
-// Facilitator endpoints used for reachability probes. Kept local to this file
-// because they are only relevant to the health probe, not payment routing.
-const PAYAI_FACILITATOR_URL = "https://facilitator.payai.network";
-const CDP_FACILITATOR_URL = "https://api.cdp.coinbase.com";
-const TESTNET_FACILITATOR_URL = "https://x402.org/facilitator";
+import { facilitatorEntries } from "../middleware/payment";
+import type { FacilitatorEntry } from "../middleware/payment";
+import type { FacilitatorLabel } from "../services/payment-telemetry";
+import type { AppEnv, HealthResponse, ServiceStatus } from "../types";
 
 /**
  * Check cache service health
@@ -100,80 +97,53 @@ async function checkFacilitatorHealth(url: string): Promise<ServiceStatus> {
 }
 
 /**
- * Select the facilitator URL the running worker will actually use for x402
- * settlement. Mirrors the branch logic in src/middleware/payment.ts so /health
- * reflects reality.
+ * Determine overall system status. Any service that is not healthy degrades
+ * the system; an unhealthy critical service (the cache, or the facilitator
+ * that settles payments first) makes it unhealthy.
  */
-function getActiveFacilitatorUrl(env: Env): string {
-  if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
-    return env.FACILITATOR_URL ?? TESTNET_FACILITATOR_URL;
-  }
-  if (env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET) {
-    return CDP_FACILITATOR_URL;
-  }
-  return env.PAYAI_FACILITATOR_URL ?? PAYAI_FACILITATOR_URL;
-}
-
-/**
- * Determine overall system status from service statuses
- */
-function getOverallStatus(services: HealthResponse["services"]): HealthResponse["status"] {
-  const statuses = [
-    services.cache.status,
-    services.browserRendering.status,
-    services.facilitators.cdp.status,
-    services.facilitators.payai.status,
-  ];
-
-  if (statuses.every((s) => s === "healthy")) {
+function getOverallStatus(all: ServiceStatus[], critical: ServiceStatus[]): HealthResponse["status"] {
+  if (all.every((s) => s.status === "healthy")) {
     return "healthy";
   }
-
-  if (statuses.some((s) => s === "unhealthy")) {
-    // If critical services are unhealthy, system is unhealthy
-    if (
-      services.cache.status === "unhealthy" ||
-      services.facilitators.cdp.status === "unhealthy"
-    ) {
-      return "unhealthy";
-    }
-    return "degraded";
+  if (critical.some((s) => s.status === "unhealthy")) {
+    return "unhealthy";
   }
-
   return "degraded";
+}
+
+/** Probe one facilitator, keyed by its name for the response. */
+async function probeFacilitator({ label, client }: FacilitatorEntry): Promise<[FacilitatorLabel, ServiceStatus]> {
+  return [label, await checkFacilitatorHealth(client.url)];
 }
 
 /**
  * Health check endpoint handler
  * GET /health
+ *
+ * Reports every facilitator the payment wall uses, from the same selection
+ * logic (facilitatorEntries), with the primary one counted as critical.
  */
 export async function health(c: Context<AppEnv>): Promise<Response> {
-  // Check all services in parallel.
-  //
-  // The "cdp" field reports the facilitator the worker is actually using:
-  // - CDP API endpoint when CDP_API_KEY_ID/SECRET are set (production default)
-  // - x402.org testnet facilitator when NETWORK=base-sepolia
-  // - PayAI fallback otherwise
-  // The "payai" field is always probed as a secondary reachability signal.
   const browserStatus = checkBrowserHealth(c.env.BROWSER);
-  const activeFacilitatorUrl = getActiveFacilitatorUrl(c.env);
-  const [cacheStatus, cdpStatus, payaiStatus] = await Promise.all([
+  const [primary, ...fallbacks] = facilitatorEntries(c.env);
+  const [cacheStatus, primaryCheck, fallbackChecks] = await Promise.all([
     checkCacheHealth(c.env.CACHE),
-    checkFacilitatorHealth(activeFacilitatorUrl),
-    checkFacilitatorHealth(PAYAI_FACILITATOR_URL),
+    probeFacilitator(primary),
+    Promise.all(fallbacks.map(probeFacilitator)),
   ]);
+  const facilitatorChecks = [primaryCheck, ...fallbackChecks];
 
   const services: HealthResponse["services"] = {
     cache: cacheStatus,
     browserRendering: browserStatus,
-    facilitators: {
-      cdp: cdpStatus,
-      payai: payaiStatus,
-    },
+    facilitators: Object.fromEntries(facilitatorChecks),
   };
 
   const response: HealthResponse = {
-    status: getOverallStatus(services),
+    status: getOverallStatus(
+      [cacheStatus, browserStatus, ...facilitatorChecks.map(([, status]) => status)],
+      [cacheStatus, primaryCheck[1]],
+    ),
     version: "2.0.0",
     timestamp: new Date().toISOString(),
     services,

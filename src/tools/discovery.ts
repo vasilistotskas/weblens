@@ -4,7 +4,7 @@
  */
 
 import type { Context } from "hono";
-import { FREE_TIER, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
+import { FACILITATOR_URLS, FREE_TIER, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
 import { ENDPOINTS } from "../endpoints";
 import { describePrice } from "../endpoints/define";
 import { getPriceRange } from "../services/pricing";
@@ -366,7 +366,7 @@ export function x402ResourceCatalogHandler(c: Context<AppEnv>) {
         // Self-describing: an indexer must not mistake this for a facilitator.
         source: "resource-server-mirror",
         note: "Convenience mirror for clients that request the facilitator discovery path against this origin. Authoritative payment requirements are in the 402 challenge — POST the resource to receive it. The canonical catalogue is hosted by the facilitator.",
-        facilitator: "https://facilitator.payai.network",
+        facilitator: c.env.PAYAI_FACILITATOR_URL ?? FACILITATOR_URLS.payai,
         items: all.slice(offset, offset + limit),
         pagination: { limit, offset, total: all.length },
     });

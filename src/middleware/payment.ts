@@ -1,17 +1,15 @@
 import { createFacilitatorConfig } from "@coinbase/x402";
-import {
-    x402ResourceServer,
-    HTTPFacilitatorClient
-    
-} from "@x402/core/server";
-import type {RoutesConfig} from "@x402/core/server";
+import type { FacilitatorConfig } from "@x402/core/http";
+import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
+import type { RoutesConfig } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { paymentMiddleware } from "@x402/hono";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import type { Context, MiddlewareHandler } from "hono";
-import { evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork } from "../config";
+import { evmNetwork, FACILITATOR_URLS, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork } from "../config";
 import type { JsonObjectSchema } from "../endpoints/define";
+import { payaiAuthHeaders } from "../services/payai-auth";
 import {
     classifyPaymentRequest,
     emitPaymentEvent,
@@ -23,6 +21,7 @@ import {
     runPaymentAttempt,
     TrackedFacilitatorClient,
 } from "../services/payment-telemetry";
+import type { FacilitatorLabel } from "../services/payment-telemetry";
 import type { AppEnv, Env } from "../types";
 import { createLogger } from "../utils/logger";
 
@@ -102,11 +101,65 @@ function envSignature(env: Env): string {
         fingerprint(env.CDP_API_KEY_SECRET),
         env.FACILITATOR_URL ?? "",
         env.PAYAI_FACILITATOR_URL ?? "",
+        env.PAYAI_API_KEY_ID ?? "",
+        fingerprint(env.PAYAI_API_KEY_SECRET),
         // Decides whether the SVM scheme is registered at all, so turning
         // Solana on or off must rebuild the server rather than wait for the
         // isolate to be recycled.
         env.PAY_TO_ADDRESS_SVM ?? "",
     ].join("|");
+}
+
+/** One facilitator the payment wall talks to, named for telemetry and /health. */
+export interface FacilitatorEntry {
+    label: FacilitatorLabel;
+    client: HTTPFacilitatorClient;
+}
+
+/**
+ * PayAI's client config. The API key is attached only when both halves are
+ * set: PayAI rejects a bad credential rather than downgrading to anonymous,
+ * so half a key would fail every payment instead of degrading.
+ */
+function payaiConfig(env: Env): FacilitatorConfig {
+    const url = env.PAYAI_FACILITATOR_URL ?? FACILITATOR_URLS.payai;
+    if (env.PAYAI_API_KEY_ID && env.PAYAI_API_KEY_SECRET) {
+        return { url, createAuthHeaders: payaiAuthHeaders(env.PAYAI_API_KEY_ID, env.PAYAI_API_KEY_SECRET) };
+    }
+    return { url };
+}
+
+/**
+ * The facilitators this env settles through, in precedence order —
+ * x402ResourceServer gives the earlier facilitator a shared scheme/network
+ * combo during initialize():
+ *   - testnet env or explicit x402.org URL → x402.org facilitator (single)
+ *   - CDP keys present → [PayAI, CDP]. CDP's Base-mainnet /settle has failed
+ *     intermittently (coinbase/x402#1065), and it rejects payments below a
+ *     minimum as `amount_too_low` (measured 2026-10-13: a cache-discounted
+ *     $0.0006 was rejected, $0.0015 and $0.002 settled), so CDP is kept as the
+ *     fallback for any scheme PayAI doesn't advertise via /supported.
+ *   - otherwise → PayAI only
+ *
+ * `preferCdp` puts CDP first for one request only (see the bootstrap header in
+ * createLazyPaymentMiddleware). CDP's Bazaar indexes a resource only after the
+ * CDP facilitator itself settles a payment for it, and indexing is
+ * per-resource — so a listing can only be seeded by routing a real payment
+ * through CDP.
+ */
+export function facilitatorEntries(env: Env, preferCdp = false): [FacilitatorEntry, ...FacilitatorEntry[]] {
+    if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
+        return [{ label: "x402.org", client: new HTTPFacilitatorClient({ url: env.FACILITATOR_URL ?? FACILITATOR_URLS.testnet }) }];
+    }
+    const payai: FacilitatorEntry = { label: "payai", client: new HTTPFacilitatorClient(payaiConfig(env)) };
+    if (!env.CDP_API_KEY_ID || !env.CDP_API_KEY_SECRET) {
+        return [payai];
+    }
+    const cdp: FacilitatorEntry = {
+        label: "cdp",
+        client: new HTTPFacilitatorClient(createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)),
+    };
+    return preferCdp ? [cdp, payai] : [payai, cdp];
 }
 
 /**
@@ -126,49 +179,10 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     const evmCaip2 = evmNetwork(env);
     const svmCaip2 = svmNetwork(env);
 
-    // Facilitator selection (runtime, not config-driven):
-    //   - testnet env or explicit x402.org URL → x402.org facilitator (single)
-    //   - CDP keys present → [PayAI primary, CDP secondary] for redundancy
-    //     CDP facilitator has known gas-estimation bugs on Base mainnet
-    //     (coinbase/x402#1065) with ~40% failure rate. PayAI is more reliable
-    //     for the "exact" scheme. CDP is kept as fallback for any schemes
-    //     PayAI doesn't advertise via /supported.
-    //   - otherwise → PayAI only
     // Each client is wrapped so the payment telemetry records which
     // facilitator verified/settled a given request.
-    let facilitatorClients: TrackedFacilitatorClient[];
-    let facilitatorLabel: string;
-
-    if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
-        const url = env.FACILITATOR_URL ?? "https://x402.org/facilitator";
-        facilitatorClients = [new TrackedFacilitatorClient("x402.org", new HTTPFacilitatorClient({ url }))];
-        facilitatorLabel = `testnet (${url})`;
-    } else if (env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET) {
-        const payaiUrl = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
-        const payaiClient = new TrackedFacilitatorClient("payai", new HTTPFacilitatorClient({ url: payaiUrl }));
-        const cdpClient = new TrackedFacilitatorClient("cdp", new HTTPFacilitatorClient(
-            createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)
-        ));
-        // PayAI first = gets precedence for shared scheme/network combos.
-        // x402ResourceServer uses "earlier facilitator wins" during initialize().
-        //
-        // `preferCdp` inverts that for one request only (see the bootstrap
-        // header in createLazyPaymentMiddleware). CDP's Bazaar indexes a
-        // resource only after the CDP facilitator itself settles a payment for
-        // it, and indexing is per-resource — so a listing can only be seeded by
-        // routing a real payment through CDP. Doing that globally would expose
-        // every buyer to coinbase/x402#1065, hence per-request opt-in.
-        facilitatorClients = preferCdp ? [cdpClient, payaiClient] : [payaiClient, cdpClient];
-        facilitatorLabel = preferCdp
-            ? `cdp (primary, bootstrap) + payai (fallback)`
-            : `payai (primary) + cdp (fallback)`;
-    } else {
-        const url = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
-        facilitatorClients = [new TrackedFacilitatorClient("payai", new HTTPFacilitatorClient({ url }))];
-        facilitatorLabel = `payai (${url})`;
-    }
-
-    const server = new x402ResourceServer(facilitatorClients);
+    const facilitators = facilitatorEntries(env, preferCdp);
+    const server = new x402ResourceServer(facilitators.map(({ label, client }) => new TrackedFacilitatorClient(label, client)));
     server.register(evmCaip2, new ExactEvmScheme());
     // Solana settles a plain SPL TransferChecked, with transaction fees paid
     // by a facilitator-sponsored feePayer that arrives in the supported-kind
@@ -217,7 +231,9 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     log.info("x402.init_ready", {
         network: evmCaip2,
         svmNetwork: svmCaip2 ?? "disabled",
-        facilitator: facilitatorLabel,
+        // Precedence order, e.g. "payai > cdp".
+        facilitators: facilitators.map(({ label }) => label).join(" > "),
+        payaiApiKey: Boolean(env.PAYAI_API_KEY_ID && env.PAYAI_API_KEY_SECRET),
     });
 
     return server;
