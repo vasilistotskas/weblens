@@ -28,9 +28,8 @@ NETWORK = "base"
 LOG_LEVEL = "info"
 # Public wallet address for receiving payments
 PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
-# Solana payout address. Uncomment to advertise a second "accepts" entry so
-# buyers can pay on Solana as well as Base — Solana carried >90% of x402
-# transactions in late Aug 2026, and PayAI settles it with a sponsored
+# Solana payout address. Setting it advertises a second "accepts" entry so
+# buyers can pay on Solana as well as Base. PayAI settles it with a sponsored
 # feePayer, so this needs no SOL and no Solana RPC.
 #
 # It MUST be an address whose USDC associated token account already exists:
@@ -171,8 +170,13 @@ class_name = "CreditAccountDO"
 [env.testnet.vars]
 # Use Base Sepolia testnet
 NETWORK = "base-sepolia"
+LOG_LEVEL = "info"
 # Payment receiving address (use same or different for testing)
 PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
+# Blank keeps Solana devnet unadvertised: the payout address has no devnet
+# USDC account, and a destination without one cannot receive a settlement
+# (see PAY_TO_ADDRESS_SVM in the top-level [vars]).
+PAY_TO_ADDRESS_SVM = ""
 
 [env.testnet.browser]
 binding = "BROWSER"

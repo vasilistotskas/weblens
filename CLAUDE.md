@@ -164,7 +164,7 @@ Unauthenticated POSTs to a path in `PAID_ENDPOINTS` (`src/endpoints/index.ts`, a
 - **KV namespaces**: CACHE (production and testnet each have their own)
 - **Durable Objects**: CREDIT_MANAGER (CreditAccountDO). `MonitorScheduler` was deleted by the `v3` migration; migrations are append-only, and Wrangler refuses a rollback to a version from before a delete migration
 - **Browser**: Cloudflare Browser Rendering binding (for `/fetch/pro`, `/screenshot`; requires paid Workers plan)
-- **Environments**: production (Base mainnet + Solana mainnet when `PAY_TO_ADDRESS_SVM` is set, custom domain `api.weblens.dev`) and testnet (Base Sepolia + Solana devnet, `workers_dev = true`)
+- **Environments**: production (Base mainnet + Solana mainnet when `PAY_TO_ADDRESS_SVM` is set, custom domain `api.weblens.dev`) and testnet (Base Sepolia only: its `PAY_TO_ADDRESS_SVM` is blank because the payout address has no devnet USDC account; `workers_dev = true`)
 
 ### Testing
 - **Vitest 4** + **fast-check**. The Workers integration is `@cloudflare/vitest-plugin` (the 2026-08 rename of `@cloudflare/vitest-pool-workers`; `cloudflareTest()` and the `cloudflare:test` API are unchanged, types via `/// <reference types="@cloudflare/vitest-plugin/types" />`). Its 1.4.x peer range allows vitest 5, but on Windows every workers test file fails to load under vitest 5.0.4 with `File path must be a file: URL` (from the plugin runner; plugin 1.4.0 + vitest 4.1.11 passes, and 1.4.1 is a dependency-only bump) — stay on vitest 4 until a plugin release fixes it, then re-test. Outbound requests in workers tests are mocked by spying on `globalThis.fetch` (`fetchMock` was removed from `cloudflare:test`). `vitest.config.ts` defines two `projects` (`pnpm run test` runs both):
