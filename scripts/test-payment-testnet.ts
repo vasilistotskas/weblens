@@ -11,9 +11,6 @@
  *
  * Optional: Set API_URL to point at a different server (default: https://api.weblens.dev)
  *    $env:API_URL='https://api.weblens.dev' ; $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment-testnet.ts
- *
- * Optional: Skip expensive intel endpoints
- *    $env:SKIP_INTEL='true' ; $env:PRIVATE_KEY='0x...' ; npx tsx scripts/test-payment-testnet.ts
  */
 
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
@@ -88,7 +85,6 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
         url: "https://example.com",
         schema: { title: { type: "string" }, description: { type: "string" } },
     },
-    "/extract/smart":  { url: "https://example.com", query: "find the main title" },
 
     // Advanced endpoints
     "/research":    { query: "autonomous agents and web3", limit: 3 },
@@ -96,13 +92,6 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     // Use a PDF hosted somewhere that doesn't block Cloudflare IPs.
     // mozilla/pdf.js ships a tracemonkey sample that's CORS-open and CDN-served.
     "/pdf":         { url: "https://raw.githubusercontent.com/mozilla/pdf.js-sample-files/master/tracemonkey.pdf" },
-    "/compare":     { urls: ["https://example.com", "https://example.org"] },
-
-    // Intel endpoints — each route validates its own per-endpoint schema.
-    "/intel/company":    { target: "coinbase.com" },
-    "/intel/market":     { topic: "web3 payments" },
-    "/intel/competitive":{ company: "stripe.com" },
-    "/intel/site-audit": { url: "https://example.com" },
 
     // Credits — amount must be a number (USD), matches CreditsBuyRequestSchema
     "/credits/buy": { amount: 5 },
@@ -210,14 +199,12 @@ async function run(): Promise<void> {
 
     const privateKey = rawPrivateKey as Hex;
     const apiUrl = process.env.API_URL ?? "https://api.weblens.dev";
-    const skipIntel = process.env.SKIP_INTEL === "true";
 
     const account = privateKeyToAccount(privateKey);
 
     console.log("🧪 WebLens Full API Test Suite");
     console.log("🔑 Wallet:", account.address);
     console.log("🌐 API:", apiUrl);
-    if (skipIntel) { console.log("⏩ Skipping intel endpoints (SKIP_INTEL=true)"); }
 
     // Plain axios for free/system endpoints
     const baseAxios = axios.create({ baseURL: apiUrl, timeout: 60000 });
@@ -264,8 +251,6 @@ async function run(): Promise<void> {
             .filter((s) => {
                 // Skip paths with dynamic segments — handled separately below
                 if (s.endpoint.includes(":") || s.endpoint.includes("*")) { return false; }
-                // Skip intel if requested
-                if (skipIntel && s.endpoint.startsWith("/intel/")) { return false; }
                 return true;
             })
             .map((s) => ({
@@ -283,10 +268,9 @@ async function run(): Promise<void> {
         // Hardcoded fallback — mirrors all route registrations
         const fallbackPaths = [
             "/fetch/basic", "/fetch/pro", "/fetch/resilient",
-            "/screenshot", "/search", "/extract", "/extract/smart",
-            "/research", "/batch/fetch", "/pdf", "/compare",
+            "/screenshot", "/search", "/extract",
+            "/research", "/batch/fetch", "/pdf",
             "/credits/buy",
-            ...(!skipIntel ? ["/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit"] : []),
         ];
 
         discoveredEndpoints = fallbackPaths.map((path) => ({

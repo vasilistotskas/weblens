@@ -32,10 +32,9 @@ describe("catalog tags", () => {
         // "/search/news" must not collapse into the generic "/search" tags.
         expect(tagsForPath("/search")).toEqual(["search", "serp"]);
         expect(tagsForPath("/search/news")).toEqual(["search", "serp"]);
-        expect(tagsForPath("/extract/smart")).toContain("structured-data");
         expect(tagsForPath("/research/deep")).toContain("multi-step");
         expect(tagsForPath("/research")).not.toContain("multi-step");
-        expect(tagsForPath("/intel/site-audit")).toContain("audit");
+        expect(tagsForPath("/intel/project")).toContain("diligence");
     });
 
     it("does not match a path that merely shares a prefix string", () => {

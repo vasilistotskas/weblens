@@ -13,7 +13,6 @@ import {
     ScreenshotRequestSchema,
     SearchRequestSchema,
     ExtractRequestSchema,
-    SmartExtractRequestSchema
 } from "../schemas";
 
 // Tool Handlers
@@ -24,7 +23,6 @@ import { fetchPro } from "../tools/fetch-pro";
 import { resilientFetchHandler } from "../tools/resilient-fetch";
 import { screenshot } from "../tools/screenshot";
 import { searchWebHandler } from "../tools/search-web";
-import { smartExtractHandler } from "../tools/smart-extract";
 import type { Env, Variables } from "../types";
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
@@ -331,48 +329,4 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
         )
     );
     app.post("/extract", extractData);
-
-    // ============================================
-    // /extract/smart
-    // ============================================
-    app.use(
-        "/extract/smart",
-        validateRequest(SmartExtractRequestSchema),
-        createCreditMiddleware(PRICING.smartExtract, "Smart Extraction (AI)"),
-        createLazyPaymentMiddleware(
-            "/extract/smart",
-            PRICING.smartExtract,
-            "AI-powered data extraction using natural language. No schema needed - just describe what you want to extract in plain English.",
-            { url: "https://example.com/contact", query: "find all email addresses", format: "json" },
-            {
-                properties: {
-                    url: { type: "string", description: "URL of the webpage to extract from" },
-                    query: { type: "string", description: "Natural language description of what to extract" },
-                    format: { type: "string", description: "Output format: json or text (default: json)" },
-                },
-                required: ["url", "query"],
-            },
-            {
-                url: "https://example.com/contact",
-                query: "find all email addresses",
-                data: [
-                    { value: "contact@example.com", context: "Contact page footer", confidence: 0.95 },
-                ],
-                explanation: "Found 1 email address",
-                extractedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_smart789",
-            },
-            {
-                properties: {
-                    url: { type: "string" },
-                    query: { type: "string" },
-                    data: { type: "array", description: "Array of extracted items with value, context, confidence" },
-                    explanation: { type: "string", description: "AI explanation of extraction" },
-                    extractedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        )
-    );
-    app.post("/extract/smart", smartExtractHandler);
 }

@@ -91,7 +91,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { name: "Social", description: "Social platform data (YouTube transcripts)" },
       { name: "Extraction", description: "Data extraction endpoints" },
       { name: "Research", description: "AI-powered research tools" },
-      { name: "Intelligence", description: "Premium AI-powered intelligence products" },
+      { name: "Intelligence", description: "Due diligence on a project's web presence" },
       { name: "System", description: "Health and documentation endpoints" },
       { name: "Discovery", description: "Free evaluation and ERC-8004 off-chain surfaces — previews, receipts, feedback" },
       { name: "Credits", description: "Prepaid credit system" },
@@ -276,15 +276,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Data extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/ExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
-      "/extract/smart": {
-        post: {
-          tags: ["Extraction"], summary: "Smart Extract", operationId: "smartExtract",
-          description: `AI-powered extraction with natural language. Price: ${PRICING.smartExtract}`,
-          "x-payment-info": fixedPayment(PRICING.smartExtract),
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SmartExtractRequest" }, example: { url: "https://example.com/contact", query: "find all email addresses" } } } },
-          responses: { "200": { description: "Data extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/SmartExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
-        },
-      },
       "/batch/fetch": {
         post: {
           tags: ["Core"], summary: "Batch Fetch", operationId: "batchFetch",
@@ -447,15 +438,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "PDF extracted", content: { "application/json": { schema: { $ref: "#/components/schemas/PdfExtractResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
-      "/compare": {
-        post: {
-          tags: ["Research"], summary: "Compare URLs", operationId: "compareUrls",
-          description: `Compare 2-3 URLs with AI analysis. Price: ${PRICING.compare}`,
-          "x-payment-info": fixedPayment(PRICING.compare),
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/CompareRequest" }, example: { urls: ["https://product-a.com", "https://product-b.com"] } } } },
-          responses: { "200": { description: "Comparison results", content: { "application/json": { schema: { $ref: "#/components/schemas/CompareResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
-        },
-      },
       "/free/fetch": {
         post: {
           tags: ["Free"], summary: "Free Fetch", operationId: "freeFetch",
@@ -540,42 +522,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             "200": { description: "The stored document, byte-for-byte", content: { "application/json": { schema: { $ref: "#/components/schemas/FeedbackDocument" } } } },
             "404": { description: "No feedback document with that id", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
           },
-        },
-      },
-      "/intel/company": {
-        post: {
-          tags: ["Intelligence"], summary: "Company Intelligence", operationId: "intelCompany",
-          description: `Comprehensive company deep dive: tech stack, funding, team size, competitors, news. Chains search + batch fetch + AI extraction. Price: ${PRICING.intel.company}`,
-          "x-payment-info": fixedPayment(PRICING.intel.company),
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["target"], properties: { target: { type: "string", description: "Company name or domain" } } }, example: { target: "coinbase.com" } } } },
-          responses: { "200": { description: "Company profile" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
-        },
-      },
-      "/intel/market": {
-        post: {
-          tags: ["Intelligence"], summary: "Market Research", operationId: "intelMarket",
-          description: `AI-powered market research report with executive summary, key findings, trends, and data points. Price: ${PRICING.intel.market}`,
-          "x-payment-info": fixedPayment(PRICING.intel.market),
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, depth: { type: "string", enum: ["quick", "standard", "comprehensive"] }, focus: { type: "string" } } }, example: { topic: "AI Agents", depth: "standard" } } } },
-          responses: { "200": { description: "Market research report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
-        },
-      },
-      "/intel/competitive": {
-        post: {
-          tags: ["Intelligence"], summary: "Competitive Analysis", operationId: "intelCompetitive",
-          description: `Full competitive analysis: feature matrix, pricing comparison, SWOT analysis, positioning summary. Price: ${PRICING.intel.competitive}`,
-          "x-payment-info": fixedPayment(PRICING.intel.competitive),
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["company"], properties: { company: { type: "string" }, maxCompetitors: { type: "integer", minimum: 1, maximum: 10 }, focus: { type: "string" } } }, example: { company: "Example Corp", maxCompetitors: 5 } } } },
-          responses: { "200": { description: "Competitive analysis report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
-        },
-      },
-      "/intel/site-audit": {
-        post: {
-          tags: ["Intelligence"], summary: "Site Audit", operationId: "intelSiteAudit",
-          description: `Comprehensive SEO, performance, and security audit with scoring and recommendations. Price: ${PRICING.intel.siteAudit}`,
-          "x-payment-info": fixedPayment(PRICING.intel.siteAudit),
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" } } }, example: { url: "https://example.com" } } } },
-          responses: { "200": { description: "Site audit report" }, "402": { $ref: "#/components/responses/PaymentRequired" }, "503": { description: "AI service unavailable" } },
         },
       },
       "/intel/project": {
@@ -674,8 +620,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         AnswerResponse: { type: "object", properties: { query: { type: "string" }, answer: { type: "string", description: "Answer text with inline [n] citation markers" }, citations: { type: "array", items: { type: "object", properties: { index: { type: "integer" }, url: { type: "string" }, title: { type: "string" } } } }, confidence: { type: "number" }, answeredAt: { type: "string" }, requestId: { type: "string" } } },
         ExtractRequest: { type: "object", required: ["url", "schema"], properties: { url: { type: "string", format: "uri", example: "https://example.com/product" }, schema: { type: "object", example: { name: { type: "string" }, price: { type: "number" } } }, instructions: { type: "string" } } },
         ExtractResponse: { type: "object", properties: { url: { type: "string" }, data: { type: "object" }, extractedAt: { type: "string" }, proof: { $ref: "#/components/schemas/ProofOfContext" }, requestId: { type: "string" } } },
-        SmartExtractRequest: { type: "object", required: ["url", "query"], properties: { url: { type: "string", format: "uri", example: "https://example.com/contact" }, query: { type: "string", example: "find all email addresses" }, format: { type: "string" } } },
-        SmartExtractResponse: { type: "object", properties: { url: { type: "string" }, query: { type: "string" }, data: { type: "array" }, explanation: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
         BatchFetchRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 20, example: ["https://example.com/1", "https://example.com/2"] }, timeout: { type: "integer" }, tier: { type: "string" } } },
         BatchFetchResponse: { type: "object", properties: { results: { type: "array" }, summary: { type: "object" }, totalPrice: { type: "string" }, requestId: { type: "string" } } },
         ResilientFetchRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com" }, timeout: { type: "integer" } } },
@@ -947,8 +891,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         },
         PdfExtractRequest: { type: "object", required: ["url"], properties: { url: { type: "string", format: "uri", example: "https://example.com/document.pdf" }, pages: { type: "array", items: { type: "integer" } } } },
         PdfExtractResponse: { type: "object", properties: { url: { type: "string" }, metadata: { type: "object" }, pages: { type: "array" }, fullText: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
-        CompareRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 3, example: ["https://product-a.com", "https://product-b.com"] }, focus: { type: "string" } } },
-        CompareResponse: { type: "object", properties: { sources: { type: "array" }, comparison: { type: "object" }, comparedAt: { type: "string" }, requestId: { type: "string" } } },
         ErrorResponse: { type: "object", properties: { error: { type: "string" }, code: { type: "string" }, message: { type: "string" }, requestId: { type: "string" } } },
         PreviewRequest: {
           type: "object", required: ["endpoint"],
@@ -1432,51 +1374,11 @@ Extract structured data from webpages using JSON schema.
 - Body: \`{"url": "string", "schema": object, "instructions?": "string"}\`
 - Returns: \`{"url", "data", "extractedAt", "requestId"}\`
 
-#### POST /extract/smart
-AI-powered data extraction using natural language. Just describe what you want.
-- Price: ${PRICING.smartExtract}
-- Body: \`{"url": "string", "query": "string", "format?": "json"|"text"}\`
-- Returns: \`{"url", "query", "data", "explanation", "extractedAt", "requestId"}\`
-
 #### POST /pdf
 Extract text and metadata from PDF documents.
 - Price: ${PRICING.pdf}
 - Body: \`{"url": "string", "pages?": [number]}\`
 - Returns: \`{"url", "metadata", "pages", "fullText", "extractedAt", "requestId"}\`
-
-#### POST /compare
-Compare 2-3 webpages with AI-generated analysis of similarities and differences.
-- Price: ${PRICING.compare}
-- Body: \`{"urls": ["string"], "focus?": "string"}\`
-- Returns: \`{"sources", "comparison": {"summary", "similarities", "differences"}, "comparedAt", "requestId"}\`
-
-### Intelligence (AI-powered, premium)
-
-These endpoints chain multiple tools and AI synthesis. They're the highest-value services on the platform.
-
-#### POST /intel/company
-Comprehensive company deep dive: tech stack, funding, team, competitors, recent news. Chains search + batch fetch + Claude.
-- Price: ${PRICING.intel.company}
-- Body: \`{"target": "string"}\` (company name or domain)
-- Returns: \`{"name", "domain", "funding", "summary", "requestId"}\`
-
-#### POST /intel/market
-Market research report: executive summary, market size, growth, key trends, key players, recommendations.
-- Price: ${PRICING.intel.market}
-- Body: \`{"topic": "string", "depth?": "quick"|"standard"|"comprehensive", "focus?": "string"}\`
-- Returns: \`{"topic", "executiveSummary", "marketSize", "growthRate", "keyTrends", "keyPlayers", "recommendations", "requestId"}\`
-
-#### POST /intel/competitive
-Competitive analysis: feature matrix, pricing comparison, SWOT, positioning.
-- Price: ${PRICING.intel.competitive}
-- Body: \`{"company": "string", "maxCompetitors?": number, "focus?": "string"}\`
-- Returns: \`{"company", "competitors", "featureMatrix", "pricing", "swot", "positioning", "requestId"}\`
-
-#### POST /intel/site-audit
-Full site audit: SEO, performance, security, accessibility scoring with actionable recommendations.
-- Price: ${PRICING.intel.siteAudit}
-- Body: \`{"url": "string"}\`
-- Returns: \`{"url", "scores": {"seo", "performance", "security", "accessibility"}, "issues", "recommendations", "requestId"}\`
 
 ### System
 
@@ -1534,18 +1436,12 @@ For AI agents using Model Context Protocol:
 - \`get_contents\` - Bulk page contents (${PRICING.contents.minUrls}-${PRICING.contents.maxUrls} URLs) — ${PRICING.contents.perUrl}/URL
 - \`answer_question\` - Grounded answer with citations — ${PRICING.answer}
 - \`extract_data\` - Extract structured data with JSON schema — ${PRICING.extract}
-- \`smart_extract\` - AI-powered natural-language extraction — ${PRICING.smartExtract}
 - \`research\` - Search + fetch + AI summary — ${PRICING.research}
 - \`deep_research\` - Multi-step cited research (sub-questions + inline [n] citations; 30-60s) — ${PRICING.deepResearch.standard} standard / ${PRICING.deepResearch.deep} deep
 - \`batch_fetch\` - Fetch multiple URLs in parallel — ${PRICING.batchFetch.perUrl}/URL
 - \`map_site\` - Discover a site's URLs via sitemap/robots/links — ${PRICING.map}
 - \`crawl_site\` - Bounded same-host crawl to markdown (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages} pages) — ${PRICING.crawl.perPage}/requested page
 - \`extract_pdf\` - Extract text from PDFs — ${PRICING.pdf}
-- \`compare_urls\` - Compare 2-3 webpages — ${PRICING.compare}
-- \`intel_company\` - Company deep dive (AI-powered) — ${PRICING.intel.company}
-- \`intel_market\` - Market research report — ${PRICING.intel.market}
-- \`intel_competitive\` - Competitive analysis — ${PRICING.intel.competitive}
-- \`intel_site_audit\` - SEO/performance/security audit — ${PRICING.intel.siteAudit}
 
 ### Agent Credits (Prepaid)
 

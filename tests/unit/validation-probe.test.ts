@@ -50,7 +50,7 @@ const run = (c: any, next: () => Promise<void>) => validateRequest(schema)(c, ne
 
 describe("validateRequest — unpaid probe fallthrough", () => {
     it("lets an unpaid probe with an invalid body reach the payment middleware", async () => {
-        const { ctx, json } = mockContext({ path: "/intel/site-audit", body: "{}" });
+        const { ctx, json } = mockContext({ path: "/domain", body: "{}" });
         const next = vi.fn(async () => { /* payment middleware */ });
 
         await run(ctx, next);
@@ -81,7 +81,7 @@ describe("validateRequest — unpaid probe fallthrough", () => {
 
     it("still rejects an invalid body when the request carries an x402 payment", async () => {
         const { ctx, json } = mockContext({
-            path: "/intel/site-audit",
+            path: "/domain",
             body: "{}",
             headers: { "Payment-Signature": "0xdeadbeef" },
         });
@@ -133,7 +133,7 @@ describe("validateRequest — unpaid probe fallthrough", () => {
 
     it("passes a valid body through with validatedBody set", async () => {
         const { ctx, vars, json } = mockContext({
-            path: "/intel/site-audit",
+            path: "/domain",
             body: JSON.stringify({ url: "https://example.com" }),
         });
         const next = vi.fn(async () => { /* handler */ });
@@ -147,7 +147,7 @@ describe("validateRequest — unpaid probe fallthrough", () => {
 
     it("does not swallow downstream errors as INVALID_JSON", async () => {
         const { ctx } = mockContext({
-            path: "/intel/site-audit",
+            path: "/domain",
             body: JSON.stringify({ url: "https://example.com" }),
         });
         const boom = new Error("handler exploded");

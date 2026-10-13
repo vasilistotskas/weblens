@@ -178,10 +178,6 @@ export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
         summary: "Structured JSON pulled from a page against your schema.",
         sample: { url: "https://example.com/product", data: { name: "Product Name", price: 99.99, inStock: true }, extractedAt: "2026-07-31T12:00:00.000Z" },
     },
-    "/extract/smart": {
-        summary: "Same, described in plain English instead of a schema.",
-        sample: { url: "https://example.com/contact", query: "find all email addresses", data: [{ value: "contact@example.com", context: "Contact page footer", confidence: 0.95 }], explanation: "Found 1 email address" },
-    },
     "/pdf": {
         summary: "Text and metadata out of a PDF, page by page.",
         sample: { url: "https://example.com/doc.pdf", metadata: { title: "Sample Document", author: "Jane Doe", pageCount: 10 }, pages: [{ pageNumber: 1, content: "Page 1 text..." }], fullText: "Page 1 text..." },
@@ -197,26 +193,6 @@ export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
     "/research/deep": {
         summary: "Multi-step research: sub-questions, cited answer, and gaps.",
         sample: { query: "How are AI agents using micropayments?", depth: "standard", subQuestions: ["x402 adoption 2026", "agent payment volume"], answer: "Agent micropayments consolidated around x402 [1]...", keyFindings: ["Median per-call price near $0.01"], citations: [{ index: 1, url: "https://x402.org", title: "x402 Protocol", subQuestion: "x402 adoption 2026" }], gaps: ["Sources did not cover settlement failure rates"] },
-    },
-    "/compare": {
-        summary: "2-3 pages compared, with similarities and differences.",
-        sample: { sources: [{ url: "https://product-a.com", title: "Product A" }], comparison: { similarities: ["Both offer feature X"], differences: ["Product A has Z"], summary: "Product A focuses on..." } },
-    },
-    "/intel/company": {
-        summary: "Company deep dive: funding, people, positioning.",
-        sample: { name: "Coinbase", domain: "coinbase.com", funding: "Public (COIN)", summary: "Coinbase is a secure online platform for buying, selling, and storing crypto." },
-    },
-    "/intel/market": {
-        summary: "Market report: size, growth, trends, players, actions.",
-        sample: { topic: "AI Agents", executiveSummary: "The AI agents market is rapidly expanding...", marketSize: "$10B (2026)", growthRate: "45% CAGR", keyTrends: ["autonomous tooling"], keyPlayers: ["Anthropic"], recommendations: ["Invest in agent infrastructure"] },
-    },
-    "/intel/competitive": {
-        summary: "Competitor set with feature matrix, pricing, and SWOT.",
-        sample: { company: "Example Corp", competitors: ["Acme Inc", "Globex"], featureMatrix: { "Example Corp": ["Feature A"] }, pricing: { "Example Corp": "$99/mo" }, swot: { strengths: ["Brand"], weaknesses: ["Pricing"], opportunities: ["AI integration"], threats: ["Open source"] } },
-    },
-    "/intel/site-audit": {
-        summary: "SEO, performance, security and accessibility scores plus fixes.",
-        sample: { url: "https://example.com", scores: { seo: 87, performance: 92, security: 95, accessibility: 88 }, issues: [{ severity: "high", category: "seo", message: "Missing meta description" }], recommendations: ["Add unique meta descriptions"] },
     },
     "/credits/buy": {
         summary: "Prepay credits; deposit bonuses at $10 / $50 / $100.",
@@ -264,15 +240,9 @@ const PREVIEW_PRICE_HINT: Record<string, string> = {
     "/search/trends": PRICING.searchVerticals.trends,
     "/social/youtube/transcript": PRICING.youtubeTranscript,
     "/extract": `${PRICING.extract} (up to 3x on bot-protected domains)`,
-    "/extract/smart": PRICING.smartExtract,
     "/pdf": PRICING.pdf,
     "/answer": PRICING.answer,
     "/research": PRICING.research,
-    "/compare": PRICING.compare,
-    "/intel/company": PRICING.intel.company,
-    "/intel/market": PRICING.intel.market,
-    "/intel/competitive": PRICING.intel.competitive,
-    "/intel/site-audit": PRICING.intel.siteAudit,
 };
 
 export function isPaidEndpoint(endpoint: string): boolean {

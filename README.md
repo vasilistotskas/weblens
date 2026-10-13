@@ -124,12 +124,10 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 | Endpoint | Description | Price |
 |----------|-------------|-------|
 | `/extract` | Structured extraction against a JSON schema | $0.03 |
-| `/extract/smart` | Natural-language extraction (no schema needed) | $0.035 |
 | `/pdf` | Extract text and metadata from a PDF | $0.004 |
 | `/answer` | Grounded answer with inline `[n]` citations | $0.05 |
 | `/research` | Search + fetch + AI summary with sources | $0.08 |
 | `/research/deep` | Multi-step cited research: sub-questions → search each → answer with inline `[n]` citations | $0.20–$0.35 |
-| `/compare` | Compare 2–3 webpages with AI analysis | $0.05 |
 
 `/research/deep` is the only long-running endpoint: it plans sub-questions, runs a web search per
 sub-question, fetches and dedupes the sources, then synthesizes a cited answer — all in one
@@ -141,10 +139,6 @@ seconds**; `deep` (5 sub-questions, 12 sources, $0.35) takes longer. Set a gener
 
 | Endpoint | Description | Price |
 |----------|-------------|-------|
-| `/intel/site-audit` | SEO / performance / security audit | $0.75 |
-| `/intel/company` | Company deep dive | $1.00 |
-| `/intel/market` | Market research report | $5.00 |
-| `/intel/competitive` | Competitive analysis with SWOT | $8.00 |
 
 ### Utility
 

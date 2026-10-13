@@ -100,8 +100,6 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "INVALID_JSON":
     case "MISSING_URL":
     case "REDIRECT_BLOCKED":
-    case "COMPARE_TOO_SMALL":
-    case "COMPARE_TOO_LARGE":
     case "BATCH_TOO_SMALL":
     case "BATCH_TOO_LARGE":
     case "INVALID_PDF":

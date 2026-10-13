@@ -36,8 +36,7 @@ const PAID_UPSTREAM = [
     "/search", "/search/news", "/search/images", "/search/places", "/search/shopping",
     "/search/scholar", "/search/autocomplete", "/search/trends",
     "/social/youtube/transcript", "/answer", "/research", "/research/deep",
-    "/extract", "/extract/smart", "/compare",
-    "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit",
+    "/extract",
 ];
 
 describe("preview coverage", () => {

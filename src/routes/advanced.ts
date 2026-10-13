@@ -7,7 +7,6 @@ import {
     BatchFetchRequestSchema,
     ResearchRequestSchema,
     PdfRequestSchema,
-    CompareRequestSchema,
     MapRequestSchema,
     CrawlRequestSchema,
     DeepResearchRequestSchema,
@@ -20,7 +19,6 @@ import { getBatchFetchPrice, parsePrice } from "../services/pricing";
 
 // Tool Handlers
 import { batchFetchHandler } from "../tools/batch-fetch";
-import { compareHandler } from "../tools/compare";
 import { crawlHandler } from "../tools/crawl";
 import { deepResearchHandler } from "../tools/deep-research";
 import { discussionsHandler } from "../tools/discussions";
@@ -179,50 +177,6 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
         )
     );
     app.post("/pdf", pdfHandler);
-
-    // ============================================
-    // /compare
-    // ============================================
-    app.use(
-        "/compare",
-        validateRequest(CompareRequestSchema),
-        createCreditMiddleware(PRICING.compare, "Webpage Comparison"),
-        createLazyPaymentMiddleware(
-            "/compare",
-            PRICING.compare,
-            "Compare 2-3 webpages with AI-generated analysis. Identifies similarities, differences, and provides a comprehensive summary.",
-            { urls: ["https://product-a.com", "https://product-b.com"], focus: "pricing and features" },
-            {
-                properties: {
-                    urls: { type: "array", description: "Array of 2-3 URLs to compare" },
-                    focus: { type: "string", description: "What aspect to focus the comparison on" },
-                },
-                required: ["urls"],
-            },
-            {
-                sources: [
-                    { url: "https://product-a.com", title: "Product A", content: "Features: X..." },
-                    { url: "https://product-b.com", title: "Product B", content: "Features: Y..." },
-                ],
-                comparison: {
-                    similarities: ["Both offer feature X"],
-                    differences: ["Product A has Z"],
-                    summary: "Product A focuses on...",
-                },
-                comparedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_compare456",
-            },
-            {
-                properties: {
-                    sources: { type: "array", description: "Array of sources with url, title, content" },
-                    comparison: { type: "object", description: "Comparison with similarities, differences, summary" },
-                    comparedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        )
-    );
-    app.post("/compare", compareHandler);
 
     // ============================================
     // /map — site URL discovery

@@ -112,23 +112,11 @@ export const PRICING = {
     deep: "$0.35",
   },
 
-  // Smart extraction (AI-powered, higher cost)
-  smartExtract: "$0.035",
-
   // PDF extraction — native fetch + parse, no AI call (see tools/pdf.ts)
   pdf: "$0.004",
 
-  // URL comparison
-  compare: "$0.05",
-
-  // Intelligence endpoints (Knowledge Arbitrageur)
-  // Premium pricing — chains multiple tools + AI into structured intelligence.
-  // Still 50–100× cheaper than Semrush/Similarweb/Crunchbase APIs.
+  // Intelligence endpoints
   intel: {
-    company: "$1.00",       // Company deep dive
-    market: "$5.00",        // Market research report
-    competitive: "$8.00",   // Competitive analysis
-    siteAudit: "$0.75",     // Full site audit
     /**
      * Off-chain project due diligence. Priced against the market it sells
      * into rather than the cost to serve: on the x402 rail, crypto risk
@@ -157,9 +145,8 @@ export const PRICING = {
 // that probe without reading the spec still discover a payable resource.
 export const PAID_ENDPOINTS: readonly string[] = [
   "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
-  "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
+  "/batch/fetch", "/research", "/pdf",
   "/credits/buy",
-  "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit",
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
   "/social/youtube/transcript", "/contents", "/answer",
@@ -467,12 +454,7 @@ export const SERVICE_ICON_PATH = "/favicon.png";
 const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
   ["/social/youtube/transcript", ["video", "transcript", "youtube"]],
   ["/research/deep", ["research", "ai", "multi-step"]],
-  ["/intel/site-audit", ["intelligence", "seo", "audit"]],
-  ["/intel/competitive", ["intelligence", "competitive", "ai"]],
-  ["/intel/company", ["intelligence", "company", "ai"]],
-  ["/intel/market", ["intelligence", "market", "ai"]],
   ["/intel/project", ["intelligence", "diligence", "ai"]],
-  ["/extract/smart", ["extraction", "ai", "structured-data"]],
   ["/fetch", ["fetch", "scraping", "markdown"]],
   ["/search", ["search", "serp"]],
   ["/extract", ["extraction", "ai", "structured-data"]],
@@ -482,7 +464,6 @@ const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
   ["/credits", ["billing", "credits"]],
   ["/contents", ["fetch", "scraping", "batch"]],
   ["/answer", ["search", "ai", "question-answering"]],
-  ["/compare", ["comparison", "ai"]],
   ["/crawl", ["crawling", "scraping"]],
   ["/discussions", ["search", "social"]],
   ["/domain", ["domain", "whois"]],

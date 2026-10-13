@@ -87,15 +87,9 @@ const PAID_ENDPOINTS: { path: string; body: Record<string, unknown> }[] = [
   { path: "/screenshot",      body: { url: "https://example.com" } },
   { path: "/search",          body: { query: "test" } },
   { path: "/extract",         body: { url: "https://example.com", schema: { title: "string" } } },
-  { path: "/extract/smart",   body: { url: "https://example.com", query: "test" } },
   { path: "/research",        body: { query: "test" } },
   { path: "/batch/fetch",     body: { urls: ["https://example.com", "https://example.org"] } },
   { path: "/pdf",             body: { url: "https://example.com/doc.pdf" } },
-  { path: "/compare",         body: { urls: ["https://example.com", "https://example.org"] } },
-  { path: "/intel/company",   body: { target: "test" } },
-  { path: "/intel/market",    body: { topic: "test" } },
-  { path: "/intel/competitive", body: { company: "test" } },
-  { path: "/intel/site-audit", body: { url: "https://example.com" } },
   { path: "/credits/buy",     body: { amount: 5 } },
 ];
 

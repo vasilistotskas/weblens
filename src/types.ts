@@ -245,14 +245,12 @@ export type ErrorCode =
   // --- Free-tier reader (tools/reader.ts) ---
   | "MISSING_URL" // Reader called without a URL (400)
   | "REDIRECT_BLOCKED" // Reader hit a blocked redirect target (400)
-  // --- Compare endpoint (tools/compare.ts) ---
-  | "COMPARE_TOO_SMALL" // Fewer than 2 URLs supplied (400)
-  | "COMPARE_TOO_LARGE" // More than 3 URLs supplied (400)
-  | "FETCH_FAILED" // Could not fetch enough URLs for comparison (502)
+  // --- Tech detection (tools/tech.ts) ---
+  | "FETCH_FAILED" // The target page could not be fetched (502)
   // --- Resilient fetch (tools/resilient-fetch.ts) ---
   | "FETCH_ALL_PROVIDERS_FAILED" // Every fetch provider failed (502)
-  // --- Intel endpoints (tools/intel.ts) ---
-  | "INTEL_FAILED" // Intelligence workflow failed (500)
+  // --- Project due diligence (tools/project-audit.ts) ---
+  | "INTEL_FAILED" // Due-diligence workflow failed (500)
   // --- Discussions endpoint (tools/discussions.ts) ---
   | "PROVIDER_ERROR"; // Upstream discussion index returned an error (502)
 
@@ -345,25 +343,6 @@ export interface ResearchResponse {
 }
 
 // ============================================
-// Smart Extraction Types (Requirement 3)
-// ============================================
-
-interface ExtractedItem {
-  value: unknown;           // Extracted value
-  context?: string;         // Surrounding context
-  confidence: number;       // 0-1 confidence score
-}
-
-export interface SmartExtractResponse {
-  url: string;
-  query: string;
-  data: ExtractedItem[];
-  explanation: string;      // AI explanation of extraction
-  extractedAt: string;
-  requestId: string;
-}
-
-// ============================================
 // PDF Extraction Types (Requirement 5)
 // ============================================
 
@@ -383,27 +362,6 @@ export interface PdfExtractResponse {
   pages: PdfPage[];
   fullText: string;         // All pages concatenated
   extractedAt: string;
-  requestId: string;
-}
-
-// ============================================
-// Compare Types (Requirement 6)
-// ============================================
-
-export interface CompareSource {
-  url: string;
-  title: string;
-  content: string;
-}
-
-export interface CompareResponse {
-  sources: CompareSource[];
-  comparison: {
-    similarities: string[];
-    differences: string[];
-    summary: string;        // AI-generated comparison summary
-  };
-  comparedAt: string;
   requestId: string;
 }
 

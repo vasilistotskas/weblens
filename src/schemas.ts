@@ -196,22 +196,9 @@ export const ResearchRequestSchema = z.object({
     includeRawContent: z.boolean().optional().default(false),
 });
 
-export const SmartExtractRequestSchema = z.object({
-    url: urlSchema,
-    query: z.string().min(1).max(500).describe("What to extract"),
-    // The smart-extract AI service (src/services/ai.ts `smartExtract`) only
-    // branches on "text" vs default JSON output — it cannot produce markdown.
-    format: z.enum(["json", "text"]).optional().default("json"),
-});
-
 export const PdfRequestSchema = z.object({
     url: urlSchema,
     pages: z.array(z.number().min(1)).optional(),
-});
-
-export const CompareRequestSchema = z.object({
-    urls: z.array(urlSchema).min(2).max(3),
-    focus: z.string().optional().default("general"),
 });
 
 // ============================================

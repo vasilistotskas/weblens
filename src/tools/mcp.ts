@@ -363,18 +363,6 @@ export const TOOLS = [
     },
   },
   {
-    name: "smart_extract",
-    description: `Extract data using natural language. AI understands what you want. Price: ${PRICING.smartExtract}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The URL to extract from" },
-        query: { type: "string", description: "What data to extract (natural language)" },
-      },
-      required: ["url", "query"],
-    },
-  },
-  {
     name: "research",
     description: `One-stop research: searches web, fetches top results, and summarizes findings. Price: ${PRICING.research}`,
     inputSchema: {
@@ -407,18 +395,6 @@ export const TOOLS = [
         url: { type: "string", description: "URL of the PDF to extract" },
       },
       required: ["url"],
-    },
-  },
-  {
-    name: "compare_urls",
-    description: `Compare 2-3 webpages and get AI-generated analysis of differences. Price: ${PRICING.compare}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        urls: { type: "array", items: { type: "string" }, description: "URLs to compare (2-3)" },
-        focus: { type: "string", description: "What to focus comparison on" },
-      },
-      required: ["urls"],
     },
   },
   {
@@ -537,54 +513,6 @@ export const TOOLS = [
       required: ["url"],
     },
   },
-  {
-    name: "intel_company",
-    description: `Company intelligence deep dive: tech stack, funding, team, competitors, news. Price: ${PRICING.intel.company}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        target: { type: "string", description: "Company name or domain to research" },
-      },
-      required: ["target"],
-    },
-  },
-  {
-    name: "intel_market",
-    description: `AI-powered market research report with trends, key players, and data points. Price: ${PRICING.intel.market}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        topic: { type: "string", description: "Market or industry topic to research" },
-        depth: { type: "string", enum: ["quick", "standard", "comprehensive"], description: "Research depth (default standard)" },
-        focus: { type: "string", description: "Optional focus area" },
-      },
-      required: ["topic"],
-    },
-  },
-  {
-    name: "intel_competitive",
-    description: `Competitive analysis: feature matrix, pricing, SWOT analysis. Price: ${PRICING.intel.competitive}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        company: { type: "string", description: "Company to analyze" },
-        maxCompetitors: { type: "number", description: "Max competitors to include (default: 5)" },
-        focus: { type: "string", description: "Optional focus area" },
-      },
-      required: ["company"],
-    },
-  },
-  {
-    name: "intel_site_audit",
-    description: `Comprehensive SEO, performance, and security audit with scoring. Price: ${PRICING.intel.siteAudit}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "URL to audit" },
-      },
-      required: ["url"],
-    },
-  },
 ];
 
 // MCP tool name → REST endpoint, method, and price.
@@ -610,7 +538,6 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   get_contents:      { endpoint: "/contents",        method: "POST", price: PRICING.contents.perUrl },
   answer_question:   { endpoint: "/answer",          method: "POST", price: PRICING.answer },
   extract_data:      { endpoint: "/extract",         method: "POST", price: PRICING.extract },
-  smart_extract:     { endpoint: "/extract/smart",   method: "POST", price: PRICING.smartExtract },
   research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
   deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
   batch_fetch:       { endpoint: "/batch/fetch",     method: "POST", price: PRICING.batchFetch.perUrl },
@@ -622,11 +549,6 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   map_site:          { endpoint: "/map",             method: "POST", price: PRICING.map },
   crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
   extract_pdf:       { endpoint: "/pdf",             method: "POST", price: PRICING.pdf },
-  compare_urls:      { endpoint: "/compare",         method: "POST", price: PRICING.compare },
-  intel_company:     { endpoint: "/intel/company",   method: "POST", price: PRICING.intel.company },
-  intel_market:      { endpoint: "/intel/market",    method: "POST", price: PRICING.intel.market },
-  intel_competitive: { endpoint: "/intel/competitive", method: "POST", price: PRICING.intel.competitive },
-  intel_site_audit:  { endpoint: "/intel/site-audit", method: "POST", price: PRICING.intel.siteAudit },
 };
 
 // Server identity, as the `serverInfo` object the initialize result requires.

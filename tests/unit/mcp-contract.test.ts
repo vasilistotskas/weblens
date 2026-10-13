@@ -17,11 +17,9 @@ import {
     ScreenshotRequestSchema,
     SearchRequestSchema,
     ExtractRequestSchema,
-    SmartExtractRequestSchema,
     BatchFetchRequestSchema,
     ResearchRequestSchema,
     PdfRequestSchema,
-    CompareRequestSchema,
     VerticalSearchRequestSchema,
     PlacesSearchRequestSchema,
     TrendsRequestSchema,
@@ -39,7 +37,6 @@ import {
     PreviewRequestSchema,
 } from "../../src/schemas";
 import { TOOLS, TOOL_ENDPOINTS } from "../../src/tools/mcp";
-import { companySchema, marketSchema, competitiveSchema, siteAuditSchema } from "../../src/tools/intel";
 
 /** Endpoint path → the schema its route registers with validateRequest. */
 const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
@@ -61,7 +58,6 @@ const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
     "/contents": ContentsRequestSchema,
     "/answer": AnswerRequestSchema,
     "/extract": ExtractRequestSchema,
-    "/extract/smart": SmartExtractRequestSchema,
     "/research": ResearchRequestSchema,
     "/research/deep": DeepResearchRequestSchema,
     "/batch/fetch": BatchFetchRequestSchema,
@@ -73,11 +69,6 @@ const SCHEMA_BY_ENDPOINT: Record<string, z.ZodType> = {
     "/discussions": DiscussionsRequestSchema,
     "/crawl": CrawlRequestSchema,
     "/pdf": PdfRequestSchema,
-    "/compare": CompareRequestSchema,
-    "/intel/company": companySchema,
-    "/intel/market": marketSchema,
-    "/intel/competitive": competitiveSchema,
-    "/intel/site-audit": siteAuditSchema,
 };
 
 interface JsonSchemaProp {
