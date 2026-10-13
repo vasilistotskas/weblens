@@ -65,6 +65,9 @@ export const ENDPOINT_GROUPS = {
 
 export type EndpointGroup = keyof typeof ENDPOINT_GROUPS;
 
+/** Error statuses an endpoint documents beyond validation (400) and payment (402). */
+export type DocumentedErrorStatus = "403" | "404" | "422" | "502" | "503";
+
 /** A request body schema: whatever it outputs, it accepts a JSON object. */
 export type RequestSchema = z.ZodType<unknown, Record<string, unknown>>;
 
@@ -73,6 +76,8 @@ export interface EndpointDefinition<Path extends string = string, Input extends 
     /** Short product name; also the label on credit ledger entries. */
     title: string;
     group: EndpointGroup;
+    /** OpenAPI operationId. Kept stable: generated clients key on it. */
+    operationId: string;
     /** What the buyer gets. Catalogs and the 402 challenge show it; keep it at most 500 characters. */
     description: string;
     /** Intent keywords facilitator catalogs index (x402 RouteConfig `tags`). */
@@ -83,6 +88,10 @@ export interface EndpointDefinition<Path extends string = string, Input extends 
     latency: string;
     /** One line on what the caller gets for the money (free previews). */
     previewSummary: string;
+    /** Usage notes for agents, one bullet each in llms.txt. */
+    guide?: readonly string[];
+    /** Endpoint-specific failures, by HTTP status (documented in OpenAPI). */
+    errors?: Readonly<Partial<Record<DocumentedErrorStatus, string>>>;
     /** Request body. Validates every paid call and generates the advertised input schema. */
     input: Input;
     inputExample: z.input<Input>;
@@ -158,4 +167,28 @@ export function describePrice(endpoint: EndpointDefinition): string {
 export function requestBodySchema(input: z.ZodType): Record<string, unknown> {
     const { $schema: _dialect, ...schema } = z.toJSONSchema(input, { io: "input" });
     return schema;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * An endpoint's request body schema with each property's value from the
+ * endpoint's (validated) input example as its `example`. Catalog probes such
+ * as x402scan's build a body from property examples, and a required array or
+ * object without one cannot be sampled into a body that validates.
+ */
+export function endpointBodySchema(endpoint: EndpointDefinition): Record<string, unknown> {
+    const schema = requestBodySchema(endpoint.input);
+    const { properties } = schema;
+    if (!isRecord(properties)) { return schema; }
+    const example = endpoint.inputExample;
+    return {
+        ...schema,
+        properties: Object.fromEntries(Object.entries(properties).map(([key, property]) => [
+            key,
+            isRecord(property) && key in example ? { ...property, example: example[key] } : property,
+        ])),
+    };
 }

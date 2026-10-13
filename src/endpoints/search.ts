@@ -52,6 +52,10 @@ export const SEARCH_ENDPOINTS = [
         path: "/search",
         title: "Web Search",
         group: "Search",
+        operationId: "searchWeb",
+        guide: [
+            "With `includeContent`, each result also carries `content` (the page as markdown) and `contentTruncated`.",
+        ],
         mcpTool: "search_web",
         latency: "1-2 seconds",
         previewSummary: "Ranked web results; set includeContent to get page markdown too.",
@@ -68,7 +72,11 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string", description: "Original search query" },
-                results: { type: "array", description: "Array of search results with title, url, snippet" },
+                results: {
+                    type: "array",
+                    items: { type: "object" },
+                    description: "Search results with title, url, snippet; with includeContent also content and contentTruncated",
+                },
                 searchedAt: { type: "string", description: "ISO timestamp" },
                 requestId: { type: "string" },
             },
@@ -81,6 +89,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/news",
         title: "News Search",
         group: "Search",
+        operationId: "searchNews",
         mcpTool: "search_news",
         latency: "1-2 seconds",
         previewSummary: "Google News articles with source, date, and thumbnail.",
@@ -97,7 +106,22 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                results: { type: "array", description: "Articles with position, title, url, source, date, isoDate, thumbnail" },
+                results: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            position: { type: "integer" },
+                            title: { type: "string" },
+                            url: { type: "string" },
+                            source: { type: "string" },
+                            date: { type: "string" },
+                            isoDate: { type: "string" },
+                            thumbnail: { type: "string" },
+                        },
+                    },
+                    description: "Articles with position, title, url, source, date, isoDate, thumbnail",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -110,6 +134,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/images",
         title: "Image Search",
         group: "Search",
+        operationId: "searchImages",
         mcpTool: "search_images",
         latency: "1-2 seconds",
         previewSummary: "Direct image URLs with dimensions and source pages.",
@@ -126,7 +151,23 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                results: { type: "array", description: "Images with position, title, imageUrl, thumbnail, sourcePage, source, width, height" },
+                results: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            position: { type: "integer" },
+                            title: { type: "string" },
+                            imageUrl: { type: "string" },
+                            thumbnail: { type: "string" },
+                            sourcePage: { type: "string" },
+                            source: { type: "string" },
+                            width: { type: "integer" },
+                            height: { type: "integer" },
+                        },
+                    },
+                    description: "Images with position, title, imageUrl, thumbnail, sourcePage, source, width, height",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -139,6 +180,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/places",
         title: "Places Search",
         group: "Search",
+        operationId: "searchPlaces",
         mcpTool: "search_places",
         latency: "1-3 seconds",
         previewSummary: "Local businesses: address, rating, reviews, phone, coordinates.",
@@ -157,7 +199,27 @@ export const SEARCH_ENDPOINTS = [
             properties: {
                 query: { type: "string" },
                 location: { type: "string" },
-                results: { type: "array", description: "Places with name, address, rating, reviews, priceLevel, category, phone, website, placeId, coordinates" },
+                results: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            position: { type: "integer" },
+                            name: { type: "string" },
+                            address: { type: "string" },
+                            rating: { type: "number" },
+                            reviews: { type: "integer" },
+                            priceLevel: { type: "string" },
+                            category: { type: "string" },
+                            phone: { type: "string" },
+                            website: { type: "string" },
+                            description: { type: "string" },
+                            placeId: { type: "string" },
+                            coordinates: { type: "object" },
+                        },
+                    },
+                    description: "Places with name, address, rating, reviews, priceLevel, category, phone, website, placeId, coordinates",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -170,6 +232,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/shopping",
         title: "Shopping Search",
         group: "Search",
+        operationId: "searchShopping",
         mcpTool: "search_shopping",
         latency: "1-2 seconds",
         previewSummary: "Products with prices, sellers, and ratings.",
@@ -186,7 +249,24 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                results: { type: "array", description: "Products with position, title, url, price, extractedPrice, source, rating, reviews, thumbnail" },
+                results: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            position: { type: "integer" },
+                            title: { type: "string" },
+                            url: { type: "string" },
+                            price: { type: "string" },
+                            extractedPrice: { type: "number" },
+                            source: { type: "string" },
+                            rating: { type: "number" },
+                            reviews: { type: "integer" },
+                            thumbnail: { type: "string" },
+                        },
+                    },
+                    description: "Products with position, title, url, price, extractedPrice, source, rating, reviews, thumbnail",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -199,6 +279,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/scholar",
         title: "Scholar Search",
         group: "Search",
+        operationId: "searchScholar",
         mcpTool: "search_scholar",
         latency: "1-2 seconds",
         previewSummary: "Academic papers with publication info and citation counts.",
@@ -215,7 +296,21 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                results: { type: "array", description: "Papers with position, title, url, snippet, publicationInfo, citedBy" },
+                results: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            position: { type: "integer" },
+                            title: { type: "string" },
+                            url: { type: "string" },
+                            snippet: { type: "string" },
+                            publicationInfo: { type: "string" },
+                            citedBy: { type: "integer" },
+                        },
+                    },
+                    description: "Papers with position, title, url, snippet, publicationInfo, citedBy",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -228,6 +323,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/autocomplete",
         title: "Autocomplete",
         group: "Search",
+        operationId: "searchAutocomplete",
         mcpTool: "search_autocomplete",
         latency: "<1 second",
         previewSummary: "Query suggestions — keyword and intent research.",
@@ -244,7 +340,11 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                suggestions: { type: "array", description: "Suggestion strings ranked by relevance" },
+                suggestions: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Suggestion strings ranked by relevance",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -257,6 +357,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/search/trends",
         title: "Trends Search",
         group: "Search",
+        operationId: "searchTrends",
         mcpTool: "search_trends",
         latency: "1-3 seconds",
         previewSummary: "Interest-over-time timeline for a topic.",
@@ -273,7 +374,21 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                timeline: { type: "array", description: "Interest-over-time points with date, timestamp, values[{query, value}]" },
+                timeline: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            date: { type: "string" },
+                            timestamp: { type: "string" },
+                            values: {
+                                type: "array",
+                                items: { type: "object" },
+                            },
+                        },
+                    },
+                    description: "Interest-over-time points with date, timestamp, values[{query, value}]",
+                },
                 searchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -286,6 +401,13 @@ export const SEARCH_ENDPOINTS = [
         path: "/social/youtube/transcript",
         title: "YouTube Transcript",
         group: "Social",
+        operationId: "youtubeTranscript",
+        guide: [
+            "Accepts a video ID or any YouTube URL (watch, shorts, youtu.be). `language` echoes the `lang` you asked for.",
+        ],
+        errors: {
+            "404": "No transcript available for this video",
+        },
         mcpTool: "youtube_transcript",
         latency: "1-3 seconds",
         previewSummary: "Full video transcript with timestamps.",
@@ -303,7 +425,19 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 videoId: { type: "string" },
-                segments: { type: "array", description: "Transcript segments with startMs, startTime, text" },
+                language: { type: "string", description: "The transcript language you requested with lang, when given" },
+                segments: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            startMs: { type: "integer" },
+                            startTime: { type: "string" },
+                            text: { type: "string" },
+                        },
+                    },
+                    description: "Transcript segments with startMs, startTime, text",
+                },
                 fullText: { type: "string", description: "All segments joined" },
                 fetchedAt: { type: "string" },
                 requestId: { type: "string" },
@@ -317,6 +451,7 @@ export const SEARCH_ENDPOINTS = [
         path: "/answer",
         title: "Grounded Answer",
         group: "Research",
+        operationId: "answerQuestion",
         mcpTool: "answer_question",
         latency: "5-20 seconds",
         previewSummary: "A direct answer with inline [n] citations to real sources.",
@@ -336,7 +471,18 @@ export const SEARCH_ENDPOINTS = [
             properties: {
                 query: { type: "string" },
                 answer: { type: "string", description: "Answer text with inline [n] citation markers" },
-                citations: { type: "array", description: "Citation list with index, url, title" },
+                citations: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            index: { type: "integer" },
+                            url: { type: "string" },
+                            title: { type: "string" },
+                        },
+                    },
+                    description: "Citation list with index, url, title",
+                },
                 confidence: { type: "number" },
                 answeredAt: { type: "string" },
                 requestId: { type: "string" },
@@ -350,6 +496,15 @@ export const SEARCH_ENDPOINTS = [
         path: "/research/deep",
         title: "Deep Research",
         group: "Research",
+        operationId: "deepResearch",
+        guide: [
+            "**SLOW: set a generous HTTP timeout.** A standard run takes roughly 30-60 seconds (measured ~35s); deep takes longer. 120s client timeout recommended. Do not retry on client timeout: you would pay twice.",
+        ],
+        errors: {
+            "404": "No web sources found for this query — nothing was charged for a failed run.",
+            "502": "Research failed or timed out before completing.",
+            "503": "AI service unavailable",
+        },
         mcpTool: "deep_research",
         latency: "30-60 seconds",
         previewSummary: "Multi-step research: sub-questions, cited answer, and gaps.",
@@ -372,13 +527,43 @@ export const SEARCH_ENDPOINTS = [
         outputSchema: {
             properties: {
                 query: { type: "string" },
-                depth: { type: "string" },
-                subQuestions: { type: "array", description: "The sub-questions researched" },
+                depth: {
+                    type: "string",
+                    enum: ["quick", "standard", "deep"],
+                },
+                subQuestions: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "The sub-questions the query was decomposed into, one web search each. For quick, the query itself.",
+                },
                 answer: { type: "string", description: "Synthesized answer with inline [n] citation markers" },
-                keyFindings: { type: "array", description: "Bullet-point findings" },
-                citations: { type: "array", description: "Citations with index, url, title, subQuestion" },
-                gaps: { type: "array", description: "What the sources did not establish" },
-                sourcesFetched: { type: "number" },
+                keyFindings: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Bullet-point findings drawn from the sources",
+                },
+                citations: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            index: { type: "integer" },
+                            url: { type: "string" },
+                            title: { type: "string" },
+                            subQuestion: { type: "string" },
+                        },
+                    },
+                    description: "Sources behind the [n] markers, with the sub-question each answered",
+                },
+                gaps: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "What the sources did not establish",
+                },
+                sourcesFetched: {
+                    type: "number",
+                    description: "Sources whose full page was fetched (the rest fall back to their search snippet)",
+                },
                 researchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -391,6 +576,10 @@ export const SEARCH_ENDPOINTS = [
         path: "/discussions",
         title: "Discussions",
         group: "Search",
+        operationId: "searchDiscussions",
+        guide: [
+            "`pointsReturned`/`commentsReturned` sum the returned stories only; `totalMatches` is Hacker News's full count.",
+        ],
         mcpTool: "search_discussions",
         latency: "1-3 seconds",
         previewSummary: "What Hacker News said about a topic, with points, comments and aggregates.",
@@ -407,10 +596,43 @@ export const SEARCH_ENDPOINTS = [
         },
         outputSchema: {
             properties: {
-                query: { type: "string" }, source: { type: "string" }, sort: { type: "string" },
-                stories: { type: "array", description: "Each: title, url, points, comments, author, postedAt, discussionUrl" },
-                summary: { type: "object", description: "totalMatches, returned, pointsReturned, commentsReturned, topDomains, firstSeen, lastSeen" },
-                discussedAt: { type: "string" }, requestId: { type: "string" },
+                query: { type: "string" },
+                source: {
+                    type: "string",
+                    enum: ["hackernews"],
+                },
+                sort: { type: "string" },
+                stories: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            title: { type: "string" },
+                            url: { type: "string" },
+                            points: { type: "integer" },
+                            comments: { type: "integer" },
+                            author: { type: "string" },
+                            postedAt: { type: "string" },
+                            discussionUrl: { type: "string", description: "Link to the HN thread" },
+                        },
+                    },
+                    description: "Each: title, url, points, comments, author, postedAt, discussionUrl",
+                },
+                summary: {
+                    type: "object",
+                    properties: {
+                        totalMatches: { type: "integer", description: "Stories HN matched overall, which may exceed those returned" },
+                        returned: { type: "integer" },
+                        pointsReturned: { type: "integer", description: "Summed over the RETURNED stories only" },
+                        commentsReturned: { type: "integer", description: "Summed over the RETURNED stories only" },
+                        topDomains: { type: "array", description: "Most-submitted domains among the returned stories" },
+                        firstSeen: { type: "string" },
+                        lastSeen: { type: "string" },
+                    },
+                    description: "totalMatches, returned, pointsReturned, commentsReturned, topDomains, firstSeen, lastSeen",
+                },
+                discussedAt: { type: "string" },
+                requestId: { type: "string" },
             },
         },
         price: fixedPrice(PRICING.discussions),

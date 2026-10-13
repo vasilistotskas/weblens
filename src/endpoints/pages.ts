@@ -15,20 +15,12 @@ import {
 } from "../schemas";
 import { complexityPricing, defineEndpoint, fixedPrice, perUnitPricing } from "./define";
 
-const FETCH_OUTPUT_PROPERTIES = {
-    url: { type: "string", description: "Fetched URL" },
-    title: { type: "string", description: "Page title" },
-    content: { type: "string", description: "Clean markdown content" },
-    tier: { type: "string" },
-    fetchedAt: { type: "string", description: "ISO timestamp" },
-    requestId: { type: "string" },
-} as const;
-
 export const PAGE_ENDPOINTS = [
     defineEndpoint({
         path: "/fetch/basic",
         title: "Fetch Webpage (Basic)",
         group: "Pages",
+        operationId: "fetchBasic",
         mcpTool: "fetch_webpage",
         latency: "1-3 seconds",
         previewSummary: "Any webpage as clean markdown, no JavaScript rendering.",
@@ -40,11 +32,31 @@ export const PAGE_ENDPOINTS = [
             url: "https://example.com/article",
             title: "Example Article Title",
             content: "# Article Heading\\n\\nClean markdown content...",
+            metadata: { description: "An example article", author: "Jane Doe", publishedAt: "2026-01-20T09:00:00.000Z" },
             tier: "basic",
             fetchedAt: "2026-01-26T12:00:00.000Z",
             requestId: "req_abc123",
         },
-        outputSchema: { properties: FETCH_OUTPUT_PROPERTIES },
+        outputSchema: {
+            properties: {
+                url: { type: "string", description: "Fetched URL" },
+                title: { type: "string", description: "Page title" },
+                content: { type: "string", description: "Clean markdown content" },
+                tier: { type: "string" },
+                fetchedAt: { type: "string", description: "ISO timestamp" },
+                metadata: {
+                    type: "object",
+                    description: "Page metadata",
+                    properties: {
+                        description: { type: "string" },
+                        author: { type: "string" },
+                        publishedAt: { type: "string" },
+                    },
+                },
+                cached: { type: "boolean", description: "Present and true when the response was served from cache" },
+                requestId: { type: "string" },
+            },
+        },
         price: fixedPrice(PRICING.fetch.basic),
         cacheKey: "fetch-basic",
         acceptsCredits: true,
@@ -54,6 +66,7 @@ export const PAGE_ENDPOINTS = [
         path: "/fetch/pro",
         title: "Fetch Webpage (Pro)",
         group: "Pages",
+        operationId: "fetchPro",
         mcpTool: "fetch_webpage_pro",
         latency: "3-8 seconds",
         previewSummary: "Same, but rendered in headless Chromium first — for SPAs.",
@@ -65,14 +78,29 @@ export const PAGE_ENDPOINTS = [
             url: "https://app.example.com",
             title: "Dynamic App Title",
             content: "# App Content\\n\\nRendered after JavaScript execution...",
+            metadata: { description: "A client-rendered app" },
             tier: "pro",
             fetchedAt: "2026-01-26T12:00:00.000Z",
             requestId: "req_xyz789",
         },
         outputSchema: {
             properties: {
-                ...FETCH_OUTPUT_PROPERTIES,
+                url: { type: "string", description: "Fetched URL" },
+                title: { type: "string", description: "Page title" },
                 content: { type: "string", description: "Clean markdown content after JS rendering" },
+                tier: { type: "string" },
+                fetchedAt: { type: "string", description: "ISO timestamp" },
+                metadata: {
+                    type: "object",
+                    description: "Page metadata",
+                    properties: {
+                        description: { type: "string" },
+                        author: { type: "string" },
+                        publishedAt: { type: "string" },
+                    },
+                },
+                cached: { type: "boolean", description: "Present and true when the response was served from cache" },
+                requestId: { type: "string" },
             },
         },
         price: complexityPricing("fetch-pro"),
@@ -84,6 +112,7 @@ export const PAGE_ENDPOINTS = [
         path: "/fetch/resilient",
         title: "Resilient Fetch",
         group: "Pages",
+        operationId: "resilientFetch",
         mcpTool: "fetch_resilient",
         latency: "2-10 seconds",
         previewSummary: "Native fetch, falling back to headless Chromium when it fails.",
@@ -95,6 +124,7 @@ export const PAGE_ENDPOINTS = [
             url: "https://example.com",
             title: "Example Page",
             content: "# Page Content...",
+            metadata: { description: "An example page" },
             provider: { id: "weblens-native", name: "WebLens Native", isProxied: false, attemptsUsed: 1 },
             tier: "resilient",
             fetchedAt: "2026-02-16T12:00:00.000Z",
@@ -102,8 +132,23 @@ export const PAGE_ENDPOINTS = [
         },
         outputSchema: {
             properties: {
-                ...FETCH_OUTPUT_PROPERTIES,
+                url: { type: "string", description: "Fetched URL" },
+                title: { type: "string", description: "Page title" },
+                content: { type: "string", description: "Clean markdown content" },
+                tier: { type: "string" },
+                fetchedAt: { type: "string", description: "ISO timestamp" },
                 provider: { type: "object", description: "Provider info: id, name, isProxied, attemptsUsed" },
+                metadata: {
+                    type: "object",
+                    description: "Page metadata",
+                    properties: {
+                        description: { type: "string" },
+                        author: { type: "string" },
+                        publishedAt: { type: "string" },
+                    },
+                },
+                cached: { type: "boolean", description: "Present and true when the response was served from cache" },
+                requestId: { type: "string" },
             },
         },
         price: fixedPrice(PRICING.fetch.resilient),
@@ -115,6 +160,7 @@ export const PAGE_ENDPOINTS = [
         path: "/screenshot",
         title: "Screenshot Capture",
         group: "Pages",
+        operationId: "captureScreenshot",
         mcpTool: "screenshot",
         latency: "2-5 seconds",
         previewSummary: "PNG screenshot of a page, base64-encoded.",
@@ -125,6 +171,7 @@ export const PAGE_ENDPOINTS = [
         outputExample: {
             url: "https://example.com",
             image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            dimensions: { width: 1280, height: 720 },
             capturedAt: "2026-01-26T12:00:00.000Z",
             requestId: "req_screen123",
         },
@@ -133,6 +180,7 @@ export const PAGE_ENDPOINTS = [
                 url: { type: "string", description: "Screenshotted URL" },
                 image: { type: "string", description: "Base64-encoded PNG image" },
                 capturedAt: { type: "string", description: "ISO timestamp" },
+                dimensions: { type: "object" },
                 requestId: { type: "string" },
             },
         },
@@ -144,6 +192,7 @@ export const PAGE_ENDPOINTS = [
         path: "/contents",
         title: "Page Contents",
         group: "Pages",
+        operationId: "getContents",
         mcpTool: "get_contents",
         latency: "2-10 seconds",
         previewSummary: "Bulk page text for 1-20 URLs, truncated to your character cap.",
@@ -159,8 +208,30 @@ export const PAGE_ENDPOINTS = [
         },
         outputSchema: {
             properties: {
-                results: { type: "array", description: "Per-URL results with url, status, title, content, truncated, error" },
-                summary: { type: "object", description: "total, successful, failed counts" },
+                results: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            url: { type: "string" },
+                            status: { type: "string" },
+                            title: { type: "string" },
+                            content: { type: "string" },
+                            truncated: { type: "boolean" },
+                            error: { type: "string" },
+                        },
+                    },
+                    description: "Per-URL results with url, status, title, content, truncated, error",
+                },
+                summary: {
+                    type: "object",
+                    properties: {
+                        total: { type: "integer" },
+                        successful: { type: "integer" },
+                        failed: { type: "integer" },
+                    },
+                    description: "total, successful, failed counts",
+                },
                 fetchedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -177,6 +248,7 @@ export const PAGE_ENDPOINTS = [
         path: "/map",
         title: "Site Map",
         group: "Pages",
+        operationId: "mapSite",
         mcpTool: "map_site",
         latency: "1-5 seconds",
         previewSummary: "Every URL on a site, from sitemaps and links — no page fetches.",
@@ -196,10 +268,18 @@ export const PAGE_ENDPOINTS = [
         outputSchema: {
             properties: {
                 url: { type: "string" },
-                urls: { type: "array", description: "Discovered URLs" },
+                urls: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Discovered same-host URLs",
+                },
                 total: { type: "number" },
-                source: { type: "string", description: "sitemap | links | none" },
-                sitemapsChecked: { type: "number" },
+                source: {
+                    type: "string",
+                    enum: ["sitemap", "links", "none"],
+                    description: "Where the URLs came from",
+                },
+                sitemapsChecked: { type: "number", description: "Sitemap documents fetched (including nested indexes)" },
                 mappedAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -212,6 +292,14 @@ export const PAGE_ENDPOINTS = [
         path: "/crawl",
         title: "Site Crawl",
         group: "Pages",
+        operationId: "crawlSite",
+        guide: [
+            "Billed on the page budget you request (`limit`), not on the pages actually returned.",
+            "One synchronous call: no async job, no polling. robots.txt is honoured by default; if it disallows the start URL you get 403 FORBIDDEN.",
+        ],
+        errors: {
+            "403": "robots.txt disallows crawling the start URL. Set respectRobots=false only for sites you control.",
+        },
         mcpTool: "crawl_site",
         latency: "5-30 seconds",
         previewSummary: "Whole-site crawl returning markdown per page, in one call.",
@@ -232,8 +320,38 @@ export const PAGE_ENDPOINTS = [
         outputSchema: {
             properties: {
                 url: { type: "string" },
-                pages: { type: "array", description: "Per-page results with url, depth, status, title, content, truncated, error" },
-                summary: { type: "object", description: "crawled, successful, failed, discovered, limit, maxDepth, robotsRespected" },
+                pages: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            url: { type: "string" },
+                            depth: { type: "integer" },
+                            status: {
+                                type: "string",
+                                enum: ["success", "failed"],
+                            },
+                            title: { type: "string" },
+                            content: { type: "string", description: "Page as clean markdown" },
+                            truncated: { type: "boolean" },
+                            error: { type: "string" },
+                        },
+                    },
+                    description: "Per-page results with url, depth, status, title, content, truncated, error",
+                },
+                summary: {
+                    type: "object",
+                    properties: {
+                        crawled: { type: "integer" },
+                        successful: { type: "integer" },
+                        failed: { type: "integer" },
+                        discovered: { type: "integer" },
+                        limit: { type: "integer" },
+                        maxDepth: { type: "integer" },
+                        robotsRespected: { type: "boolean" },
+                    },
+                    description: "crawled, successful, failed, discovered, limit, maxDepth, robotsRespected",
+                },
                 crawledAt: { type: "string" },
                 requestId: { type: "string" },
             },
@@ -251,6 +369,7 @@ export const PAGE_ENDPOINTS = [
         path: "/pdf",
         title: "PDF Text Extraction",
         group: "Extraction",
+        operationId: "extractPdf",
         mcpTool: "extract_pdf",
         latency: "2-10 seconds",
         previewSummary: "Text and metadata out of a PDF, page by page.",
@@ -284,6 +403,7 @@ export const PAGE_ENDPOINTS = [
         path: "/extract",
         title: "Structured Data Extraction",
         group: "Extraction",
+        operationId: "extractData",
         mcpTool: "extract_data",
         latency: "3-6 seconds",
         previewSummary: "Structured JSON pulled from a page against your schema.",

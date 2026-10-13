@@ -11,6 +11,7 @@ export const BILLING_ENDPOINTS = [
         path: "/credits/buy",
         title: "Buy Credits",
         group: "Credits",
+        operationId: "buyCredits",
         latency: "1-3 seconds",
         previewSummary: "Prepay credits; deposit bonuses at $10 / $50 / $100.",
         description: "Buy prepaid credits for WebLens API. Credits are used for all paid endpoints and offer bonuses at $10/$50/$100 tiers.",

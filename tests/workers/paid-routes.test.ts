@@ -8,7 +8,7 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { ENDPOINTS } from "../../src/endpoints";
-import { requestBodySchema } from "../../src/endpoints/define";
+import { endpointBodySchema } from "../../src/endpoints/define";
 import type { EndpointDefinition } from "../../src/endpoints/define";
 import { parsePrice } from "../../src/services/pricing";
 
@@ -57,6 +57,6 @@ describe("generated paid routes", () => {
 
         const bazaar = challenge.extensions?.bazaar;
         expect(bazaar?.info?.input?.body).toEqual(endpoint.inputExample);
-        expect(bazaar?.schema?.properties?.input?.properties?.body).toEqual(requestBodySchema(endpoint.input));
+        expect(bazaar?.schema?.properties?.input?.properties?.body).toEqual(endpointBodySchema(endpoint));
     });
 });

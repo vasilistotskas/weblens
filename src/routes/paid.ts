@@ -12,7 +12,7 @@
 import type { Context, Handler, Hono, MiddlewareHandler } from "hono";
 import { ENDPOINTS } from "../endpoints";
 import type { PaidPath } from "../endpoints";
-import { requestBodySchema } from "../endpoints/define";
+import { endpointBodySchema } from "../endpoints/define";
 import type { EndpointDefinition } from "../endpoints/define";
 import { cacheAwarePrice, cacheLookupMiddleware, cacheServeMiddleware } from "../middleware/cache";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
@@ -111,7 +111,7 @@ export function registerPaidRoutes(app: Hono<AppEnv>): void {
                 catalogTags: definition.catalogTags,
                 evmOnly: definition.evmOnly,
                 inputExample: definition.inputExample,
-                inputSchema: requestBodySchema(definition.input),
+                inputSchema: endpointBodySchema(definition),
                 outputExample: definition.outputExample,
                 outputSchema: definition.outputSchema,
             },

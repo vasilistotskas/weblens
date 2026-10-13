@@ -8,7 +8,7 @@
 import type { Context } from "hono";
 import { supportedNetworkNames, supportedNetworks } from "../config";
 import { ENDPOINTS } from "../endpoints";
-import { describePrice, requestBodySchema } from "../endpoints/define";
+import { describePrice, endpointBodySchema, requestBodySchema } from "../endpoints/define";
 import { PreviewRequestSchema } from "../schemas";
 import { getPriceRange } from "../services/pricing";
 import type { AppEnv, Env } from "../types";
@@ -173,7 +173,7 @@ export const TOOLS = [
   ...PAID_TOOLS.map(({ name, endpoint }) => ({
     name,
     description: `${endpoint.description} Price: ${describePrice(endpoint)}`,
-    inputSchema: requestBodySchema(endpoint.input),
+    inputSchema: endpointBodySchema(endpoint),
   })),
 ];
 
