@@ -22,7 +22,7 @@ import {
     parseSitemap,
 } from "../services/crawler";
 import { validateURL } from "../services/validator";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { readTextCapped, safeFetch } from "../utils/safe-fetch";
 
 const UA = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https://api.weblens.dev)";
@@ -40,7 +40,7 @@ async function fetchText(url: string, timeout: number): Promise<string | null> {
     }
 }
 
-export async function mapHandler(c: Context<{ Bindings: Env }>) {
+export async function mapHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

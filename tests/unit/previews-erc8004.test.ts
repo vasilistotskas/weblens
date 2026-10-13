@@ -12,18 +12,16 @@
 
 import { describe, expect, it } from "vitest";
 import { keccak256, stringToHex } from "viem";
-import { PAID_ENDPOINTS } from "../../src/config";
+import { PAID_ENDPOINTS } from "../../src/endpoints";
 import { FeedbackDocumentSchema } from "../../src/schemas";
 import {
     ERC8004_REGISTRATION_TYPE,
-    MAX_DOCUMENT_DEPTH,
     REQUIRED_FEEDBACK_FIELDS,
     buildRegistration,
-    canonicalJson,
-    exceedsDepth,
     feedbackHash,
     missingFeedbackFields,
 } from "../../src/services/erc8004";
+import { MAX_DOCUMENT_DEPTH, canonicalJson, exceedsDepth } from "../../src/utils/json-document";
 import {
     LIVE_PREVIEW_ENDPOINTS,
     PREVIEW_SAMPLES,

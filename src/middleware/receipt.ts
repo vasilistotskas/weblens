@@ -12,10 +12,10 @@
 
 import { decodePaymentResponseHeader, decodePaymentSignatureHeader } from "@x402/core/http";
 import type { MiddlewareHandler } from "hono";
-import { PAID_ENDPOINTS } from "../config";
+import { PAID_ENDPOINTS } from "../endpoints";
 import { recordReceipt } from "../services/erc8004";
 import type { CallReceipt } from "../services/erc8004";
-import type { Env, Variables } from "../types";
+import type { AppEnv } from "../types";
 
 /** USDC uses 6 decimals on every chain WebLens accepts (Base and Solana). */
 const USDC_DECIMALS = 6;
@@ -59,7 +59,7 @@ function settledX402Payment(
     }
 }
 
-export function receiptMiddleware(): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
+export function receiptMiddleware(): MiddlewareHandler<AppEnv> {
     return async (c, next) => {
         await next();
 

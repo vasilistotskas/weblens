@@ -12,7 +12,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { PAID_ENDPOINTS, PRICING } from "../../src/config";
+import { PRICING } from "../../src/config";
+import { PAID_ENDPOINTS } from "../../src/endpoints";
 import { SERVICE_CATALOG } from "../../src/tools/discovery";
 
 // ============================================

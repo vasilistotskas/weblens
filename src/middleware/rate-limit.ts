@@ -7,7 +7,7 @@
 
 import type { Context, Next } from "hono";
 import { FREE_TIER, PRICING } from "../config";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { createErrorResponse } from "./errorHandler";
 
 /** KV-stored rate limit state for a single IP address. */
@@ -19,7 +19,7 @@ interface RateLimitEntry {
 /**
  * Get the client IP from Cloudflare headers
  */
-function getClientIP(c: Context<{ Bindings: Env }>): string {
+function getClientIP(c: Context<AppEnv>): string {
     // Trust ONLY Cloudflare's edge-set header. X-Forwarded-For / X-Real-IP are
     // client-controllable; honoring them would let an attacker rotate the value
     // to mint unlimited fresh rate-limit buckets.
@@ -31,7 +31,7 @@ function getClientIP(c: Context<{ Bindings: Env }>): string {
  * Uses Cloudflare KV to track request counts per IP.
  */
 export async function rateLimitMiddleware(
-    c: Context<{ Bindings: Env }>,
+    c: Context<AppEnv>,
     next: Next
 ) {
     const kv = c.env.CACHE;

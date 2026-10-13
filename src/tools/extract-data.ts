@@ -5,11 +5,11 @@ import { createErrorResponse } from "../middleware/errorHandler";
 import type { ExtractRequestSchema } from "../schemas";
 import { isAIAvailable } from "../services/ai";
 import { validateURL } from "../services/validator";
-import type { Env, ExtractResponse } from "../types";
+import type { AppEnv, ExtractResponse } from "../types";
 import { htmlToMarkdown } from "../utils/parser";
 import { readDocument, safeFetch, UnsupportedContentError } from "../utils/safe-fetch";
 
-export async function extractData(c: Context<{ Bindings: Env }>) {
+export async function extractData(c: Context<AppEnv>) {
   const requestId = c.get("requestId");
 
   try {

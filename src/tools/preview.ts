@@ -30,11 +30,11 @@ import {
 import { auditProject } from "../services/project-audit";
 import { detectTech } from "../services/tech-detect";
 import { validateURL } from "../services/validator";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { generateRequestId } from "../utils/requestId";
 import { fetchBasicPage } from "./fetch-basic";
 
-type AppContext = Context<{ Bindings: Env }>;
+type AppContext = Context<AppEnv>;
 
 /**
  * Public origin for documents we publish. Forced to https for real hosts:

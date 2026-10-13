@@ -10,12 +10,12 @@ import type { z } from "zod/v4";
 import type { ScreenshotRequestSchema } from "../schemas";
 import { captureScreenshot } from "../services/screenshot";
 import { validateURL } from "../services/validator";
-import type { Env, ScreenshotRequest, ScreenshotResponse, ErrorResponse } from "../types";
+import type { AppEnv, ErrorResponse, ScreenshotRequest, ScreenshotResponse } from "../types";
 
 /**
  * Screenshot endpoint handler
  */
-export async function screenshot(c: Context<{ Bindings: Env }>): Promise<Response> {
+export async function screenshot(c: Context<AppEnv>): Promise<Response> {
   const requestId = c.get("requestId");
   const startTime = Date.now();
 

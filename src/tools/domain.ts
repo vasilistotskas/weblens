@@ -11,9 +11,9 @@ import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { DomainRequestSchema } from "../schemas";
 import { inspectDomain, normalizeDomain } from "../services/domain-intel";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-export async function domainHandler(c: Context<{ Bindings: Env }>) {
+export async function domainHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

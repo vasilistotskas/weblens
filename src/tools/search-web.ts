@@ -3,10 +3,10 @@ import type { z } from "zod/v4";
 import { classifySearchError, createErrorResponse } from "../middleware/errorHandler";
 import type { SearchRequestSchema } from "../schemas";
 import { searchWeb } from "../services/search";
-import type { Env, SearchResponse } from "../types";
+import type { AppEnv, SearchResponse } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
 
-export async function searchWebHandler(c: Context<{ Bindings: Env }>) {
+export async function searchWebHandler(c: Context<AppEnv>) {
   const requestId = c.get("requestId");
 
   try {

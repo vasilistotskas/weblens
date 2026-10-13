@@ -1,7 +1,7 @@
 import type { Context, Next } from "hono";
 import type { z } from "zod";
-import { PAID_ENDPOINTS } from "../config";
-import type { Env, Variables } from "../types";
+import { PAID_ENDPOINTS } from "../endpoints";
+import type { AppEnv } from "../types";
 
 /**
  * Validation Middleware
@@ -30,7 +30,7 @@ export const MAX_BODY_BYTES = 256 * 1024; // 256 KB
  * errors before any money moves; the handler is unreachable on this path
  * because the payment middleware always 402s unpaid requests.
  */
-function isUnpaidProbe(c: Context<{ Bindings: Env; Variables: Variables }>): boolean {
+function isUnpaidProbe(c: Context<AppEnv>): boolean {
     return PAID_ENDPOINTS.includes(c.req.path)
         && c.req.header("Payment-Signature") === undefined
         && c.req.header("X-CREDIT-WALLET") === undefined;
@@ -41,7 +41,7 @@ function isUnpaidProbe(c: Context<{ Bindings: Env; Variables: Variables }>): boo
  * Sets `validatedBody` in Hono context on success; returns 400 on failure.
  */
 export function validateRequest(schema: z.ZodType) {
-    return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
+    return async (c: Context<AppEnv>, next: Next) => {
         // Only validate JSON bodies for now
         // Future: support query params if needed
         const contentType = c.req.header("Content-Type");

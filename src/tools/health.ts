@@ -7,7 +7,7 @@
  */
 
 import type { Context } from "hono";
-import type { Env, HealthResponse, ServiceStatus } from "../types";
+import type { AppEnv, Env, HealthResponse, ServiceStatus } from "../types";
 
 // Facilitator endpoints used for reachability probes. Kept local to this file
 // because they are only relevant to the health probe, not payment routing.
@@ -147,7 +147,7 @@ function getOverallStatus(services: HealthResponse["services"]): HealthResponse[
  * Health check endpoint handler
  * GET /health
  */
-export async function health(c: Context<{ Bindings: Env }>): Promise<Response> {
+export async function health(c: Context<AppEnv>): Promise<Response> {
   // Check all services in parallel.
   //
   // The "cdp" field reports the facilitator the worker is actually using:

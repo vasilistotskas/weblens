@@ -8,7 +8,7 @@ import type { Hono } from "hono";
 import { FREE_TIER, PRICING, DEEP_RESEARCH_DEPTHS, describeDeepResearchTiers, supportedNetworkNames, supportedNetworks } from "./config";
 import type { NetworkEnv } from "./config";
 import { MAX_COMPLEXITY_MULTIPLIER, parsePrice } from "./services/pricing";
-import type { Env, Variables } from "./types";
+import type { AppEnv } from "./types";
 
 // ---- x402scan discovery helpers (https://www.x402scan.com/discovery/spec) ----
 // x-payment-info amounts are decimal USD strings; runtime 402 challenges use
@@ -987,7 +987,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
 /**
  * Register OpenAPI documentation routes
  */
-export function registerOpenAPIRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
+export function registerOpenAPIRoutes(app: Hono<AppEnv>) {
   // OpenAPI JSON spec
   app.get("/openapi.json", (c) => {
     const baseUrl = new URL(c.req.url).origin;

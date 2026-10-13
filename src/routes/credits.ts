@@ -1,13 +1,12 @@
 import type { Hono } from "hono";
-import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { rateLimitMiddleware } from "../middleware/rate-limit";
 import { validateRequest } from "../middleware/validation";
-import { CreditsBuyRequestSchema, FiatDepositRequestSchema } from "../schemas";
+import { FiatDepositRequestSchema } from "../schemas";
 
 // Tool Handlers
-import { buyCreditsHandler, getBalanceHandler, getHistoryHandler } from "../tools/credits";
+import { getBalanceHandler, getHistoryHandler } from "../tools/credits";
 import { createFiatCheckoutHandler, stripeWebhookHandler } from "../tools/fiatDeposit";
-import type { Env, Variables } from "../types";
+import type { AppEnv } from "../types";
 
 /** HTML-escape untrusted text to prevent XSS when reflecting into HTML. */
 function escapeHtml(s: string): string {
@@ -19,50 +18,7 @@ function escapeHtml(s: string): string {
         .replace(/'/gu, "&#39;");
 }
 
-export function registerCreditsRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
-
-    // ============================================
-    // /credits/buy
-    // ============================================
-    app.use(
-        "/credits/buy",
-        validateRequest(CreditsBuyRequestSchema),
-        createLazyPaymentMiddleware(
-            "/credits/buy",
-            (c) => {
-                const body = c.get("validatedBody") as { amount?: number } | undefined;
-                const amount = body?.amount ?? 2;
-                return Promise.resolve(`$${amount.toFixed(2)}`);
-            },
-            "Buy prepaid credits for WebLens API. Credits are used for all paid endpoints and offer bonuses at $10/$50/$100 tiers.",
-            { amount: 10 },
-            {
-                properties: {
-                    amount: { type: "number", description: "Amount in USD to purchase (min $2)" },
-                },
-                required: ["amount"],
-            },
-            {
-                success: true,
-                newBalance: 15.00,
-                addedCredits: 10.00,
-                bonus: 0,
-                transactionId: "tx_123",
-                requestId: "req_credits456",
-            },
-            {
-                properties: {
-                    success: { type: "boolean" },
-                    newBalance: { type: "number" },
-                    addedCredits: { type: "number" },
-                    bonus: { type: "number" },
-                    transactionId: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        )
-    );
-    app.post("/credits/buy", buyCreditsHandler);
+export function registerCreditsRoutes(app: Hono<AppEnv>) {
 
     // ============================================
     // /credits/balance - Authenticated by Wallet Signature

@@ -89,6 +89,7 @@ export const PRICING = {
     perPage: "$0.0015",
     minPages: 1,
     maxPages: 25,
+    defaultPages: 10,
   },
 
   // Deep research, priced per depth tier. The tier bounds are the cost
@@ -125,6 +126,12 @@ export const PRICING = {
     ],
   },
 } as const;
+
+/** Result pages /search fetches as markdown when `includeContent` is set; each is priced at PRICING.contents.perUrl. */
+export const SEARCH_CONTENT_RESULTS = { min: 1, max: 10, default: 5 } as const;
+
+/** Credit purchase bounds, in USD. */
+export const CREDIT_PURCHASE_USD = { min: 2, max: 1000 } as const;
 
 /**
  * Deep research depth tiers. The bounds ARE the cost model: each sub-question
@@ -164,21 +171,6 @@ export function describeDeepResearchTiers(): string {
   });
   return `${tiers.join("; ")}. Default: ${DEEP_RESEARCH_DEFAULT_DEPTH}.`;
 }
-
-// Paid POST endpoints. Used by the POST-only enforcement middleware
-// (src/index.ts) and by request validation: unauthenticated probes of these
-// paths fall through to the x402 402 challenge instead of a 400, so agents
-// that probe without reading the spec still discover a payable resource.
-export const PAID_ENDPOINTS: readonly string[] = [
-  "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
-  "/pdf",
-  "/credits/buy",
-  "/search/news", "/search/images", "/search/places", "/search/shopping",
-  "/search/scholar", "/search/autocomplete", "/search/trends",
-  "/social/youtube/transcript", "/contents", "/answer",
-  "/map", "/crawl", "/research/deep", "/domain",
-  "/package", "/tech", "/discussions", "/intel/project",
-];
 
 // Routes published with a `{param}` placeholder, paired with a URL a caller can
 // actually issue.
@@ -475,40 +467,3 @@ export const SERVICE_NAME = "WebLens";
 /** Catalog icon. Served by `faviconPngHandler`; origin is taken from the request. */
 export const SERVICE_ICON_PATH = "/favicon.png";
 
-// Tags are matched by longest path prefix, so "/search/news" beats "/search".
-// Keep the specific entries above the general ones.
-const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
-  ["/social/youtube/transcript", ["video", "transcript", "youtube"]],
-  ["/research/deep", ["research", "ai", "multi-step"]],
-  ["/intel/project", ["intelligence", "diligence", "ai"]],
-  ["/fetch", ["fetch", "scraping", "markdown"]],
-  ["/search", ["search", "serp"]],
-  ["/extract", ["extraction", "ai", "structured-data"]],
-  ["/screenshot", ["screenshot", "rendering"]],
-  ["/credits", ["billing", "credits"]],
-  ["/contents", ["fetch", "scraping", "batch"]],
-  ["/answer", ["search", "ai", "question-answering"]],
-  ["/crawl", ["crawling", "scraping"]],
-  ["/discussions", ["search", "social"]],
-  ["/domain", ["domain", "whois"]],
-  ["/package", ["package", "registry"]],
-  ["/tech", ["technology", "fingerprinting"]],
-  ["/map", ["crawling", "sitemap"]],
-  ["/pdf", ["pdf", "documents"]],
-];
-
-/**
- * Catalog tags for a paid path. Returns the longest-prefix match so agents
- * searching a facilitator catalog by intent can find the endpoint.
- */
-export function tagsForPath(path: string): string[] {
-  let best: readonly string[] = [];
-  let bestLen = -1;
-  for (const [prefix, tags] of TAG_PREFIXES) {
-    if ((path === prefix || path.startsWith(`${prefix}/`)) && prefix.length > bestLen) {
-      best = tags;
-      bestLen = prefix.length;
-    }
-  }
-  return [...best];
-}

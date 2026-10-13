@@ -13,7 +13,7 @@ import type { z } from "zod/v4";
 import type { FetchRequestSchema } from "../schemas";
 import { resilientFetch } from "../services/provider-registry";
 import { validateURL } from "../services/validator";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
 /**
  * Resilient Fetch endpoint handler
@@ -23,7 +23,7 @@ import type { Env } from "../types";
  * validateRequest(FetchRequestSchema), so re-parsing here would duplicate
  * work and (as it previously did) drift from the canonical bounds.
  */
-export async function resilientFetchHandler(c: Context<{ Bindings: Env }>) {
+export async function resilientFetchHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

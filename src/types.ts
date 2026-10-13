@@ -55,6 +55,12 @@ export interface Env {
   STRIPE_CANCEL_URL?: string;
 }
 
+/** The Hono environment every route and middleware runs in. */
+export interface AppEnv {
+  Bindings: Env;
+  Variables: Variables;
+}
+
 export interface Variables {
   requestId: string;
   validatedBody?: unknown;

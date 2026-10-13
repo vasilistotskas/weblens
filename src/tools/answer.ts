@@ -13,7 +13,7 @@ import { classifySearchError, createErrorResponse } from "../middleware/errorHan
 import type { AnswerRequestSchema } from "../schemas";
 import { callClaude, isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import { searchWeb } from "../services/search";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
 
 // Cost control: cheap model + hard caps on per-source content and output.
@@ -23,7 +23,7 @@ const PER_SOURCE_CHARS = 8000;
 
 interface AnswerCitation { index: number; url: string; title: string }
 
-export async function answerHandler(c: Context<{ Bindings: Env }>) {
+export async function answerHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
     try {
         const { query, sources: sourceCount } = c.get("validatedBody") as z.infer<typeof AnswerRequestSchema>;

@@ -10,7 +10,7 @@ import type { Context } from "hono";
 import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { ContentsRequestSchema } from "../schemas";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
 
 interface ContentResult {
@@ -22,7 +22,7 @@ interface ContentResult {
     error?: string;
 }
 
-export async function contentsHandler(c: Context<{ Bindings: Env }>) {
+export async function contentsHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
     try {
         const { urls, maxChars, timeout } = c.get("validatedBody") as z.infer<typeof ContentsRequestSchema>;

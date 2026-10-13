@@ -19,10 +19,10 @@ import { createErrorResponse } from "../middleware/errorHandler";
 import { processDeposit } from "../services/credits";
 import type { StripeWebhookEvent } from "../services/stripe";
 import { createCheckoutSession, verifyStripeSignature } from "../services/stripe";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { mask } from "../utils/logger";
 
-export async function createFiatCheckoutHandler(c: Context<{ Bindings: Env }>) {
+export async function createFiatCheckoutHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     if (!c.env.STRIPE_SECRET_KEY) {
@@ -83,7 +83,7 @@ export async function createFiatCheckoutHandler(c: Context<{ Bindings: Env }>) {
     }
 }
 
-export async function stripeWebhookHandler(c: Context<{ Bindings: Env }>) {
+export async function stripeWebhookHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     if (!c.env.STRIPE_WEBHOOK_SECRET || !c.env.CREDIT_MANAGER) {

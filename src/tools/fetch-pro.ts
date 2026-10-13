@@ -15,7 +15,7 @@ import type { z } from "zod/v4";
 import { VIEWPORT_BOUNDS } from "../config";
 import type { FetchRequestSchema } from "../schemas";
 import { validateURL } from "../services/validator";
-import type { Env, FetchResponse } from "../types";
+import type { AppEnv, FetchResponse } from "../types";
 import { hardenPage } from "../utils/browser-guard";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 
@@ -188,7 +188,7 @@ async function fetchProPage(
  * Fetch Pro endpoint handler
  * POST /fetch/pro
  */
-export async function fetchPro(c: Context<{ Bindings: Env }>) {
+export async function fetchPro(c: Context<AppEnv>) {
   const requestId = c.get("requestId");
 
   try {

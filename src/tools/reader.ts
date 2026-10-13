@@ -10,7 +10,7 @@ import type { Context } from "hono";
 import { FREE_TIER, PRICING } from "../config";
 import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import { validateURL } from "../services/validator";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
 
 /**
@@ -41,7 +41,7 @@ function extractTargetUrl(c: Context): string | null {
  * GET /r/*
  * Zero-friction reader — fetch any URL as markdown with a single GET request.
  */
-export async function readerHandler(c: Context<{ Bindings: Env }>) {
+export async function readerHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
     const format = c.req.query("format") ?? "json";
 

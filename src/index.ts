@@ -17,18 +17,15 @@ import { paidEndpointsArePostOnly, pathTemplateMiddleware, routeMethodGuard } fr
 import { securityMiddleware } from "./middleware/security";
 
 // Route Registrars
-import { registerAdvancedRoutes } from "./routes/advanced";
-import { registerCoreRoutes } from "./routes/core";
 import { registerCreditsRoutes } from "./routes/credits";
 import { registerFreeRoutes } from "./routes/free";
-import { registerIntelRoutes } from "./routes/intel";
+import { registerPaidRoutes } from "./routes/paid";
 import { registerReaderRoutes } from "./routes/reader";
 import { registerSystemRoutes } from "./routes/system";
-import { registerVerticalRoutes } from "./routes/verticals";
 import { setMcpDispatcher } from "./tools/mcp";
-import type { Env, Variables } from "./types";
+import type { AppEnv } from "./types";
 
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+const app = new Hono<AppEnv>();
 
 // ============================================
 // Global Middleware Chain
@@ -118,17 +115,8 @@ registerFreeRoutes(app);
 // 3. Credits System
 registerCreditsRoutes(app);
 
-// 4. Core Tools (Fetch, Screenshot, Search, Extract)
-registerCoreRoutes(app);
-
-// 4.5 Search Verticals, Social, Contents, Answer
-registerVerticalRoutes(app);
-
-// 5. Advanced Tools (Batch, Research, PDF, Compare)
-registerAdvancedRoutes(app);
-
-// 6. Intelligence Tools (Company, Market, etc.)
-registerIntelRoutes(app);
+// 4. Paid endpoints, one per registry definition (src/endpoints)
+registerPaidRoutes(app);
 
 // Custom 404 handler — consistent JSON error envelope
 app.notFound((c) => {

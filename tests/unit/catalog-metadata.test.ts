@@ -13,7 +13,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { PAID_ENDPOINTS, SERVICE_ICON_PATH, SERVICE_NAME, tagsForPath } from "../../src/config";
+import { SERVICE_ICON_PATH, SERVICE_NAME } from "../../src/config";
+import { ENDPOINTS } from "../../src/endpoints";
 import { catalogIconUrl, wantsCdpBootstrap } from "../../src/middleware/payment";
 import type { Env } from "../../src/types";
 
@@ -24,28 +25,8 @@ describe("catalog tags", () => {
     it("gives every paid endpoint a non-empty tag set", () => {
         // A new paid endpoint must not ship untagged: agents search facilitator
         // catalogs by intent, and an untagged resource is effectively unfindable.
-        const untagged = PAID_ENDPOINTS.filter((p) => tagsForPath(p).length === 0);
+        const untagged = ENDPOINTS.filter((e) => e.catalogTags.length === 0).map((e) => e.path);
         expect(untagged).toEqual([]);
-    });
-
-    it("prefers the longest matching prefix", () => {
-        // "/search/news" must not collapse into the generic "/search" tags.
-        expect(tagsForPath("/search")).toEqual(["search", "serp"]);
-        expect(tagsForPath("/search/news")).toEqual(["search", "serp"]);
-        expect(tagsForPath("/research/deep")).toContain("multi-step");
-        expect(tagsForPath("/intel/project")).toContain("diligence");
-    });
-
-    it("does not match a path that merely shares a prefix string", () => {
-        // "/mapping" is not under "/map".
-        expect(tagsForPath("/mapping")).toEqual([]);
-        expect(tagsForPath("/map")).toContain("sitemap");
-    });
-
-    it("returns a fresh array so callers cannot mutate the shared table", () => {
-        const first = tagsForPath("/search");
-        first.push("mutated");
-        expect(tagsForPath("/search")).not.toContain("mutated");
     });
 
     it("exposes a service name and a relative icon path", () => {

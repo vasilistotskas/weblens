@@ -8,9 +8,9 @@ import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { DiscussionsRequestSchema } from "../schemas";
 import { searchDiscussions } from "../services/discussions";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-export async function discussionsHandler(c: Context<{ Bindings: Env }>) {
+export async function discussionsHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

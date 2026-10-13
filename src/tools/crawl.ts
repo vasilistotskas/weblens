@@ -29,7 +29,7 @@ import {
     parseRobots,
 } from "../services/crawler";
 import { validateURL } from "../services/validator";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { assertTargetOk, HTML_CONTENT_TYPE, readDocument, readTextCapped, safeFetch } from "../utils/safe-fetch";
 
@@ -67,7 +67,7 @@ async function fetchPage(url: string, timeout: number): Promise<FetchedPage> {
     };
 }
 
-export async function crawlHandler(c: Context<{ Bindings: Env }>) {
+export async function crawlHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

@@ -12,7 +12,8 @@
  * run live, truncated, and rate-limited.
  */
 
-import { PAID_ENDPOINTS, PRICING, describeDeepResearchTiers } from "../config";
+import { PRICING, describeDeepResearchTiers } from "../config";
+import { PAID_ENDPOINTS } from "../endpoints";
 
 /**
  * Endpoints whose marginal cost is a native fetch (no paid upstream API), so

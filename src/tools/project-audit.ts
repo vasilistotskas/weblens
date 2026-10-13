@@ -8,9 +8,9 @@ import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { ProjectAuditRequestSchema } from "../schemas";
 import { auditProject } from "../services/project-audit";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-export async function projectAuditHandler(c: Context<{ Bindings: Env }>) {
+export async function projectAuditHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

@@ -16,10 +16,10 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { buildCacheKey, clampCacheTtl, getCached, setCached } from "../services/cache";
 import { getCachedPrice } from "../services/pricing";
-import type { Env, Variables } from "../types";
+import type { AppEnv } from "../types";
 import { MAX_BODY_BYTES } from "./validation";
 
-type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
+type AppContext = Context<AppEnv>;
 
 interface CacheControlBody {
     cache?: boolean;
@@ -34,7 +34,7 @@ interface CacheControlBody {
  */
 export function cacheLookupMiddleware(
     endpoint: string,
-): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
+): MiddlewareHandler<AppEnv> {
     return async (c, next) => {
         // This middleware runs before validateRequest, so the 256KB bound
         // must be enforced here too — otherwise oversized bodies get fully
@@ -89,7 +89,7 @@ export function cacheLookupMiddleware(
  * Serve a cached body on hit (skipping the handler) and store fresh 200
  * responses on miss. Must be the last middleware before the route handler.
  */
-export function cacheServeMiddleware(): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
+export function cacheServeMiddleware(): MiddlewareHandler<AppEnv> {
     return async (c, next) => {
         if (c.get("cacheHit")) {
             const body = c.get("cachedBody") as Record<string, unknown>;

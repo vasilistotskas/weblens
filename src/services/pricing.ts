@@ -78,6 +78,11 @@ export function calculatePrice(url: string, type: ComplexityPricedEndpoint): str
     return formatPrice(parsePrice(COMPLEXITY_PRICED_BASE[type]) * getComplexityMultiplier(url));
 }
 
+/** Base price of a complexity-priced endpoint (multiplier 1.0). */
+export function complexityBasePrice(type: ComplexityPricedEndpoint): string {
+    return COMPLEXITY_PRICED_BASE[type];
+}
+
 /**
  * Parse a price string to a number, stripping the optional $ prefix.
  */

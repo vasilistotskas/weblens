@@ -12,9 +12,9 @@ import {
     receiptHandler,
     submitFeedbackHandler,
 } from "../tools/preview";
-import type { Env, Variables } from "../types";
+import type { AppEnv } from "../types";
 
-export function registerFreeRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
+export function registerFreeRoutes(app: Hono<AppEnv>) {
 
     // ============================================
     // /free/fetch

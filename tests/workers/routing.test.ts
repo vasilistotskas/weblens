@@ -10,7 +10,8 @@
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { PAID_ENDPOINTS, PARAMETERIZED_ROUTES } from "../../src/config";
+import { PARAMETERIZED_ROUTES } from "../../src/config";
+import { PAID_ENDPOINTS } from "../../src/endpoints";
 
 const ORIGIN = "https://api.weblens.dev";
 

@@ -9,7 +9,8 @@
 
 import { SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PAID_ENDPOINTS, PAID_UPSTREAMS } from "../../src/config";
+import { PAID_UPSTREAMS } from "../../src/config";
+import { PAID_ENDPOINTS } from "../../src/endpoints";
 
 const ORIGIN = "https://api.weblens.dev";
 const TARGET = "https://example.com/";

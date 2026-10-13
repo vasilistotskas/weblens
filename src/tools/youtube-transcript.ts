@@ -11,7 +11,7 @@ import type { z } from "zod/v4";
 import { classifySearchError, createErrorResponse } from "../middleware/errorHandler";
 import type { YoutubeTranscriptRequestSchema } from "../schemas";
 import { fetchYoutubeTranscript } from "../services/search";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
 /** Extract the 11-char video ID from a bare ID or any YouTube URL form. */
 export function extractVideoId(input: string): string | null {
@@ -41,7 +41,7 @@ export function extractVideoId(input: string): string | null {
     }
 }
 
-export async function youtubeTranscriptHandler(c: Context<{ Bindings: Env }>) {
+export async function youtubeTranscriptHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
     try {
         const { videoId: rawId, lang } = c.get("validatedBody") as z.infer<typeof YoutubeTranscriptRequestSchema>;

@@ -10,7 +10,8 @@ import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/
 import { paymentMiddleware } from "@x402/hono";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import type { Context, MiddlewareHandler } from "hono";
-import { EVM_ONLY_PAID_PATHS, evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork, tagsForPath } from "../config";
+import { evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork } from "../config";
+import type { JsonObjectSchema } from "../endpoints/define";
 import {
     classifyPaymentRequest,
     emitPaymentEvent,
@@ -22,18 +23,13 @@ import {
     runPaymentAttempt,
     TrackedFacilitatorClient,
 } from "../services/payment-telemetry";
-import type { Env, Variables } from "../types";
+import type { AppEnv, Env } from "../types";
 import { createLogger } from "../utils/logger";
 
 // Module-level logger for init-time wiring and facilitator hooks, which run
 // outside any request context (no Hono `c` available). Per-request price logs
 // use the request-scoped logger via `c.get("log")`.
 const log = createLogger();
-
-interface AppEnv {
-    Bindings: Env;
-    Variables: Variables;
-}
 
 // ============================================
 // Resource Server Cache (env-signature keyed)
@@ -231,40 +227,42 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
 // Configuration Helpers
 // ============================================
 
+/** What the payment wall advertises for one paid route (built from its registry definition). */
+export interface PaymentRoute {
+    path: string;
+    description: string;
+    catalogTags: readonly string[];
+    evmOnly: boolean;
+    inputExample: Record<string, unknown>;
+    /** JSON Schema of the request body. */
+    inputSchema: Record<string, unknown>;
+    outputExample: Record<string, unknown>;
+    outputSchema: JsonObjectSchema;
+}
+
 /**
- * Build a RoutesConfig object for x402 payment middleware.
- * Includes Bazaar discovery extensions when input/output schemas are provided.
+ * Build a RoutesConfig object for x402 payment middleware, with the Bazaar
+ * discovery extension describing the route's input and output.
  */
 function createPaymentConfig(
-    path: string,
+    route: PaymentRoute,
     price: string,
     destinationAddress: string,
     networkCaip2: string,
     /** Second payment option. Omitted when Solana is not configured. */
     svmTarget: { network: string; payTo: string } | undefined,
-    description: string,
-    inputExample?: Record<string, unknown>,
-    inputSchema?: Record<string, unknown>,
-    outputExample?: Record<string, unknown>,
-    outputSchema?: Record<string, unknown>,
-    catalog?: { serviceName: string; tags: string[]; iconUrl?: string }
+    catalog: { serviceName: string; tags: string[]; iconUrl?: string }
 ): RoutesConfig {
-    const extensionConfig: Record<string, unknown> = {
+    const extensionConfig = {
         bodyType: "json" as const,
+        input: route.inputExample,
+        inputSchema: route.inputSchema,
+        output: {
+            example: route.outputExample,
+            schema: { ...route.outputSchema },
+        },
     };
-
-    if (inputExample) {
-        extensionConfig.input = inputExample;
-    }
-    if (inputSchema) {
-        extensionConfig.inputSchema = inputSchema;
-    }
-    if (outputExample && outputSchema) {
-        extensionConfig.output = {
-            example: outputExample,
-            schema: outputSchema,
-        };
-    }
+    const { path, description } = route;
 
     return {
         // Route keys are method-prefixed per x402 v2 spec ("POST /path") so
@@ -295,13 +293,9 @@ function createPaymentConfig(
             // These three are RouteConfig fields, deliberately outside
             // `extensions` — see SERVICE_NAME in config.ts for why that
             // distinction is load-bearing.
-            ...(catalog
-                ? {
-                    serviceName: catalog.serviceName,
-                    tags: catalog.tags,
-                    ...(catalog.iconUrl ? { iconUrl: catalog.iconUrl } : {}),
-                }
-                : {}),
+            serviceName: catalog.serviceName,
+            tags: catalog.tags,
+            ...(catalog.iconUrl ? { iconUrl: catalog.iconUrl } : {}),
             extensions: {
                 ...declareDiscoveryExtension(extensionConfig),
             },
@@ -334,19 +328,16 @@ function evictPaymentCaches(env: Env): void {
 }
 
 /**
- * Create a lazy-initialized x402 payment middleware. Supports both static
- * prices and dynamic price calculators. Skips payment if the request was
- * already paid via a credit account.
+ * Create a lazy-initialized x402 payment middleware for one paid route.
+ * `priceOrCalculator` is the route's fixed price or its resolver, shared with
+ * the credit debit so the two can never charge different amounts. Skips
+ * payment if the request was already paid via a credit account.
  */
 export function createLazyPaymentMiddleware(
-    path: string,
-    priceOrCalculator: string | ((c: Context<{ Bindings: Env; Variables: Variables }>) => Promise<string>),
-    description: string,
-    inputExample?: Record<string, unknown>,
-    inputSchema?: Record<string, unknown>,
-    outputExample?: Record<string, unknown>,
-    outputSchema?: Record<string, unknown>
-): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
+    route: PaymentRoute,
+    priceOrCalculator: string | ((c: Context<AppEnv>) => Promise<string>),
+): MiddlewareHandler<AppEnv> {
+    const { path } = route;
     return async (c, next) => {
         // If already paid with credits, skip x402 entirely.
         if (c.get("paidWithCredits")) {
@@ -357,7 +348,7 @@ export function createLazyPaymentMiddleware(
         const env = c.env;
         const recipientAddress = env.PAY_TO_ADDRESS;
         const networkCaip2 = evmNetwork(env);
-        const svmCaip2 = EVM_ONLY_PAID_PATHS.includes(path) ? undefined : svmNetwork(env);
+        const svmCaip2 = route.evmOnly ? undefined : svmNetwork(env);
         const svmTarget = svmCaip2 && env.PAY_TO_ADDRESS_SVM
             ? { network: svmCaip2, payTo: env.PAY_TO_ADDRESS_SVM }
             : undefined;
@@ -375,7 +366,7 @@ export function createLazyPaymentMiddleware(
         // production each advertise their own reachable icon.
         const catalog = {
             serviceName: SERVICE_NAME,
-            tags: tagsForPath(path),
+            tags: [...route.catalogTags],
             iconUrl: catalogIconUrl(c.req.url),
         };
 
@@ -404,16 +395,11 @@ export function createLazyPaymentMiddleware(
 
         const build = (): MiddlewareHandler<AppEnv> => {
             const config = createPaymentConfig(
-                path,
+                route,
                 price,
                 recipientAddress,
                 networkCaip2,
                 svmTarget,
-                description,
-                inputExample,
-                inputSchema,
-                outputExample,
-                outputSchema,
                 catalog
             );
             return paymentMiddleware(config, getResourceServer(env, preferCdp)) as MiddlewareHandler<AppEnv>;

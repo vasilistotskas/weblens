@@ -16,13 +16,13 @@ import {
   PdfTooLargeError,
 } from "../services/pdf";
 import { validateURL } from "../services/validator";
-import type { Env, PdfExtractResponse } from "../types";
+import type { AppEnv, PdfExtractResponse } from "../types";
 
 /**
  * PDF extraction endpoint handler
  * POST /pdf
  */
-export async function pdfHandler(c: Context<{ Bindings: Env }>) {
+export async function pdfHandler(c: Context<AppEnv>) {
   const requestId = c.get("requestId");
 
   try {

@@ -9,9 +9,9 @@ import { health } from "../tools/health";
 import { getLandingPageHTML } from "../tools/landing";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "../tools/mcp";
 
-import type { Env, Variables } from "../types";
+import type { AppEnv } from "../types";
 
-export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
+export function registerSystemRoutes(app: Hono<AppEnv>) {
 
     // ============================================
     // OpenAPI

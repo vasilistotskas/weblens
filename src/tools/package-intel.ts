@@ -8,9 +8,9 @@ import type { z } from "zod/v4";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { PackageRequestSchema } from "../schemas";
 import { inspectPackage, normalizePackageName } from "../services/package-intel";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-export async function packageHandler(c: Context<{ Bindings: Env }>) {
+export async function packageHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

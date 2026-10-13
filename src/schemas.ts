@@ -1,6 +1,15 @@
 import { z } from "zod";
-import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG, PRICING, DEEP_RESEARCH_DEPTHS, DEEP_RESEARCH_DEFAULT_DEPTH, describeDeepResearchTiers } from "./config";
-import { MAX_DOCUMENT_DEPTH, exceedsDepth } from "./services/erc8004";
+import {
+    CREDIT_PURCHASE_USD,
+    DEEP_RESEARCH_DEFAULT_DEPTH,
+    DEEP_RESEARCH_DEPTHS,
+    describeDeepResearchTiers,
+    PRICING,
+    SEARCH_CONTENT_RESULTS,
+    TIMEOUT_CONFIG,
+    VIEWPORT_BOUNDS,
+} from "./config";
+import { MAX_DOCUMENT_DEPTH, exceedsDepth } from "./utils/json-document";
 
 /**
  * WebLens API Schemas
@@ -9,8 +18,10 @@ import { MAX_DOCUMENT_DEPTH, exceedsDepth } from "./services/erc8004";
 
 // Reusable primitives
 const urlSchema = z.url().describe("The URL to process");
-const timeoutSchema = z.number().min(TIMEOUT_CONFIG.min).max(TIMEOUT_CONFIG.max).optional().default(TIMEOUT_CONFIG.default);
-const limitSchema = z.number().min(1).max(20).optional().default(10);
+const timeoutSchema = z.number().min(TIMEOUT_CONFIG.min).max(TIMEOUT_CONFIG.max).optional().default(TIMEOUT_CONFIG.default)
+    .describe("Request timeout in milliseconds");
+const limitSchema = z.number().min(1).max(20).optional().default(10).describe("Maximum results to return");
+const searchQuerySchema = z.string().min(1).max(500).describe("Search query");
 
 // ============================================
 // Core Endpoints
@@ -19,28 +30,33 @@ const limitSchema = z.number().min(1).max(20).optional().default(10);
 export const FetchRequestSchema = z.object({
     url: urlSchema,
     timeout: timeoutSchema,
-    cache: z.boolean().optional().default(true),
-    cacheTtl: z.number().min(60).max(86400).optional().default(3600),
+    cache: z.boolean().optional().default(true)
+        .describe(`Serve a cached copy when one exists (cached responses are ${String(Math.round(PRICING.cacheDiscount * 100))}% off)`),
+    cacheTtl: z.number().min(60).max(86400).optional().default(3600)
+        .describe("How long to cache this response, in seconds"),
     waitFor: z.string().optional().describe("CSS selector to wait for (Pro tier only)"),
 });
 
 export const ScreenshotRequestSchema = z.object({
     url: urlSchema,
-    width: z.number().min(VIEWPORT_BOUNDS.width.min).max(VIEWPORT_BOUNDS.width.max).optional().default(VIEWPORT_BOUNDS.width.default),
-    height: z.number().min(VIEWPORT_BOUNDS.height.min).max(VIEWPORT_BOUNDS.height.max).optional().default(VIEWPORT_BOUNDS.height.default),
-    fullPage: z.boolean().optional().default(false),
+    width: z.number().min(VIEWPORT_BOUNDS.width.min).max(VIEWPORT_BOUNDS.width.max).optional().default(VIEWPORT_BOUNDS.width.default)
+        .describe("Viewport width in pixels"),
+    height: z.number().min(VIEWPORT_BOUNDS.height.min).max(VIEWPORT_BOUNDS.height.max).optional().default(VIEWPORT_BOUNDS.height.default)
+        .describe("Viewport height in pixels"),
+    fullPage: z.boolean().optional().default(false).describe("Capture the whole scrollable page, not just the viewport"),
     selector: z.string().optional().describe("CSS selector to capture"),
     timeout: timeoutSchema,
 });
 
 export const SearchRequestSchema = z.object({
-    query: z.string().min(1).max(500),
+    query: searchQuerySchema,
     limit: limitSchema,
     // Search-with-content: fetch the top-N result pages and include their
     // markdown in the response. Priced per fetched result on top of the
     // search base price.
-    includeContent: z.boolean().optional().default(false),
-    contentResults: z.number().min(1).max(10).optional().default(5)
+    includeContent: z.boolean().optional().default(false)
+        .describe(`Also fetch the top result pages as markdown (+${PRICING.contents.perUrl} per fetched result)`),
+    contentResults: z.number().min(SEARCH_CONTENT_RESULTS.min).max(SEARCH_CONTENT_RESULTS.max).optional().default(SEARCH_CONTENT_RESULTS.default)
         .describe("How many top results to fetch content for (when includeContent)"),
     contentChars: z.number().min(500).max(20000).optional().default(8000)
         .describe("Per-page content character cap"),
@@ -49,19 +65,19 @@ export const SearchRequestSchema = z.object({
 // Shared by /search/news, /search/images, /search/shopping, /search/scholar,
 // /search/autocomplete — one SerpAPI call each.
 export const VerticalSearchRequestSchema = z.object({
-    query: z.string().min(1).max(500),
+    query: searchQuerySchema,
     limit: limitSchema,
 });
 
 export const PlacesSearchRequestSchema = z.object({
-    query: z.string().min(1).max(500),
+    query: z.string().min(1).max(500).describe("What to search for, e.g. \"coffee shops\""),
     location: z.string().min(2).max(200).optional()
         .describe("Free-text location bias, e.g. \"Austin, Texas\""),
     limit: limitSchema,
 });
 
 export const TrendsRequestSchema = z.object({
-    query: z.string().min(1).max(500),
+    query: z.string().min(1).max(500).describe("Topic to get trend data for"),
 });
 
 export const YoutubeTranscriptRequestSchema = z.object({
@@ -71,7 +87,7 @@ export const YoutubeTranscriptRequestSchema = z.object({
 });
 
 export const ContentsRequestSchema = z.object({
-    urls: z.array(urlSchema).min(1).max(20),
+    urls: z.array(urlSchema).min(PRICING.contents.minUrls).max(PRICING.contents.maxUrls).describe("Pages to fetch"),
     maxChars: z.number().min(500).max(50000).optional().default(20000)
         .describe("Per-page content character cap"),
     timeout: timeoutSchema,
@@ -92,7 +108,7 @@ export const MapRequestSchema = z.object({
 
 export const CrawlRequestSchema = z.object({
     url: urlSchema,
-    limit: z.number().min(PRICING.crawl.minPages).max(PRICING.crawl.maxPages).optional().default(10)
+    limit: z.number().min(PRICING.crawl.minPages).max(PRICING.crawl.maxPages).optional().default(PRICING.crawl.defaultPages)
         .describe("Page budget — you are charged per requested page"),
     maxDepth: z.number().min(0).max(3).optional().default(2)
         .describe("Link depth from the start URL (0 = start page only)"),
@@ -169,7 +185,7 @@ export const DeepResearchRequestSchema = z.object({
 });
 
 export const AnswerRequestSchema = z.object({
-    query: z.string().min(1).max(500),
+    query: z.string().min(1).max(500).describe("The question to answer"),
     sources: z.number().min(1).max(5).optional().default(3)
         .describe("How many web sources to search, fetch, and cite"),
 });
@@ -186,7 +202,7 @@ export const ExtractRequestSchema = z.object({
 
 export const PdfRequestSchema = z.object({
     url: urlSchema,
-    pages: z.array(z.number().min(1)).optional(),
+    pages: z.array(z.number().min(1)).optional().describe("Page numbers to extract (omit for every page)"),
 });
 
 // ============================================
@@ -194,12 +210,12 @@ export const PdfRequestSchema = z.object({
 // ============================================
 
 export const CreditsBuyRequestSchema = z.object({
-    amount: z.number().min(2).max(1000), // USD
+    amount: z.number().min(CREDIT_PURCHASE_USD.min).max(CREDIT_PURCHASE_USD.max).describe("Amount in USD to buy"),
 });
 
 // Fiat deposit via Stripe Checkout. `wallet` keys the credit account so a
 // dev can buy credits with a card and then sign requests from that wallet.
 export const FiatDepositRequestSchema = z.object({
-    amount: z.number().min(2).max(1000),
+    amount: z.number().min(CREDIT_PURCHASE_USD.min).max(CREDIT_PURCHASE_USD.max),
     wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/u, "Must be a 0x-prefixed 40-hex address"),
 });

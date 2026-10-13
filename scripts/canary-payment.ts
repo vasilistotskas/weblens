@@ -59,7 +59,8 @@ import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { Buffer } from "node:buffer";
 import process from "node:process";
-import { EVM_ONLY_PAID_PATHS, NETWORKS, PAID_ENDPOINTS } from "../src/config";
+import { NETWORKS } from "../src/config";
+import { EVM_ONLY_PAID_PATHS, PAID_ENDPOINTS } from "../src/endpoints";
 
 const CDP_VALIDATE = "https://api.cdp.coinbase.com/platform/v2/x402/validate";
 

@@ -25,9 +25,9 @@ import {
     searchAutocomplete,
     searchTrends,
 } from "../services/search";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-type AppContext = Context<{ Bindings: Env }>;
+type AppContext = Context<AppEnv>;
 
 function verticalError(c: AppContext, requestId: string, error: unknown) {
     const { code, status, message } = classifySearchError(error);

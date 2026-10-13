@@ -12,10 +12,10 @@
 
 import type { Context, Hono, MiddlewareHandler, Next } from "hono";
 import { methodNotAllowed } from "hono/method-not-allowed";
-import { PAID_ENDPOINTS, PARAMETERIZED_ROUTES } from "../config";
-import type { Env, Variables } from "../types";
+import { PARAMETERIZED_ROUTES } from "../config";
+import { PAID_ENDPOINTS } from "../endpoints";
+import type { AppEnv } from "../types";
 
-interface AppEnv { Bindings: Env; Variables: Variables }
 type AppContext = Context<AppEnv>;
 
 /**

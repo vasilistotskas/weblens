@@ -10,7 +10,7 @@ import { z } from "zod/v4";
 import { FREE_TIER } from "../config";
 import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import { validateURL } from "../services/validator";
-import type { Env, FreeTierMetadata } from "../types";
+import type { AppEnv, FreeTierMetadata } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
 
 // ============================================
@@ -43,7 +43,7 @@ function buildFreeTierMeta(
     };
 }
 
-function getRemainingFromContext(c: Context<{ Bindings: Env }>): number {
+function getRemainingFromContext(c: Context<AppEnv>): number {
     try {
         const val = c.get("rateLimitRemaining" as never);
         return typeof val === "number" ? val : FREE_TIER.maxRequestsPerHour;
@@ -60,7 +60,7 @@ function getRemainingFromContext(c: Context<{ Bindings: Env }>): number {
  * POST /free/fetch
  * Free tier fetch — truncated content, rate limited.
  */
-export async function freeFetch(c: Context<{ Bindings: Env }>) {
+export async function freeFetch(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
     const remaining = getRemainingFromContext(c);
 

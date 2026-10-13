@@ -9,9 +9,9 @@ import { createErrorResponse } from "../middleware/errorHandler";
 import type { TechRequestSchema } from "../schemas";
 import { detectTech } from "../services/tech-detect";
 import { validateURL } from "../services/validator";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-export async function techHandler(c: Context<{ Bindings: Env }>) {
+export async function techHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

@@ -6,7 +6,7 @@
 import type { Context } from "hono";
 import { PRICING, FREE_TIER, describeDeepResearchTiers, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
 // Service catalog with rich metadata for AI agent discovery
 /**
@@ -461,7 +461,7 @@ export const SERVICE_CATALOG = {
 /**
  * Discovery endpoint handler - returns full service catalog
  */
-export function discoveryHandler(c: Context<{ Bindings: Env }>) {
+export function discoveryHandler(c: Context<AppEnv>) {
     const baseUrl = new URL(c.req.url).origin;
 
     // Only advertise the fiat onramp when Stripe is actually configured —
@@ -504,7 +504,7 @@ export function discoveryHandler(c: Context<{ Bindings: Env }>) {
  * Well-known x402 discovery endpoint (/.well-known/x402)
  * Standard location for x402 service discovery
  */
-export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
+export function wellKnownX402Handler(c: Context<AppEnv>) {
     const baseUrl = new URL(c.req.url).origin;
 
     return c.json({
@@ -583,7 +583,7 @@ export function wellKnownX402Handler(c: Context<{ Bindings: Env }>) {
  * come from PRICING (one source of truth) and the authoritative terms stay
  * where they belong: the 402 challenge returned by POSTing the resource.
  */
-export function x402ResourceCatalogHandler(c: Context<{ Bindings: Env }>) {
+export function x402ResourceCatalogHandler(c: Context<AppEnv>) {
     const baseUrl = new URL(c.req.url).origin;
     const url = new URL(c.req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") ?? "100") || 100, 200);

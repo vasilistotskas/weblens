@@ -13,7 +13,7 @@ import type { z } from "zod/v4";
 import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
 import type { FetchRequestSchema } from "../schemas";
 import { validateURL } from "../services/validator";
-import type { Env, FetchResponse } from "../types";
+import type { AppEnv, FetchResponse } from "../types";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 import { assertTargetOk, readDocument, safeFetch } from "../utils/safe-fetch";
 
@@ -75,7 +75,7 @@ export async function fetchBasicPage(
  * Fetch Basic endpoint handler
  * POST /fetch/basic
  */
-export async function fetchBasic(c: Context<{ Bindings: Env }>) {
+export async function fetchBasic(c: Context<AppEnv>) {
   const requestId = c.get("requestId");
 
   try {

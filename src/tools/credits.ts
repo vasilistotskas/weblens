@@ -15,7 +15,7 @@ import {
     getCreditAccount,
     getTransactionHistory,
 } from "../services/credits";
-import type { Env, ErrorCode } from "../types";
+import type { AppEnv, ErrorCode } from "../types";
 import { verifyWalletSignature } from "../utils/security";
 
 /** Headers a caller must send to reach a wallet-scoped credits endpoint. */
@@ -38,7 +38,7 @@ type WalletAuth =
  * callers a week reach these endpoints unauthenticated, and "Missing
  * authentication headers" named none of them.
  */
-async function authenticateWallet(c: Context<{ Bindings: Env }>): Promise<WalletAuth> {
+async function authenticateWallet(c: Context<AppEnv>): Promise<WalletAuth> {
     const missing = CREDIT_AUTH_HEADERS.filter((header) => !c.req.header(header));
     if (missing.length > 0) {
         return {
@@ -88,7 +88,7 @@ async function authenticateWallet(c: Context<{ Bindings: Env }>): Promise<Wallet
  * For now, let's treat it as a specific endpoint that requires payment matching the body amount.
  * The x402 middleware will challenge for the amount.
  */
-export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
+export async function buyCreditsHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     if (!c.env.CREDIT_MANAGER) {
@@ -206,7 +206,7 @@ export async function buyCreditsHandler(c: Context<{ Bindings: Env }>) {
  * GET /credits/balance
  * Get current balance and tier info.
  */
-export async function getBalanceHandler(c: Context<{ Bindings: Env }>) {
+export async function getBalanceHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     const auth = await authenticateWallet(c);
@@ -244,7 +244,7 @@ export async function getBalanceHandler(c: Context<{ Bindings: Env }>) {
  * GET /credits/history
  * Get transaction history.
  */
-export async function getHistoryHandler(c: Context<{ Bindings: Env }>) {
+export async function getHistoryHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     const auth = await authenticateWallet(c);

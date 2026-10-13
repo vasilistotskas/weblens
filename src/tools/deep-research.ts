@@ -13,9 +13,9 @@ import type { DeepResearchRequestSchema } from "../schemas";
 import { isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import { deepResearch } from "../services/deep-research";
 import { SearchProviderUnavailableError, SearchUpstreamError } from "../services/search";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
-export async function deepResearchHandler(c: Context<{ Bindings: Env }>) {
+export async function deepResearchHandler(c: Context<AppEnv>) {
     const requestId = c.get("requestId");
 
     try {

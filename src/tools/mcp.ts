@@ -8,7 +8,7 @@
 import type { Context } from "hono";
 import { PRICING, DEEP_RESEARCH_DEPTHS, describeDeepResearchTiers, supportedNetworkNames, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
-import type { Env } from "../types";
+import type { AppEnv, Env } from "../types";
 
 // MCP Protocol version
 const MCP_VERSION = "2025-06-18";
@@ -40,7 +40,7 @@ const FORWARDED_REQUEST_HEADERS = [
  * what `app.fetch` accepts — the global workers-types `ExecutionContext`
  * declares extra members (`tracing`, `abort`) that Hono's does not.
  */
-type HonoExecutionContext = Context<{ Bindings: Env }>["executionCtx"];
+type HonoExecutionContext = Context<AppEnv>["executionCtx"];
 
 /**
  * How a `tools/call` reaches WebLens' own endpoints.
@@ -78,7 +78,7 @@ export function setMcpDispatcher(dispatcher: McpDispatcher | undefined): void {
 
 async function dispatchToolRequest(
   request: Request,
-  c: Context<{ Bindings: Env }>
+  c: Context<AppEnv>
 ): Promise<Response> {
   if (!mcpDispatcher) {
     // No entry point registered one. Throwing beats falling back to a
@@ -554,7 +554,7 @@ type JsonRpcResponse = {
   error?: { code: number; message: string; data?: unknown };
 } | null;
 
-async function handleJsonRpc(request: JsonRpcRequest, c: Context<{ Bindings: Env }>): Promise<JsonRpcResponse> {
+async function handleJsonRpc(request: JsonRpcRequest, c: Context<AppEnv>): Promise<JsonRpcResponse> {
   const { method, id } = request;
   const params = request.params;
 
@@ -631,7 +631,7 @@ interface ToolCallParams {
   arguments?: Record<string, unknown>;
 }
 
-async function handleToolCall(params: ToolCallParams, id: string | number | undefined, c: Context<{ Bindings: Env }>): Promise<JsonRpcResponse> {
+async function handleToolCall(params: ToolCallParams, id: string | number | undefined, c: Context<AppEnv>): Promise<JsonRpcResponse> {
   const { name, arguments: args } = params;
 
   const toolConfig = TOOL_ENDPOINTS[name];
@@ -714,7 +714,7 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
 /**
  * MCP HTTP POST handler
  */
-export async function mcpPostHandler(c: Context<{ Bindings: Env }>) {
+export async function mcpPostHandler(c: Context<AppEnv>) {
   const contentType = c.req.header("Content-Type");
   
   if (!contentType?.includes("application/json")) {
@@ -757,7 +757,7 @@ export async function mcpPostHandler(c: Context<{ Bindings: Env }>) {
  * Body is the standard error envelope like every other error the API returns;
  * MCP clients key off the status, so this only has to be consistent.
  */
-export function mcpGetHandler(c: Context<{ Bindings: Env }>) {
+export function mcpGetHandler(c: Context<AppEnv>) {
   return c.json(
     {
       error: "METHOD_NOT_ALLOWED",
@@ -778,7 +778,7 @@ export function mcpGetHandler(c: Context<{ Bindings: Env }>) {
 /**
  * MCP info endpoint
  */
-export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
+export function mcpInfoHandler(c: Context<AppEnv>) {
   const baseUrl = new URL(c.req.url).origin;
   
   return c.json({

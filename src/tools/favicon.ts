@@ -9,7 +9,7 @@
  */
 
 import type { Context } from "hono";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 
 export const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
@@ -153,21 +153,21 @@ const CACHE_HEADERS = {
     "Cache-Control": "public, max-age=86400",
 };
 
-export function faviconSvgHandler(c: Context<{ Bindings: Env }>) {
+export function faviconSvgHandler(c: Context<AppEnv>) {
     return c.body(FAVICON_SVG, 200, {
         ...CACHE_HEADERS,
         "Content-Type": "image/svg+xml",
     });
 }
 
-export function faviconIcoHandler(c: Context<{ Bindings: Env }>) {
+export function faviconIcoHandler(c: Context<AppEnv>) {
     return c.body(decode(FAVICON_ICO_B64), 200, {
         ...CACHE_HEADERS,
         "Content-Type": "image/x-icon",
     });
 }
 
-export function faviconPngHandler(c: Context<{ Bindings: Env }>) {
+export function faviconPngHandler(c: Context<AppEnv>) {
     return c.body(decode(FAVICON_PNG_B64), 200, {
         ...CACHE_HEADERS,
         "Content-Type": "image/png",

@@ -16,7 +16,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { deductCredits, refundCredits } from "../services/credits";
 import { hashContent } from "../services/crypto";
-import type { Env } from "../types";
+import type { AppEnv } from "../types";
 import type { Logger } from "../utils/logger";
 import { mask } from "../utils/logger";
 import { generateRequestId } from "../utils/requestId";
@@ -36,7 +36,7 @@ function getLog(c: Context): Logger {
 export function createCreditMiddleware(
     cost: string | ((c: Context) => string | Promise<string>),
     description: string,
-): MiddlewareHandler<{ Bindings: Env }> {
+): MiddlewareHandler<AppEnv> {
     return async (c, next) => {
         const creditWallet = c.req.header("X-CREDIT-WALLET");
         const signature = c.req.header("X-CREDIT-SIGNATURE");
