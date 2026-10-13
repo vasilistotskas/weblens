@@ -15,6 +15,7 @@
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { version as MCP_SERVER_VERSION } from "../../server.json";
 import { TOOL_ENDPOINTS } from "../../src/tools/mcp";
 
 const MCP_URL = "https://api.weblens.dev/mcp";
@@ -41,7 +42,7 @@ describe("MCP initialize", () => {
         expect(res.status).toBe(200);
 
         const body = await res.json<{ result: Record<string, unknown> }>();
-        expect(body.result.serverInfo).toEqual({ name: "weblens", version: "2.1.0" });
+        expect(body.result.serverInfo).toEqual({ name: "weblens", version: MCP_SERVER_VERSION });
         // The flat shape is what broke clients — it must not come back.
         expect(body.result.name).toBeUndefined();
         expect(body.result.version).toBeUndefined();

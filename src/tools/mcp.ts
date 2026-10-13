@@ -6,6 +6,8 @@
  */
 
 import type { Context } from "hono";
+// The MCP registry listing (server.json) versions this server; each registry publish bumps it.
+import { version as MCP_SERVER_VERSION } from "../../server.json";
 import { supportedNetworkNames, supportedNetworks } from "../config";
 import { ENDPOINTS } from "../endpoints";
 import { describePrice, endpointBodySchema, requestBodySchema } from "../endpoints/define";
@@ -194,7 +196,7 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
 // It must stay a nested object: clients read result.serverInfo.name.
 const SERVER_INFO = {
   name: "weblens",
-  version: "2.1.0",
+  version: MCP_SERVER_VERSION,
 };
 
 // Server capabilities
@@ -447,7 +449,7 @@ export function mcpInfoHandler(c: Context<AppEnv>) {
   
   return c.json({
     name: "WebLens MCP Server",
-    version: "2.1.0",
+    version: MCP_SERVER_VERSION,
     tagline: "Scrape, crawl, map and extract the web — pay per call",
     description: `Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts, no monthly minimum - just pay per request with USDC on ${supportedNetworkNames(c.env)}.`,
     protocolVersion: MCP_VERSION,
