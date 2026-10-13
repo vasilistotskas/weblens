@@ -76,7 +76,6 @@ export const SERVICE_CATALOG = {
         "truth-oracle",
         "web-intelligence",
         "cryptographic-proofs",
-        "reputation-aware",
         "free-previews",
         "endpoint-previews",
         "erc-8004",

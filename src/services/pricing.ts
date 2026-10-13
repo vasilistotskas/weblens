@@ -61,40 +61,21 @@ export function getComplexityMultiplier(url: string): number {
     }
 }
 
+/** Base price of each complexity-priced endpoint. */
+const COMPLEXITY_PRICED_BASE = {
+    "fetch-basic": PRICING.fetch.basic,
+    "fetch-pro": PRICING.fetch.pro,
+    extract: PRICING.extract,
+} as const;
+
+export type ComplexityPricedEndpoint = keyof typeof COMPLEXITY_PRICED_BASE;
+
 /**
- * Calculate dynamic price for a request with complexity multiplier and optional discount.
+ * Price a request by the target URL's complexity multiplier.
  * @returns Price string with $ prefix (e.g., "$0.0150")
  */
-export async function calculatePrice(
-    url: string,
-    type: "fetch-basic" | "fetch-pro" | "extract",
-    discount: number = 0
-): Promise<string> {
-    let basePriceStr: string;
-
-    switch (type) {
-        case "fetch-basic":
-            basePriceStr = PRICING.fetch.basic;
-            break;
-        case "fetch-pro":
-            basePriceStr = PRICING.fetch.pro;
-            break;
-        case "extract":
-            basePriceStr = PRICING.extract;
-            break;
-        default:
-            basePriceStr = "$0.01";
-    }
-
-    const basePrice = parsePrice(basePriceStr);
-    const multiplier = getComplexityMultiplier(url);
-    let finalPrice = basePrice * multiplier;
-
-    if (discount > 0 && discount <= 1) {
-        finalPrice = finalPrice * (1 - discount);
-    }
-
-    return Promise.resolve(formatPrice(finalPrice));
+export function calculatePrice(url: string, type: ComplexityPricedEndpoint): string {
+    return formatPrice(parsePrice(COMPLEXITY_PRICED_BASE[type]) * getComplexityMultiplier(url));
 }
 
 /**

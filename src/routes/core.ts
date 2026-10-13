@@ -18,7 +18,6 @@ import {
 
 // Tool Handlers
 import { calculatePrice, parsePrice } from "../services/pricing";
-import { getDiscount } from "../services/reputation";
 import { extractData } from "../tools/extract-data";
 import { fetchBasic } from "../tools/fetch-basic";
 import { fetchPro } from "../tools/fetch-pro";
@@ -52,8 +51,7 @@ function dynamicUrlPrice(
             if (typeof body.url !== "string" || body.url === "") {
                 return fallback;
             }
-            const wallet = c.req.header("X-Wallet-Address") ?? c.req.header("X-CREDIT-WALLET");
-            return await calculatePrice(body.url, endpoint, getDiscount(wallet));
+            return calculatePrice(body.url, endpoint);
         } catch (e) {
             c.get("log").debug("pricing.dynamic_fallback", {
                 endpoint,

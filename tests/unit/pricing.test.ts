@@ -27,15 +27,14 @@ describe('Pricing Service', () => {
     });
 
     describe('calculatePrice', () => {
-        it('should calculate base price for fetch-basic', async () => {
-            const price = await calculatePrice('https://example.com', 'fetch-basic');
-            // fetch-basic is usually $0.005. toFixed(4) -> $0.0050
+        it('should calculate base price for fetch-basic', () => {
+            const price = calculatePrice('https://example.com', 'fetch-basic');
             expect(parseFloat(price.replace('$', ''))).toBe(parseFloat(PRICING.fetch.basic.replace('$', '')));
         });
 
-        it('should apply complexity multiplier for fetch-pro', async () => {
+        it('should apply complexity multiplier for fetch-pro', () => {
             const complexUrl = 'https://twitter.com/someuser';
-            const price = await calculatePrice(complexUrl, 'fetch-pro');
+            const price = calculatePrice(complexUrl, 'fetch-pro');
 
             const basePrice = parseFloat(PRICING.fetch.pro.replace('$', ''));
             const calculatedInfo = parseFloat(price.replace('$', ''));
@@ -43,15 +42,5 @@ describe('Pricing Service', () => {
             expect(calculatedInfo).toBeGreaterThan(basePrice);
         });
 
-        it('should apply discount when provided', async () => {
-            const url = 'https://example.com';
-            const basePriceStr = await calculatePrice(url, 'fetch-pro', 0);
-            const discountedPriceStr = await calculatePrice(url, 'fetch-pro', 0.5); // 50% off
-
-            const base = parseFloat(basePriceStr.replace('$', ''));
-            const discounted = parseFloat(discountedPriceStr.replace('$', ''));
-
-            expect(discounted).toBeCloseTo(base * 0.5, 4);
-        });
     });
 });

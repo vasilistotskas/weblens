@@ -24,7 +24,7 @@ async function resolvePrice(
     if (typeof body?.url !== "string" || body.url === "") {
         return fallback;
     }
-    return calculatePrice(body.url, endpoint, 0);
+    return calculatePrice(body.url, endpoint);
 }
 
 describe("dynamic pricing for probes", () => {

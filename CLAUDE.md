@@ -60,7 +60,7 @@ Durable Object classes (`CreditAccountDO`, `MonitorScheduler`) are re-exported f
 ### Key Directories
 - **`src/routes/`** — Route registrars grouped by tier (system, reader, free, credits, core, verticals, advanced, intel). Each function takes the Hono app and registers endpoints with their middleware stack. `verticals.ts` holds the SERP verticals (`/search/news|images|places|shopping|scholar|autocomplete|trends`), `/social/youtube/transcript`, `/contents` (per-URL dynamic pricing), and `/answer`. `advanced.ts` holds `/batch/fetch`, `/research`, `/pdf`, `/compare`, `/map`, and `/crawl` (per-page dynamic pricing).
 - **`src/tools/`** — Endpoint handler implementations. Each tool is a Hono handler that reads `validatedBody` from context, calls services/external APIs, and returns a flat domain object plus `requestId` and a per-endpoint ISO timestamp field (`fetchedAt` / `searchedAt` / `extractedAt` / `analyzedAt` / etc.).
-- **`src/services/`** — Business logic layer (pricing, caching, credits DO proxy, scheduler DO, crypto/ACV proofs, AI/Anthropic integration, reputation).
+- **`src/services/`** — Business logic layer (pricing, caching, credits DO proxy, scheduler DO, crypto/ACV proofs, AI/Anthropic integration).
 - **`src/middleware/`** — Middleware factories: payment (x402 lazy-init singleton), credit-middleware (wallet signature auth + debit), validation (Zod), rate-limit (IP-based via KV), cache, security, error handler.
 - **`src/durable_objects/`** — Cloudflare Durable Objects. `CreditAccountDO` manages atomic credit transactions via key-value Durable Object storage (`ctx.storage.get/put` — not the SQL API), exposes `/deposit`, `/spend`, `/balance`, `/history` internal endpoints. Keeps max 100 transactions (LIFO).
 - **`src/schemas.ts`** — All Zod request validation schemas. Reusable primitives: `urlSchema`, `timeoutSchema`, `limitSchema`. Includes bounds (viewport 320-3840px, timeout 5-30s, cache TTL 60-86400s).
@@ -153,7 +153,6 @@ Unauthenticated POSTs to a path in `PAID_ENDPOINTS` (`src/config.ts`, also used 
 - `calculatePrice()` returns 4-decimal precision for USDC atomic units
 - `getPriceRange()` derives the advertised price range from `PRICING` (single source of truth for discovery/MCP/docs — no hardcoded range strings)
 - `getCachedPrice()` applies the 70% cache discount; used by the cache middleware's `cacheAwareCreditCost`/`cacheAwarePaymentPrice`
-- `src/services/reputation.ts` — mock placeholder for ERC-8004 reputation discounts (hardcoded wallets for now)
 
 ### Crypto & Proof of Context (`src/services/crypto.ts`)
 - `hashContent()` — SHA-256 via `crypto.subtle`
