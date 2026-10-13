@@ -6,7 +6,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, supportedNetworkNames, supportedNetworks } from "../config";
+import { PRICING, DEEP_RESEARCH_DEPTHS, describeDeepResearchTiers, supportedNetworkNames, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -363,25 +363,13 @@ export const TOOLS = [
     },
   },
   {
-    name: "research",
-    description: `One-stop research: searches web, fetches top results, and summarizes findings. Price: ${PRICING.research}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Research topic or question" },
-        resultCount: { type: "number", description: "Number of sources to analyze (default: 5)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
     name: "deep_research",
-    description: `Multi-step cited research in one call: plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. Unlike \`research\` (${PRICING.research}, one search + summary) this decomposes the question and cites every claim. SLOW: a standard run takes ~30-60 seconds — use a generous client timeout and do not retry on timeout. Price: ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources)`,
+    description: `Multi-step cited research in one call: plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. SLOW: a standard run takes ~30-60 seconds — use a generous client timeout and do not retry on timeout. Price by depth: ${describeDeepResearchTiers()}`,
     inputSchema: {
       type: "object",
       properties: {
         query: { type: "string", description: "The research question (1-500 chars)" },
-        depth: { type: "string", enum: ["standard", "deep"], description: `Research tier: standard = 3 sub-questions / 8 sources (${PRICING.deepResearch.standard}); deep = 5 / 12 (${PRICING.deepResearch.deep}). Default: standard` },
+        depth: { type: "string", enum: [...DEEP_RESEARCH_DEPTHS], description: `Research tier: ${describeDeepResearchTiers()}` },
       },
       required: ["query"],
     },
@@ -527,8 +515,7 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   get_contents:      { endpoint: "/contents",        method: "POST", price: PRICING.contents.perUrl },
   answer_question:   { endpoint: "/answer",          method: "POST", price: PRICING.answer },
   extract_data:      { endpoint: "/extract",         method: "POST", price: PRICING.extract },
-  research:          { endpoint: "/research",        method: "POST", price: PRICING.research },
-  deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}` },
+  deep_research:     { endpoint: "/research/deep",   method: "POST", price: `${PRICING.deepResearch.quick}-${PRICING.deepResearch.deep}` },
   domain_intel:      { endpoint: "/domain",          method: "POST", price: PRICING.domain },
   project_due_diligence: { endpoint: "/intel/project", method: "POST", price: PRICING.intel.project },
   package_intel:     { endpoint: "/package",         method: "POST", price: PRICING.package },

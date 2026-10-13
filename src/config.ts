@@ -91,17 +91,10 @@ export const PRICING = {
     maxPages: 25,
   },
 
-  // Research endpoint
-  research: "$0.08",
-
-  // Multi-step deep research (plan -> search per sub-question -> fetch ->
-  // cited synthesis). Worst-case upstream cost per tier, at SerpAPI's
-  // $0.015/search ceiling and Haiku 4.5 at $1/$5 per MTok:
-  //   standard: 3 searches ($0.045) + ~$0.02 AI = ~$0.065  -> $0.20 (3x)
-  //   deep:     5 searches ($0.075) + ~$0.03 AI = ~$0.105  -> $0.35 (3.3x)
-  // Changing DEEP_RESEARCH_TIERS in services/deep-research.ts changes those
-  // ceilings — reprice here if you do.
+  // Deep research, priced per depth tier. The tier bounds are the cost
+  // model: see DEEP_RESEARCH_TIERS below before changing either.
   deepResearch: {
+    quick: "$0.08",
     standard: "$0.20",
     deep: "$0.35",
   },
@@ -133,13 +126,52 @@ export const PRICING = {
   },
 } as const;
 
+/**
+ * Deep research depth tiers. The bounds ARE the cost model: each sub-question
+ * costs one search, and sources are capped and truncated before a capped
+ * Haiku 4.5 synthesis ($1/$5 per MTok). Worst case at SerpAPI's $0.015/search:
+ *   quick:    1 search   ($0.015) + ~$0.02 AI = ~$0.035 -> $0.08 (2.3x), no planning call
+ *   standard: 3 searches ($0.045) + ~$0.02 AI = ~$0.065 -> $0.20 (3x)
+ *   deep:     5 searches ($0.075) + ~$0.03 AI = ~$0.105 -> $0.35 (3.3x)
+ * Changing a tier's bounds changes its cost floor: reprice PRICING.deepResearch
+ * with it (tests/unit/deep-research.test.ts asserts price > worst-case cost).
+ */
+export const DEEP_RESEARCH_DEPTHS = ["quick", "standard", "deep"] as const;
+export type DeepResearchDepth = (typeof DEEP_RESEARCH_DEPTHS)[number];
+export const DEEP_RESEARCH_DEFAULT_DEPTH: DeepResearchDepth = "standard";
+
+export interface DeepResearchTier {
+  /** Sub-questions researched, one search each. 1 = the question as asked, no planning call. */
+  subQuestions: number;
+  /** Maximum sources fetched and passed to synthesis. */
+  maxSources: number;
+  /** Per-source character cap fed to the model. */
+  charsPerSource: number;
+}
+
+export const DEEP_RESEARCH_TIERS: Record<DeepResearchDepth, DeepResearchTier> = {
+  quick: { subQuestions: 1, maxSources: 5, charsPerSource: 5000 },
+  standard: { subQuestions: 3, maxSources: 8, charsPerSource: 5000 },
+  deep: { subQuestions: 5, maxSources: 12, charsPerSource: 5000 },
+};
+
+/** Every tier's bounds and price in one line, for each surface that documents them. */
+export function describeDeepResearchTiers(): string {
+  const tiers = DEEP_RESEARCH_DEPTHS.map((depth) => {
+    const { subQuestions, maxSources } = DEEP_RESEARCH_TIERS[depth];
+    const searches = subQuestions === 1 ? "1 search" : `${String(subQuestions)} sub-questions`;
+    return `${depth} = ${searches} / ${String(maxSources)} sources (${PRICING.deepResearch[depth]})`;
+  });
+  return `${tiers.join("; ")}. Default: ${DEEP_RESEARCH_DEFAULT_DEPTH}.`;
+}
+
 // Paid POST endpoints. Used by the POST-only enforcement middleware
 // (src/index.ts) and by request validation: unauthenticated probes of these
 // paths fall through to the x402 402 challenge instead of a 400, so agents
 // that probe without reading the spec still discover a payable resource.
 export const PAID_ENDPOINTS: readonly string[] = [
   "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
-  "/research", "/pdf",
+  "/pdf",
   "/credits/buy",
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
@@ -452,7 +484,6 @@ const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
   ["/fetch", ["fetch", "scraping", "markdown"]],
   ["/search", ["search", "serp"]],
   ["/extract", ["extraction", "ai", "structured-data"]],
-  ["/research", ["research", "ai"]],
   ["/screenshot", ["screenshot", "rendering"]],
   ["/credits", ["billing", "credits"]],
   ["/contents", ["fetch", "scraping", "batch"]],

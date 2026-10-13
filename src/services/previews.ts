@@ -12,7 +12,7 @@
  * run live, truncated, and rate-limited.
  */
 
-import { PAID_ENDPOINTS, PRICING } from "../config";
+import { PAID_ENDPOINTS, PRICING, describeDeepResearchTiers } from "../config";
 
 /**
  * Endpoints whose marginal cost is a native fetch (no paid upstream API), so
@@ -181,10 +181,6 @@ export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
         summary: "A direct answer with inline [n] citations to real sources.",
         sample: { query: "What is the x402 payment protocol?", answer: "x402 is an open payment protocol built on HTTP 402 [1]. It settles USDC payments on Base [2].", citations: [{ index: 1, url: "https://x402.org", title: "x402 Protocol" }], confidence: 0.92 },
     },
-    "/research": {
-        summary: "Search + fetch + AI summary with the sources listed.",
-        sample: { query: "x402 payment protocol benefits", sources: [{ url: "https://x402.org", title: "x402 Protocol", snippet: "HTTP-native micropayments..." }], summary: "x402 is an open payment protocol...", keyFindings: ["Zero fees", "Instant settlement"] },
-    },
     "/research/deep": {
         summary: "Multi-step research: sub-questions, cited answer, and gaps.",
         sample: { query: "How are AI agents using micropayments?", depth: "standard", subQuestions: ["x402 adoption 2026", "agent payment volume"], answer: "Agent micropayments consolidated around x402 [1]...", keyFindings: ["Median per-call price near $0.01"], citations: [{ index: 1, url: "https://x402.org", title: "x402 Protocol", subQuestion: "x402 adoption 2026" }], gaps: ["Sources did not cover settlement failure rates"] },
@@ -203,7 +199,7 @@ export function describePrice(endpoint: string): string {
         case "/crawl":
             return `${PRICING.crawl.perPage} per requested page`;
         case "/research/deep":
-            return `${PRICING.deepResearch.standard} standard / ${PRICING.deepResearch.deep} deep`;
+            return describeDeepResearchTiers();
         case "/credits/buy":
             return "$2 - $1000 (you choose)";
         default:
@@ -235,7 +231,6 @@ const PREVIEW_PRICE_HINT: Record<string, string> = {
     "/extract": `${PRICING.extract} (up to 3x on bot-protected domains)`,
     "/pdf": PRICING.pdf,
     "/answer": PRICING.answer,
-    "/research": PRICING.research,
 };
 
 export function isPaidEndpoint(endpoint: string): boolean {

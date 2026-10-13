@@ -259,27 +259,6 @@ export interface URLValidationResult {
 }
 
 // ============================================
-// Research Types (Requirement 2)
-// ============================================
-
-export interface ResearchSource {
-  url: string;
-  title: string;
-  snippet: string;
-  content?: string;         // Full content if includeRawContent
-  fetchedAt: string;
-}
-
-export interface ResearchResponse {
-  query: string;
-  sources: ResearchSource[];
-  summary: string;          // AI-generated summary
-  keyFindings: string[];    // Bullet points of key findings
-  researchedAt: string;
-  requestId: string;
-}
-
-// ============================================
 // PDF Extraction Types (Requirement 5)
 // ============================================
 

@@ -16,17 +16,6 @@ export interface AIServiceConfig {
   maxTokens?: number;
 }
 
-interface SummarizeOptions {
-  content: string;
-  query?: string;
-  maxLength?: number;
-}
-
-interface SummarizeResult {
-  summary: string;
-  keyFindings: string[];
-}
-
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const DEFAULT_MAX_TOKENS = 4000;
 
@@ -96,47 +85,6 @@ export class AIUnavailableError extends Error {
   }
 }
 
-
-/**
- * Summarize content with optional query focus
- * Used by: /research endpoint
- */
-export async function summarize(
-  config: AIServiceConfig,
-  options: SummarizeOptions
-): Promise<SummarizeResult> {
-  const { content, query, maxLength = 500 } = options;
-
-  const systemPrompt = `You are a research assistant that summarizes web content concisely and accurately.
-Always respond with valid JSON in this exact format:
-{
-  "summary": "A concise summary of the content",
-  "keyFindings": ["Finding 1", "Finding 2", "Finding 3"]
-}`;
-
-  const prompt = `Summarize the following content${query ? ` focusing on: "${query}"` : ""}.
-Keep the summary under ${String(maxLength)} words. Extract 3-5 key findings.
-
-Content:
-${content.slice(0, 12000)}
-
-Respond ONLY with valid JSON.`;
-
-  const response = await callClaude(config, prompt, systemPrompt);
-
-  try {
-    const parsed = JSON.parse(response) as Partial<SummarizeResult>;
-    return {
-      summary: parsed.summary ?? "",
-      keyFindings: parsed.keyFindings ?? [],
-    };
-  } catch {
-    return {
-      summary: response.slice(0, maxLength * 6),
-      keyFindings: [],
-    };
-  }
-}
 
 /**
  * Check if AI service is available

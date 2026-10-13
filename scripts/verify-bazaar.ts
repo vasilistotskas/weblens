@@ -87,7 +87,7 @@ const PAID_ENDPOINTS: { path: string; body: Record<string, unknown> }[] = [
   { path: "/screenshot",      body: { url: "https://example.com" } },
   { path: "/search",          body: { query: "test" } },
   { path: "/extract",         body: { url: "https://example.com", schema: { title: "string" } } },
-  { path: "/research",        body: { query: "test" } },
+  { path: "/research/deep",   body: { query: "test", depth: "quick" } },
   { path: "/pdf",             body: { url: "https://example.com/doc.pdf" } },
   { path: "/credits/buy",     body: { amount: 5 } },
 ];

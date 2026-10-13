@@ -35,7 +35,7 @@ import {
 const PAID_UPSTREAM = [
     "/search", "/search/news", "/search/images", "/search/places", "/search/shopping",
     "/search/scholar", "/search/autocomplete", "/search/trends",
-    "/social/youtube/transcript", "/answer", "/research", "/research/deep",
+    "/social/youtube/transcript", "/answer", "/research/deep",
     "/extract",
 ];
 

@@ -10,13 +10,15 @@
  * Workers bill CPU, not network wait, so a bounded multi-step pipeline of
  * network calls runs comfortably inside one request.
  *
- * COST CONTROL (the price floor depends on these bounds — see PRICING.deepResearch):
+ * COST CONTROL (the price floor depends on these bounds — see DEEP_RESEARCH_TIERS in config.ts):
  *   - sub-questions are capped per depth tier; each costs one SerpAPI call
  *   - sources are capped and truncated per source before they reach the model
  *   - synthesis runs on Haiku 4.5 ($1/$5 per MTok) with a hard output cap
- * Worst case stays well under half the sale price at both tiers.
+ * Worst case stays well under half the sale price at every tier.
  */
 
+import { DEEP_RESEARCH_TIERS } from "../config";
+import type { DeepResearchDepth } from "../config";
 import { fetchBasicPage } from "../tools/fetch-basic";
 import { callClaude } from "./ai";
 import type { AIServiceConfig } from "./ai";
@@ -28,26 +30,11 @@ const RESEARCH_MODEL = "claude-haiku-4-5";
 const PLAN_MAX_TOKENS = 400;
 const SYNTHESIS_MAX_TOKENS = 2000;
 
-export interface DeepResearchTier {
-    /** Sub-questions to research (one SerpAPI call each). */
-    subQuestions: number;
-    /** Maximum sources fetched and passed to synthesis. */
-    maxSources: number;
-    /** Per-source character cap fed to the model. */
-    charsPerSource: number;
-}
-
-/** Bounds per depth tier. Changing these changes the cost floor — reprice too. */
-export const DEEP_RESEARCH_TIERS: Record<"standard" | "deep", DeepResearchTier> = {
-    standard: { subQuestions: 3, maxSources: 8, charsPerSource: 5000 },
-    deep: { subQuestions: 5, maxSources: 12, charsPerSource: 5000 },
-};
-
 export interface ResearchCitation { index: number; url: string; title: string; subQuestion: string }
 
 export interface DeepResearchResult {
     query: string;
-    depth: "standard" | "deep";
+    depth: DeepResearchDepth;
     subQuestions: string[];
     answer: string;
     keyFindings: string[];
@@ -58,7 +45,7 @@ export interface DeepResearchResult {
 
 interface DeepResearchOptions {
     query: string;
-    depth: "standard" | "deep";
+    depth: DeepResearchDepth;
     aiConfig: AIServiceConfig;
     serpApiKey?: string;
 }
@@ -101,8 +88,11 @@ export async function deepResearch(options: DeepResearchOptions): Promise<DeepRe
     const { query, depth, aiConfig, serpApiKey } = options;
     const tier = DEEP_RESEARCH_TIERS[depth];
 
-    // 1. Plan.
-    const subQuestions = await planSubQuestions(query, tier.subQuestions, aiConfig);
+    // 1. Plan. A one-search tier researches the question as asked: planning
+    //    one sub-question would only paraphrase it, at the cost of a model call.
+    const subQuestions = tier.subQuestions > 1
+        ? await planSubQuestions(query, tier.subQuestions, aiConfig)
+        : [query];
 
     // 2. One search per sub-question, in parallel.
     const searches = await Promise.allSettled(

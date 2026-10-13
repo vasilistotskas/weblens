@@ -3,15 +3,15 @@
  * cross-question dedupe, source-cap enforcement, citation numbering, and
  * graceful degradation when a step fails.
  *
- * The tier bounds are also the cost model — `standard` is priced assuming at
- * most 3 SerpAPI calls and 8 sources, `deep` at most 5 and 12. A regression
- * that raised either would silently sell below cost, so the caps are asserted
- * here as well as documented in config.ts.
+ * The tier bounds are also the cost model — `quick` is priced assuming one
+ * search and 5 sources, `standard` at most 3 and 8, `deep` at most 5 and 12. A
+ * regression that raised any of them would silently sell below cost, so the
+ * caps are asserted here as well as documented in config.ts.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEEP_RESEARCH_TIERS } from "../../src/services/deep-research";
-import { PRICING } from "../../src/config";
+import { DEEP_RESEARCH_TIERS, PRICING } from "../../src/config";
+import type { DeepResearchDepth } from "../../src/config";
 
 const searchWeb = vi.fn();
 const fetchBasicPage = vi.fn();
@@ -56,13 +56,15 @@ beforeEach(() => {
 });
 afterEach(() => { vi.resetAllMocks(); });
 
-async function run(depth: "standard" | "deep" = "standard") {
+async function run(depth: DeepResearchDepth = "standard") {
     const { deepResearch } = await import("../../src/services/deep-research");
     return deepResearch({ query: "test question", depth, aiConfig });
 }
 
 describe("deep research tiers", () => {
     it("keeps each tier inside the bounds its price assumes", () => {
+        expect(DEEP_RESEARCH_TIERS.quick.subQuestions).toBe(1);
+        expect(DEEP_RESEARCH_TIERS.quick.maxSources).toBeLessThanOrEqual(5);
         expect(DEEP_RESEARCH_TIERS.standard.subQuestions).toBeLessThanOrEqual(3);
         expect(DEEP_RESEARCH_TIERS.standard.maxSources).toBeLessThanOrEqual(8);
         expect(DEEP_RESEARCH_TIERS.deep.subQuestions).toBeLessThanOrEqual(5);
@@ -75,7 +77,7 @@ describe("deep research tiers", () => {
         for (const [name, tier] of Object.entries(DEEP_RESEARCH_TIERS)) {
             const worstCase = tier.subQuestions * SERP_PER_CALL + AI_CEILING;
             const price = parseFloat(
-                PRICING.deepResearch[name as "standard" | "deep"].replace("$", ""),
+                PRICING.deepResearch[name as DeepResearchDepth].replace("$", ""),
             );
             expect(price, `${name} must be priced above cost`).toBeGreaterThan(worstCase);
         }
@@ -83,6 +85,19 @@ describe("deep research tiers", () => {
 });
 
 describe("deepResearch", () => {
+    it("quick researches the question as asked: no planning call, one search", async () => {
+        callClaude.mockResolvedValueOnce(JSON.stringify({ answer: "A [1]", keyFindings: [], gaps: [] }));
+        searchWeb.mockResolvedValue(results("q", 8));
+
+        const result = await run("quick");
+
+        expect(result.subQuestions).toEqual(["test question"]);
+        expect(searchWeb).toHaveBeenCalledTimes(1);
+        expect((searchWeb.mock.calls[0]?.[0] as { query: string }).query).toBe("test question");
+        expect(callClaude).toHaveBeenCalledTimes(1); // synthesis only
+        expect(result.citations.length).toBeLessThanOrEqual(DEEP_RESEARCH_TIERS.quick.maxSources);
+    });
+
     it("plans sub-questions and searches each one", async () => {
         mockClaude(["q one", "q two", "q three"], { answer: "A [1]", keyFindings: ["k"], gaps: [] });
         searchWeb.mockResolvedValue(results("a", 2));

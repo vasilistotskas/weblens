@@ -1,10 +1,10 @@
 import type { Context, Hono } from "hono";
-import { PRICING } from "../config";
+import { PRICING, DEEP_RESEARCH_DEFAULT_DEPTH, DEEP_RESEARCH_DEPTHS, describeDeepResearchTiers } from "../config";
+import type { DeepResearchDepth } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
 import {
-    ResearchRequestSchema,
     PdfRequestSchema,
     MapRequestSchema,
     CrawlRequestSchema,
@@ -24,57 +24,12 @@ import { domainHandler } from "../tools/domain";
 import { mapHandler } from "../tools/map";
 import { packageHandler } from "../tools/package-intel";
 import { pdfHandler } from "../tools/pdf";
-import { researchHandler } from "../tools/research";
 import { techHandler } from "../tools/tech";
 import type { Env, Variables } from "../types";
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
 export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Variables }>) {
-
-    // ============================================
-    // /research
-    // ============================================
-    app.use(
-        "/research",
-        validateRequest(ResearchRequestSchema),
-        createCreditMiddleware(PRICING.research, "AI Research Assistant"),
-        createLazyPaymentMiddleware(
-            "/research",
-            PRICING.research,
-            "One-stop research assistant: searches the web, fetches top results, and generates an AI-powered summary with key findings.",
-            { query: "x402 payment protocol benefits", resultCount: 5, includeRawContent: false },
-            {
-                properties: {
-                    query: { type: "string", description: "Research topic or question" },
-                    resultCount: { type: "number", description: "Number of sources to analyze, 1-10 (default: 5)", minimum: 1, maximum: 10 },
-                    includeRawContent: { type: "boolean", description: "Include full fetched content in response" },
-                },
-                required: ["query"],
-            },
-            {
-                query: "x402 payment protocol benefits",
-                sources: [
-                    { url: "https://x402.org", title: "x402 Protocol", snippet: "HTTP-native micropayments..." },
-                ],
-                summary: "x402 is an open payment protocol...",
-                keyFindings: ["Zero fees", "Instant settlement"],
-                researchedAt: "2026-01-26T12:00:00.000Z",
-                requestId: "req_research456",
-            },
-            {
-                properties: {
-                    query: { type: "string" },
-                    sources: { type: "array", description: "Array of sources with url, title, snippet" },
-                    summary: { type: "string", description: "AI-generated research summary" },
-                    keyFindings: { type: "array", description: "Bullet points of key findings" },
-                    researchedAt: { type: "string" },
-                    requestId: { type: "string" },
-                },
-            }
-        )
-    );
-    app.post("/research", researchHandler);
 
     // ============================================
     // /pdf
@@ -407,8 +362,8 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     // Priced per depth tier. ONE resolver feeds both the credit debit and the
     // x402 challenge so they can never diverge.
     const deepResearchPrice = (c: AppContext): string => {
-        const body = c.get("validatedBody") as { depth?: string } | undefined;
-        return body?.depth === "deep" ? PRICING.deepResearch.deep : PRICING.deepResearch.standard;
+        const body = c.get("validatedBody") as { depth?: DeepResearchDepth } | undefined;
+        return PRICING.deepResearch[body?.depth ?? DEEP_RESEARCH_DEFAULT_DEPTH];
     };
     app.use(
         "/research/deep",
@@ -417,12 +372,12 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
         createLazyPaymentMiddleware(
             "/research/deep",
             (c) => Promise.resolve(deepResearchPrice(c)),
-            `Multi-step research in one call: plans sub-questions, searches each, fetches and dedupes sources, and synthesizes an answer with inline [n] citations, key findings, and gaps. ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources).`,
+            `Multi-step research in one call: plans sub-questions, searches each, fetches and dedupes sources, and synthesizes an answer with inline [n] citations, key findings, and gaps. Tiers: ${describeDeepResearchTiers()}`,
             { query: "How are AI agents using micropayments in 2026?", depth: "standard" },
             {
                 properties: {
                     query: { type: "string", description: "The research question" },
-                    depth: { type: "string", enum: ["standard", "deep"], description: "standard = 3 sub-questions / 8 sources; deep = 5 / 12 (default: standard)" },
+                    depth: { type: "string", enum: [...DEEP_RESEARCH_DEPTHS], description: describeDeepResearchTiers() },
                 },
                 required: ["query"],
             },

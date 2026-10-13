@@ -4,7 +4,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, FREE_TIER, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
+import { PRICING, FREE_TIER, describeDeepResearchTiers, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -251,21 +251,11 @@ export const SERVICE_CATALOG = {
             rateLimit: "50/minute",
         },
         {
-            endpoint: "/research",
-            method: "POST",
-            name: "AI Research Assistant",
-            description: "One-stop research: search + fetch + AI summary with key findings",
-            price: PRICING.research,
-            tags: ["research", "ai-summary", "analysis", "comprehensive"],
-            latency: "10-30 seconds",
-            rateLimit: "20/minute",
-        },
-        {
             endpoint: "/research/deep",
             method: "POST",
             name: "Deep Research (Cited)",
-            description: `Multi-step cited research in one synchronous call — no async job or polling. Plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. ${PRICING.deepResearch.standard} standard (3 sub-questions, 8 sources) / ${PRICING.deepResearch.deep} deep (5 sub-questions, 12 sources). Long-running: use a generous client timeout.`,
-            price: `${PRICING.deepResearch.standard}-${PRICING.deepResearch.deep}`,
+            description: `Multi-step cited research in one synchronous call — no async job or polling. Plans sub-questions, searches each, fetches and dedupes sources, then synthesizes an answer with inline [n] citations, key findings, and gaps. Tiers: ${describeDeepResearchTiers()} Long-running: use a generous client timeout.`,
+            price: `${PRICING.deepResearch.quick}-${PRICING.deepResearch.deep}`,
             tags: ["research", "deep-research", "cited-research", "citations", "ai-powered"],
             latency: "30-60 seconds",
             rateLimit: "10/minute",

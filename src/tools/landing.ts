@@ -132,9 +132,9 @@ code{background:#1a1a1a;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.85e
 <p>Structured extraction with CSS selectors or AI.</p>
 </div>
 <div class="card">
-<h3>AI Research</h3>
-<span class="price">${PRICING.research}</span>
-<p>Search + fetch + AI summary in one call.</p>
+<h3>Deep Research</h3>
+<span class="price">from ${PRICING.deepResearch.quick}</span>
+<p>Cited multi-step research in one call.</p>
 </div>
 </div>
 <p style="margin-top:0.75rem;color:#9ca3af;font-size:0.85rem;text-align:center">70% cache discount on all endpoints. <a href="${baseUrl}/docs">See all 15+ endpoints &rarr;</a></p>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG, PRICING } from "./config";
+import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG, PRICING, DEEP_RESEARCH_DEPTHS, DEEP_RESEARCH_DEFAULT_DEPTH, describeDeepResearchTiers } from "./config";
 import { MAX_DOCUMENT_DEPTH, exceedsDepth } from "./services/erc8004";
 
 /**
@@ -164,8 +164,8 @@ export const DomainRequestSchema = z.object({
 
 export const DeepResearchRequestSchema = z.object({
     query: z.string().min(1).max(500).describe("The research question"),
-    depth: z.enum(["standard", "deep"]).optional().default("standard")
-        .describe("standard = 3 sub-questions / 8 sources; deep = 5 / 12"),
+    depth: z.enum(DEEP_RESEARCH_DEPTHS).optional().default(DEEP_RESEARCH_DEFAULT_DEPTH)
+        .describe(describeDeepResearchTiers()),
 });
 
 export const AnswerRequestSchema = z.object({
@@ -183,12 +183,6 @@ export const ExtractRequestSchema = z.object({
 // ============================================
 // Advanced Endpoints
 // ============================================
-
-export const ResearchRequestSchema = z.object({
-    query: z.string().min(1).max(500),
-    resultCount: z.number().min(1).max(10).optional().default(5),
-    includeRawContent: z.boolean().optional().default(false),
-});
 
 export const PdfRequestSchema = z.object({
     url: urlSchema,

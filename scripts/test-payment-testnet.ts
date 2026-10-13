@@ -87,7 +87,7 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     },
 
     // Advanced endpoints
-    "/research":    { query: "autonomous agents and web3", limit: 3 },
+    "/research/deep": { query: "autonomous agents and web3", depth: "quick" },
     "/contents":    { urls: ["https://example.com", "https://example.org"] },
     // Use a PDF hosted somewhere that doesn't block Cloudflare IPs.
     // mozilla/pdf.js ships a tracemonkey sample that's CORS-open and CDN-served.
@@ -269,7 +269,7 @@ async function run(): Promise<void> {
         const fallbackPaths = [
             "/fetch/basic", "/fetch/pro", "/fetch/resilient",
             "/screenshot", "/search", "/extract",
-            "/research", "/pdf", "/contents",
+            "/research/deep", "/pdf", "/contents",
             "/credits/buy",
         ];
 

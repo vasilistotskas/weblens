@@ -33,7 +33,6 @@ describe("catalog tags", () => {
         expect(tagsForPath("/search")).toEqual(["search", "serp"]);
         expect(tagsForPath("/search/news")).toEqual(["search", "serp"]);
         expect(tagsForPath("/research/deep")).toContain("multi-step");
-        expect(tagsForPath("/research")).not.toContain("multi-step");
         expect(tagsForPath("/intel/project")).toContain("diligence");
     });
 
