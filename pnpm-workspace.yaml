@@ -43,7 +43,6 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/utils@8.60.0 || 8.71.1'
   - '@typescript-eslint/visitor-keys@8.60.0 || 8.71.1'
   - typescript-eslint@8.60.0 || 8.71.1
-  - '@cloudflare/vitest-pool-workers@0.16.10 || 0.21.3'
   - '@cloudflare/workerd-darwin-64@1.20260526.1'
   - '@cloudflare/workerd-darwin-arm64@1.20260526.1'
   - '@cloudflare/workerd-linux-64@1.20260526.1'

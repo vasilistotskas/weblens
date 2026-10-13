@@ -1,9 +1,9 @@
-/// <reference types="@cloudflare/vitest-pool-workers" />
+/// <reference types="@cloudflare/vitest-plugin/types" />
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 
-// Real CreditAccountDO running in workerd (via @cloudflare/vitest-pool-workers).
+// Real CreditAccountDO running in workerd (via @cloudflare/vitest-plugin).
 // Storage is isolated per test file; each test uses a distinct wallet name so
 // the DO instances (keyed by idFromName) don't collide.
 
