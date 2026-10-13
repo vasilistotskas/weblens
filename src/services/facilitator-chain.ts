@@ -25,6 +25,7 @@ import type {
     VerifyResponse,
 } from "@x402/core/types";
 import type { Logger } from "../utils/logger";
+import { noteFallback as recordFallback } from "./payment-telemetry";
 import type { FacilitatorLabel, TrackedFacilitatorClient } from "./payment-telemetry";
 
 /** CAIP-2 namespaces WebLens takes payments in. */
@@ -146,6 +147,9 @@ export class FacilitatorChain implements FacilitatorClient {
     private noteFallback(operation: "verify" | "settle", facilitator: TrackedFacilitatorClient, reason: string): void {
         const index = this.facilitators.indexOf(facilitator);
         const next = this.facilitators[index + 1];
+        // A handover goes into the request's funnel event, which is never
+        // sampled; the log line below is (Workers Logs keep ~10% in production).
+        if (next) { recordFallback(operation, facilitator.label, reason); }
         this.log.warn(next ? "facilitator.fallback" : "facilitator.exhausted", {
             operation,
             family: this.family,

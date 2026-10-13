@@ -100,6 +100,14 @@ describe("classifyPaymentRequest", () => {
         expect(event).toMatchObject({ outcome: "verify_rejected", reason: "insufficient_funds", facilitator: "payai" });
     });
 
+    it("carries every handover the attempt recorded into the event", () => {
+        const event = classifyPaymentRequest(
+            facts({ paymentSignature: signature, status: 200 }),
+            { outcome: "settled", facilitator: "payai", fallbacks: ["cdp verify: CDP 500", "cdp settle: timeout"] },
+        );
+        expect(event).toMatchObject({ outcome: "settled", facilitator: "payai", fallback: "cdp verify: CDP 500; cdp settle: timeout" });
+    });
+
     it("a settlement header without a hook outcome is still 'settled'", () => {
         const paymentResponse = encodePaymentResponseHeader({
             success: true, network: BASE, transaction: "0xtx", payer: "0xbuyer",
@@ -199,6 +207,13 @@ describe("emitPaymentEvent", () => {
         expect(point.blobs[PAYMENT_EVENT_BLOBS.indexOf("outcome")]).toBe("settled");
         expect(point.blobs[PAYMENT_EVENT_BLOBS.indexOf("payer")]).toBe("0xbuyer");
         expect(point.doubles).toEqual([15000, 9]);
+
+        const handedOver = { ...event, facilitator: "payai", fallback: "cdp settle: unable_to_estimate_gas" };
+        emitPaymentEvent({ writeDataPoint }, log, handedOver);
+        const rescued = writeDataPoint.mock.calls[1]?.[0] as { blobs: string[] };
+        expect(rescued.blobs[PAYMENT_EVENT_BLOBS.indexOf("fallback")]).toBe("cdp settle: unable_to_estimate_gas");
+        // Appended last, so rows written before the column existed keep their positions.
+        expect(PAYMENT_EVENT_BLOBS.indexOf("fallback")).toBe(PAYMENT_EVENT_BLOBS.length - 1);
 
         const failing = { writeDataPoint: () => { throw new Error("binding missing"); } };
         expect(() => { emitPaymentEvent(failing, log, event); }).not.toThrow();

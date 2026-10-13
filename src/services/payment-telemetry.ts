@@ -70,6 +70,8 @@ export interface PaymentAttempt {
     transaction?: string;
     /** Label of the facilitator that last handled verify/settle. */
     facilitator?: string;
+    /** Failures one facilitator had that the next in its chain took over (see noteFallback). */
+    fallbacks?: string[];
 }
 
 export interface PaymentEvent {
@@ -84,6 +86,13 @@ export interface PaymentEvent {
     transaction?: string;
     /** Atomic units: what was paid, or what the challenge quoted. */
     amount?: string;
+    /**
+     * Failures absorbed by a facilitator fallback on this request, e.g.
+     * "cdp settle: unable_to_estimate_gas". `facilitator` names only the one
+     * that answered last, so without this a sale PayAI rescued would read as
+     * an ordinary PayAI sale and CDP's failure rate would be invisible.
+     */
+    fallback?: string;
     latencyMs: number;
 }
 
@@ -101,6 +110,8 @@ export const PAYMENT_EVENT_BLOBS = [
     "payer",
     "transaction",
     "requestId",
+    // Appended, never inserted: existing rows keep their blob positions.
+    "fallback",
 ] as const satisfies readonly (keyof PaymentEvent)[];
 
 export const PAYMENT_EVENT_DOUBLES = ["amount", "latencyMs"] as const satisfies readonly (keyof PaymentEvent)[];
@@ -130,6 +141,20 @@ function errorMessage(error: unknown): string {
 }
 
 // ---- Hook recorders (called from the x402ResourceServer hooks) ----
+
+/** Longest failure reason kept per fallback; facilitator error messages can be long. */
+const FALLBACK_REASON_CHARS = 120;
+
+/**
+ * Record a failure one facilitator had that the next in its chain took over
+ * (FacilitatorChain). The final failure of a chain is not a fallback: it is
+ * the outcome's own reason.
+ */
+export function noteFallback(operation: "verify" | "settle", facilitator: FacilitatorLabel, reason: string): void {
+    const attempt = currentAttempt();
+    if (!attempt) { return; }
+    (attempt.fallbacks ??= []).push(`${facilitator} ${operation}: ${reason.slice(0, FALLBACK_REASON_CHARS)}`);
+}
 
 export function noteVerifyResult(requirements: Readonly<PaymentRequirements>, result: Readonly<VerifyResponse>): void {
     const attempt = currentAttempt();
@@ -258,7 +283,13 @@ export function claimedPayer(payload: PaymentPayload | undefined): string | unde
 }
 
 export function classifyPaymentRequest(facts: PaymentRequestFacts, attempt: PaymentAttempt): PaymentEvent {
-    const base = { route: facts.route, requestId: facts.requestId, latencyMs: facts.latencyMs, facilitator: attempt.facilitator };
+    const base = {
+        route: facts.route,
+        requestId: facts.requestId,
+        latencyMs: facts.latencyMs,
+        facilitator: attempt.facilitator,
+        fallback: attempt.fallbacks?.join("; "),
+    };
     const challenge = tryDecode(decodePaymentRequiredHeader, facts.paymentRequired);
     const quoted = challenge?.accepts[0]?.amount;
     const payload = tryDecode(decodePaymentSignatureHeader, facts.paymentSignature);
@@ -357,6 +388,7 @@ export function emitPaymentEvent(dataset: PaymentEventSink, log: Logger, event: 
         payer: mask(event.payer),
         transaction: event.transaction,
         amount: event.amount,
+        fallback: event.fallback,
         latencyMs: event.latencyMs,
     });
 }

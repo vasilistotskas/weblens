@@ -75,6 +75,14 @@ interface GroupRow {
     events: number | string;
 }
 
+interface SettleRow {
+    facilitator: string;
+    outcome: PaymentOutcome;
+    fallback: string;
+    /** UInt64 aggregate: may arrive as a JSON string. */
+    events: number | string;
+}
+
 interface SettledRow {
     time: string;
     route: string;
@@ -137,6 +145,47 @@ async function main(): Promise<void> {
         payerCounts.set(g.payer, (payerCounts.get(g.payer) ?? 0) + Number(g.events));
     }
     console.log(`Distinct payers: ${String(payerCounts.size)}, repeat payers: ${String([...payerCounts.values()].filter((n) => n > 1).length)}`);
+
+    // Facilitator reliability. A settle one facilitator failed and the next in
+    // its chain took over is recorded in `fallback`, while `facilitator` names
+    // only the one that finished: without counting fallbacks, a sale PayAI
+    // rescued would read as a plain PayAI sale. All payers count here (the
+    // canary too): this measures the facilitator, not revenue.
+    const settleRows = await query<SettleRow>(accountId, token, `
+        SELECT ${blob("facilitator")} AS facilitator, ${blob("outcome")} AS outcome, ${blob("fallback")} AS fallback,
+               SUM(_sample_interval) AS events
+        FROM ${dataset}
+        WHERE ${window} AND (${blob("fallback")} != '' OR ${blob("outcome")} IN ('settled', 'settle_failed'))
+        GROUP BY facilitator, outcome, fallback
+        FORMAT JSON`);
+    const reliability = new Map<string, { settled: number; handedOver: number; failed: number }>();
+    const entry = (facilitator: string) => {
+        const current = reliability.get(facilitator) ?? { settled: 0, handedOver: 0, failed: 0 };
+        reliability.set(facilitator, current);
+        return current;
+    };
+    const fallbackCounts = new Map<string, number>();
+    for (const row of settleRows) {
+        const n = Number(row.events);
+        if (row.outcome === "settled") { entry(row.facilitator).settled += n; }
+        if (row.outcome === "settle_failed") { entry(row.facilitator).failed += n; }
+        for (const fallback of row.fallback.split("; ").filter(Boolean)) {
+            fallbackCounts.set(fallback, (fallbackCounts.get(fallback) ?? 0) + n);
+            const [facilitator = "", operation = ""] = fallback.split(/[ :]/u);
+            if (operation === "settle") { entry(facilitator).handedOver += n; }
+        }
+    }
+    if (reliability.size > 0) {
+        console.log("Settle reliability per facilitator (handedOver = failed settles the next facilitator took over; all payers):");
+        console.table(Object.fromEntries([...reliability].map(([facilitator, r]) => {
+            const tried = r.settled + r.handedOver + r.failed;
+            return [facilitator, { ...r, successRate: tried > 0 ? `${(100 * r.settled / tried).toFixed(1)}%` : "-" }];
+        })));
+    }
+    if (fallbackCounts.size > 0) {
+        console.log("Facilitator fallbacks (failures another facilitator absorbed):");
+        console.table(Object.fromEntries([...fallbackCounts].sort((a, b) => b[1] - a[1])));
+    }
 
     const settled = (await query<SettledRow>(accountId, token, `
         SELECT timestamp AS time, index1 AS route, ${blob("network")} AS network, ${blob("facilitator")} AS facilitator,

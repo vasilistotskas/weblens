@@ -117,8 +117,8 @@ describe("FacilitatorChain", () => {
         expect(payai.settle).not.toHaveBeenCalled();
     });
 
-    it("hands a payment to the next facilitator when the first fails to settle it, and records who settled", async () => {
-        for (const failure of [notSettled, new Error("timeout")]) {
+    it("hands a payment to the next facilitator when the first fails to settle it, and records the handover", async () => {
+        for (const [failure, reason] of [[notSettled, "unable_to_estimate_gas"], [new Error("timeout"), "timeout"]] as const) {
             const cdp = facilitator({ settle: failure });
             const payai = facilitator({ settle: settled("0xpayai") });
             const { chain: evm, log } = chain("eip155", ["cdp", cdp], ["payai", payai]);
@@ -127,8 +127,20 @@ describe("FacilitatorChain", () => {
 
             expect(result).toMatchObject({ success: true, transaction: "0xpayai" });
             expect(attempt.facilitator).toBe("payai");
+            // Recorded in the (unsampled) funnel event, not only the (sampled) log.
+            expect(attempt.fallbacks).toEqual([`cdp settle: ${reason}`]);
             expect(log.warn).toHaveBeenCalledWith("facilitator.fallback", expect.objectContaining({ operation: "settle", facilitator: "cdp", next: "payai" }));
         }
+    });
+
+    it("records a verify handover, but not the chain's final failure, which is the outcome's own reason", async () => {
+        const { chain: verifyChain } = chain("eip155", ["cdp", facilitator({ verify: new Error("CDP 500") })], ["payai", facilitator({ verify: valid })]);
+        const verified = await runPaymentAttempt(() => verifyChain.verify(payload, requirements));
+        expect(verified.attempt.fallbacks).toEqual(["cdp verify: CDP 500"]);
+
+        const { chain: exhausted } = chain("eip155", ["cdp", facilitator({ settle: notSettled })], ["payai", facilitator({ settle: notSettled })]);
+        const failed = await runPaymentAttempt(() => exhausted.settle(payload, requirements));
+        expect(failed.attempt.fallbacks).toEqual(["cdp settle: unable_to_estimate_gas"]);
     });
 
     it("verifies through the next facilitator when the first errors or rejects", async () => {
