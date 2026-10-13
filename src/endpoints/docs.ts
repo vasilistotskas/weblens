@@ -6,8 +6,7 @@
  * and accept.
  */
 
-import { PRICING } from "../config";
-import { describePrice, ENDPOINT_GROUPS, endpointBodySchema, requestBodySchema } from "./define";
+import { describePrice, ENDPOINT_GROUPS, endpointBodySchema, requestBodySchema, x402PriceBounds } from "./define";
 import type { EndpointDefinition, EndpointGroup } from "./define";
 import { ENDPOINTS } from "./index";
 
@@ -22,16 +21,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * x402scan's x-payment-info (https://www.x402scan.com/discovery/spec): a fixed
  * amount when every request pays the same, otherwise the range any request
- * can pay. Amounts are decimal USD; the 402 challenge carries atomic units.
+ * can pay, both after the cache discount and the x402 floor. Amounts are
+ * decimal USD; the 402 challenge carries atomic units.
  */
 export function paymentInfo(endpoint: EndpointDefinition) {
-    const { price, cacheKey } = endpoint;
-    const min = cacheKey ? price.min * (1 - PRICING.cacheDiscount) : price.min;
+    const { min, max } = x402PriceBounds(endpoint);
     const protocols = [{ x402: {} }];
-    if (min === price.max) {
-        return { price: { mode: "fixed" as const, currency: "USD", amount: price.max.toFixed(6) }, protocols };
+    if (min === max) {
+        return { price: { mode: "fixed" as const, currency: "USD", amount: max.toFixed(6) }, protocols };
     }
-    return { price: { mode: "dynamic" as const, currency: "USD", min: min.toFixed(6), max: price.max.toFixed(6) }, protocols };
+    return { price: { mode: "dynamic" as const, currency: "USD", min: min.toFixed(6), max: max.toFixed(6) }, protocols };
 }
 
 /** The OpenAPI operation for one paid endpoint. */

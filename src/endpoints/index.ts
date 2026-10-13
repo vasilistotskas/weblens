@@ -5,6 +5,7 @@
  */
 
 import { BILLING_ENDPOINTS } from "./billing";
+import { x402PriceBounds } from "./define";
 import type { EndpointDefinition } from "./define";
 import { INTEL_ENDPOINTS } from "./intel";
 import { PAGE_ENDPOINTS } from "./pages";
@@ -33,6 +34,18 @@ const BY_PATH: ReadonlyMap<string, EndpointDefinition> = new Map(ENDPOINTS.map((
 /** The definition for a paid path, or undefined when nothing is sold there. */
 export function endpointForPath(path: string): EndpointDefinition | undefined {
     return BY_PATH.get(path);
+}
+
+/** The products: every endpoint except billing actions (group "Credits"). */
+export const PRODUCT_ENDPOINTS = ENDPOINTS.filter((endpoint) => endpoint.group !== "Credits");
+
+/** The x402 price range across the products, as discovery surfaces advertise it. */
+export function productPriceRange(): string {
+    const bounds = PRODUCT_ENDPOINTS.map((endpoint) => x402PriceBounds(endpoint));
+    const format = (amount: number): string => (amount < 0.01 ? amount.toFixed(4) : amount.toFixed(2));
+    const min = Math.min(...bounds.map((b) => b.min));
+    const max = Math.max(...bounds.map((b) => b.max));
+    return `$${format(min)} - $${format(max)} per request`;
 }
 
 /** Paid paths that only accept EVM payments (see each definition's `evmOnly`). */

@@ -151,12 +151,35 @@ export function complexityPricing(type: ComplexityPricedEndpoint): PriceModel<{ 
     };
 }
 
-/** The pricing rule in words, including the cache discount where it applies. */
+const X402_MINIMUM = parsePrice(PRICING.x402Minimum);
+
+/** What an x402 payment for `listPrice` costs: never less than the settle-fee floor. */
+export function x402Charge(listPrice: string): string {
+    return parsePrice(listPrice) < X402_MINIMUM ? PRICING.x402Minimum : listPrice;
+}
+
+/** Cheapest list price any valid request pays, after the cache discount. */
+function lowestListPrice({ price, cacheKey }: EndpointDefinition): number {
+    return cacheKey ? price.min * (1 - PRICING.cacheDiscount) : price.min;
+}
+
+/** Cheapest and dearest x402 payment any valid request makes, after the cache discount and the floor. */
+export function x402PriceBounds(endpoint: EndpointDefinition): { min: number; max: number } {
+    return {
+        min: Math.max(lowestListPrice(endpoint), X402_MINIMUM),
+        max: Math.max(endpoint.price.max, X402_MINIMUM),
+    };
+}
+
+/** The pricing rule in words, including the cache discount and the x402 floor where they apply. */
 export function describePrice(endpoint: EndpointDefinition): string {
-    const { describe } = endpoint.price;
-    return endpoint.cacheKey
-        ? `${describe} (${String(Math.round(PRICING.cacheDiscount * 100))}% off when served from cache)`
-        : describe;
+    const cache = endpoint.cacheKey
+        ? ` (${String(Math.round(PRICING.cacheDiscount * 100))}% off when served from cache)`
+        : "";
+    const floor = lowestListPrice(endpoint) < X402_MINIMUM
+        ? `; an x402 payment is at least ${PRICING.x402Minimum}`
+        : "";
+    return `${endpoint.price.describe}${cache}${floor}`;
 }
 
 /**

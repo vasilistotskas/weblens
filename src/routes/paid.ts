@@ -5,14 +5,16 @@
  *   [cache lookup] → validation → credit debit → x402 payment → [cache serve] → handler
  *
  * Invalid bodies are rejected before any money moves, and the credit debit and
- * the x402 challenge share one price resolver, so they can never charge
- * different amounts.
+ * the x402 challenge share one price resolver. The only difference is the
+ * x402 floor (PRICING.x402Minimum): an x402 sale pays the facilitator a settle
+ * fee, so it never charges less than that, while a credit debit settles
+ * nothing and pays the list price.
  */
 
 import type { Context, Handler, Hono, MiddlewareHandler } from "hono";
 import { ENDPOINTS } from "../endpoints";
 import type { PaidPath } from "../endpoints";
-import { endpointBodySchema } from "../endpoints/define";
+import { endpointBodySchema, x402Charge } from "../endpoints/define";
 import type { EndpointDefinition } from "../endpoints/define";
 import { cacheAwarePrice, cacheLookupMiddleware, cacheServeMiddleware } from "../middleware/cache";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
@@ -92,6 +94,11 @@ function routePrice(endpoint: EndpointDefinition): string | ((c: Context<AppEnv>
     return price.min === price.max ? price.resolve(undefined) : resolve;
 }
 
+/** The same price as the x402 challenge charges it: never below the settle-fee floor. */
+function x402RoutePrice(price: ReturnType<typeof routePrice>): ReturnType<typeof routePrice> {
+    return typeof price === "string" ? x402Charge(price) : async (c) => x402Charge(await price(c));
+}
+
 export function registerPaidRoutes(app: Hono<AppEnv>): void {
     for (const endpoint of ENDPOINTS) {
         const definition: EndpointDefinition = endpoint;
@@ -115,7 +122,7 @@ export function registerPaidRoutes(app: Hono<AppEnv>): void {
                 outputExample: definition.outputExample,
                 outputSchema: definition.outputSchema,
             },
-            price,
+            x402RoutePrice(price),
         ));
         if (definition.cacheKey) {
             stack.push(cacheServeMiddleware());

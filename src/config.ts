@@ -61,6 +61,13 @@ export const PRICING = {
   answer: "$0.05", // ~$0.026 worst-case upstream (1 SerpAPI call + capped Haiku tokens)
   extract: "$0.03",
   cacheDiscount: 0.7, // 70% off for cached responses
+  // Smallest x402 payment WebLens takes. Every x402 sale pays the facilitator
+  // a settle fee: PayAI charges gas x 1.30 (Base EIP-3009 = $0.00231, Solana
+  // $0.00152) once its free allowance is spent, CDP $0.001 after 1,000 settles
+  // a month. A cheaper payment loses money, so an x402 call costs
+  // max(its list price after any cache discount, this), with headroom for
+  // Base gas swings. Credit debits settle nothing and pay the list price.
+  x402Minimum: "$0.004",
 
   // Batch fetch pricing
   // Site URL discovery (sitemap/robots/link based). A handful of subrequests

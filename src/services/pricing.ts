@@ -119,26 +119,3 @@ export function perUnitPrice(unitPrice: string, units: number): string {
     // which overcharges and breaks linearity. USDC carries 6 decimals.
     return `$${(units * parsePrice(unitPrice)).toFixed(4)}`;
 }
-
-/**
- * Compute the advertised per-request price range directly from PRICING, so the
- * discovery / MCP / docs surfaces can never drift from config. Excludes the
- * credit deposit tiers and the non-price numeric settings.
- */
-export function getPriceRange(): string {
-    const prices: number[] = [];
-    const collect = (value: unknown): void => {
-        if (typeof value === "string" && value.startsWith("$")) {
-            prices.push(parsePrice(value));
-        } else if (value && typeof value === "object") {
-            for (const v of Object.values(value)) { collect(v); }
-        }
-    };
-    for (const [key, value] of Object.entries(PRICING)) {
-        // Skip deposit tiers and non-price scalars.
-        if (key === "credits" || key === "cacheDiscount") { continue; }
-        collect(value);
-    }
-    const fmt = (n: number) => (n < 0.01 ? n.toFixed(4) : n.toFixed(2));
-    return `$${fmt(Math.min(...prices))} - $${fmt(Math.max(...prices))} per request`;
-}

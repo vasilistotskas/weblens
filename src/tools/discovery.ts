@@ -5,10 +5,9 @@
 
 import type { Context } from "hono";
 import { FACILITATOR_URLS, FREE_TIER, pathPublication, absolutePathPublication, SERVICE_NAME, SERVICE_VERSION, supportedNetworks } from "../config";
-import { ENDPOINTS } from "../endpoints";
+import { PRODUCT_ENDPOINTS, productPriceRange } from "../endpoints";
 import { describePrice } from "../endpoints/define";
 import { facilitatorNames } from "../middleware/payment";
-import { getPriceRange } from "../services/pricing";
 import type { AppEnv } from "../types";
 
 // Service catalog with rich metadata for AI agent discovery
@@ -92,7 +91,7 @@ export const SERVICE_CATALOG = {
     ],
     // Products only: billing actions (group "Credits") are listed under
     // integration.paymentMethods instead.
-    services: ENDPOINTS.filter((endpoint) => endpoint.group !== "Credits").map((endpoint) => ({
+    services: PRODUCT_ENDPOINTS.map((endpoint) => ({
         endpoint: endpoint.path,
         method: "POST",
         name: endpoint.title,
@@ -106,7 +105,7 @@ export const SERVICE_CATALOG = {
         cacheDiscount: "70% off for cached responses",
         noFees: "x402 protocol has 0 fees",
         instantSettlement: "Seconds, on-chain",
-        priceRange: getPriceRange(),
+        priceRange: productPriceRange(),
     },
     integration: {
         mcp: {
@@ -298,7 +297,7 @@ export function wellKnownX402Handler(c: Context<AppEnv>) {
         })),
         pricing: {
             currency: "USDC",
-            range: getPriceRange(),
+            range: productPriceRange(),
             cacheDiscount: "70%",
         },
         documentation: `${baseUrl}/docs`,

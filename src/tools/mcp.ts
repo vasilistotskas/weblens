@@ -9,11 +9,10 @@ import type { Context } from "hono";
 // The MCP registry listing (server.json) versions this server; each registry publish bumps it.
 import { version as MCP_SERVER_VERSION } from "../../server.json";
 import { supportedNetworkNames, supportedNetworks } from "../config";
-import { ENDPOINTS } from "../endpoints";
+import { ENDPOINTS, productPriceRange } from "../endpoints";
 import { describePrice, endpointBodySchema, requestBodySchema } from "../endpoints/define";
 import { facilitatorNames } from "../middleware/payment";
 import { PreviewRequestSchema } from "../schemas";
-import { getPriceRange } from "../services/pricing";
 import type { AppEnv, Env } from "../types";
 
 // MCP Protocol version
@@ -497,7 +496,7 @@ export function mcpInfoHandler(c: Context<AppEnv>) {
       currency: "USDC",
       networks: supportedNetworks(c.env),
       protocol: "x402",
-      range: getPriceRange(),
+      range: productPriceRange(),
       noFees: true,
       instantSettlement: true,
     },

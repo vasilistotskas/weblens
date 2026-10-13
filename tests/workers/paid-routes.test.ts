@@ -1,14 +1,14 @@
 /**
  * Every paid route is generated from its registry definition, so the 402
- * challenge a buyer actually receives must match that definition: the price
- * it resolves to, the networks it may be paid on, and the input it advertises
+ * challenge a buyer actually receives must match that definition: the x402
+ * charge for the price it resolves to, the networks it may be paid on, and the input it advertises
  * to Bazaar catalogs. Driven through the real Worker, one request per route.
  */
 
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { ENDPOINTS } from "../../src/endpoints";
-import { endpointBodySchema } from "../../src/endpoints/define";
+import { endpointBodySchema, x402Charge } from "../../src/endpoints/define";
 import type { EndpointDefinition } from "../../src/endpoints/define";
 import { parsePrice } from "../../src/services/pricing";
 
@@ -45,7 +45,7 @@ describe("generated paid routes", () => {
     it.each(DEFINITIONS.map((e) => [e.path, e] as const))("%s: the 402 matches its definition", async (_path, endpoint) => {
         const challenge = await challengeFor(endpoint);
 
-        const expected = toAtomicUsdc(endpoint.price.resolve(endpoint.input.parse(endpoint.inputExample)));
+        const expected = toAtomicUsdc(x402Charge(endpoint.price.resolve(endpoint.input.parse(endpoint.inputExample))));
         expect(challenge.accepts.length).toBeGreaterThan(0);
         for (const accept of challenge.accepts) {
             expect(accept.amount, accept.network).toBe(expected);
