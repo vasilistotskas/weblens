@@ -112,17 +112,19 @@ function payaiConfig(env: Env): FacilitatorConfig {
 export interface FacilitatorPlan {
     family: NetworkFamily;
     facilitators: [FacilitatorEntry, ...FacilitatorEntry[]];
+    /** Configured facilitators left out because their credentials are not set. */
+    skipped: FacilitatorLabel[];
 }
 
-function facilitatorEntry(env: Env, label: FacilitatorLabel): FacilitatorEntry {
+/** A facilitator's client, or undefined when this env lacks the credentials it needs (only CDP needs any). */
+function facilitatorEntry(env: Env, label: FacilitatorLabel): FacilitatorEntry | undefined {
     switch (label) {
         case "payai":
             return { label, client: new HTTPFacilitatorClient(payaiConfig(env)) };
         case "cdp":
-            if (!env.CDP_API_KEY_ID || !env.CDP_API_KEY_SECRET) {
-                throw new Error("cdp is a configured facilitator but CDP_API_KEY_ID / CDP_API_KEY_SECRET are not set");
-            }
-            return { label, client: new HTTPFacilitatorClient(createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)) };
+            return env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET
+                ? { label, client: new HTTPFacilitatorClient(createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)) }
+                : undefined;
         case "x402.org":
             return { label, client: new HTTPFacilitatorClient({ url: env.FACILITATOR_URL ?? FACILITATOR_URLS.testnet }) };
     }
@@ -136,11 +138,26 @@ function facilitatorEntry(env: Env, label: FacilitatorLabel): FacilitatorEntry {
  * most x402 buyers. PayAI takes over a Base payment CDP fails on (CDP's Base
  * /settle has failed intermittently, coinbase/x402#1065). Solana stays on
  * PayAI alone: its fee payer is part of the quote (FacilitatorChain).
+ *
+ * A configured facilitator whose credentials are missing (CDP without its
+ * keys, as in CI and on keyless dev machines) is skipped rather than fatal:
+ * a lost secret must not stop payments another facilitator can settle.
+ * getResourceServer() logs the skip; a family left with none throws.
  */
 export function facilitatorPlans(env: Env): FacilitatorPlan[] {
     const plan = (family: NetworkFamily, order: string | undefined): FacilitatorPlan => {
-        const [first, ...rest] = parseFacilitatorOrder(family, order);
-        return { family, facilitators: [facilitatorEntry(env, first), ...rest.map((label) => facilitatorEntry(env, label))] };
+        const configured = parseFacilitatorOrder(family, order);
+        const usable: FacilitatorEntry[] = [];
+        const skipped: FacilitatorLabel[] = [];
+        for (const label of configured) {
+            const entry = facilitatorEntry(env, label);
+            if (entry) { usable.push(entry); } else { skipped.push(label); }
+        }
+        const [first, ...rest] = usable;
+        if (!first) {
+            throw new Error(`No ${family} facilitator is usable: ${configured.join(", ")} configured, credentials missing for ${skipped.join(", ")}`);
+        }
+        return { family, facilitators: [first, ...rest], skipped };
     };
     return [
         plan("eip155", env.FACILITATORS_EVM),
@@ -229,6 +246,12 @@ function getResourceServer(env: Env): x402ResourceServer {
     });
 
     resourceServerCache.set(key, server);
+
+    for (const { family, skipped } of plans) {
+        if (skipped.length > 0) {
+            log.warn("x402.facilitator_skipped", { family, skipped: skipped.join(", "), reason: "credentials not set" });
+        }
+    }
 
     log.info("x402.init_ready", {
         network: evmCaip2,

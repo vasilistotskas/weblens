@@ -122,8 +122,15 @@ describe("facilitatorPlans", () => {
         expect(order(envWith(testnet))).toEqual([["eip155", ["x402.org"]]]);
     });
 
-    it("refuses CDP without its keys instead of skipping it", () => {
-        expect(() => facilitatorPlans(envWith({ ...PRODUCTION, CDP_API_KEY_SECRET: undefined }))).toThrow(/CDP_API_KEY/u);
+    it("skips CDP without its keys, so a lost secret cannot stop PayAI settling Base", () => {
+        const [base] = facilitatorPlans(envWith({ ...PRODUCTION, CDP_API_KEY_SECRET: undefined }));
+        expect(base?.facilitators.map(({ label }) => label)).toEqual(["payai"]);
+        expect(base?.skipped).toEqual(["cdp"]);
+    });
+
+    it("throws when no configured facilitator for a family is usable", () => {
+        expect(() => facilitatorPlans(envWith({ ...PRODUCTION, FACILITATORS_EVM: "cdp", CDP_API_KEY_ID: undefined })))
+            .toThrow(/No eip155 facilitator is usable/u);
     });
 
     it("names each facilitator once for discovery documents", () => {

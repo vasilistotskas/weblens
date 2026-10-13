@@ -2,6 +2,12 @@ import path from "path";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
+// The workers project must see what CI sees: wrangler.toml and nothing from a
+// developer's .env. Real credentials there change which code paths run (a CDP
+// key puts CDP in the facilitator chain), so tests could pass locally and fail
+// in CI. Documented switch: developers.cloudflare.com/workers/configuration/environment-variables/
+process.env.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV = "false";
+
 export default defineConfig({
     test: {
         projects: [

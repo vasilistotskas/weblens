@@ -62,7 +62,8 @@ describe('Payment Flow Integration', () => {
             CDP_API_KEY_ID: "test",
             CDP_API_KEY_SECRET: "test",
             PAY_TO_ADDRESS: "0x123",
-            CREDIT_MANAGER: {} // Mock DO namespace
+            CREDIT_MANAGER: {}, // Mock DO namespace
+            PAYMENT_EVENTS: { writeDataPoint: () => undefined },
         });
 
         if (res.status !== 402) {
@@ -87,7 +88,8 @@ describe('Payment Flow Integration', () => {
             CDP_API_KEY_ID: "test",
             CDP_API_KEY_SECRET: "test",
             PAY_TO_ADDRESS: "0x123",
-            CREDIT_MANAGER: {} // Mock DO namespace
+            CREDIT_MANAGER: {}, // Mock DO namespace
+            PAYMENT_EVENTS: { writeDataPoint: () => undefined },
         });
 
         expect(res.status).toBe(402);
