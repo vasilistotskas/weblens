@@ -92,8 +92,6 @@ const PAID_ENDPOINTS: { path: string; body: Record<string, unknown> }[] = [
   { path: "/batch/fetch",     body: { urls: ["https://example.com", "https://example.org"] } },
   { path: "/pdf",             body: { url: "https://example.com/doc.pdf" } },
   { path: "/compare",         body: { urls: ["https://example.com", "https://example.org"] } },
-  { path: "/monitor/create",  body: { url: "https://example.com", webhookUrl: "https://example.com/hook" } },
-  { path: "/memory/set",      body: { key: "test", value: "test" } },
   { path: "/intel/company",   body: { target: "test" } },
   { path: "/intel/market",    body: { topic: "test" } },
   { path: "/intel/competitive", body: { company: "test" } },

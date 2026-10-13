@@ -1,11 +1,6 @@
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 
-// Mock the scheduler preventing "cloudflare:workers" import error
-vi.mock('../../src/services/scheduler', () => ({
-    MonitorScheduler: class { }
-}));
-
 // Set required env vars
 process.env.PAY_TO_ADDRESS = "0x1234567890123456789012345678901234567890";
 process.env.CDP_API_KEY_ID = "test-id";

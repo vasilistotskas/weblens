@@ -106,8 +106,6 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "BATCH_TOO_LARGE":
     case "INVALID_PDF":
     case "PDF_TOO_LARGE":
-    case "WEBHOOK_INVALID":
-    case "MEMORY_VALUE_TOO_LARGE":
       return 400;
     case "AUTH_FAILED":
     case "REPLAY_DETECTED":
@@ -124,8 +122,6 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "FORBIDDEN":
       return 403;
     case "ELEMENT_NOT_FOUND":
-    case "MONITOR_NOT_FOUND":
-    case "MEMORY_KEY_NOT_FOUND":
     case "NOT_FOUND":
       return 404;
     case "METHOD_NOT_ALLOWED":

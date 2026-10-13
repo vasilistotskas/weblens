@@ -218,14 +218,6 @@ export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
         summary: "SEO, performance, security and accessibility scores plus fixes.",
         sample: { url: "https://example.com", scores: { seo: 87, performance: 92, security: 95, accessibility: 88 }, issues: [{ severity: "high", category: "seo", message: "Missing meta description" }], recommendations: ["Add unique meta descriptions"] },
     },
-    "/monitor/create": {
-        summary: "Watch a URL and get a webhook when it changes.",
-        sample: { monitorId: "mon_abc123", url: "https://example.com/status", webhookUrl: "https://your-app.com/webhook", checkInterval: 1, status: "active" },
-    },
-    "/memory/set": {
-        summary: "Persist a key/value for your agent across calls.",
-        sample: { key: "user_prefs", stored: true, ttlHours: 168, expiresAt: "2026-08-07T12:00:00.000Z" },
-    },
     "/credits/buy": {
         summary: "Prepay credits; deposit bonuses at $10 / $50 / $100.",
         sample: { wallet: "0x1234...abcd", deposited: 10, bonus: 2, balance: 12, tier: "standard" },
@@ -281,8 +273,6 @@ const PREVIEW_PRICE_HINT: Record<string, string> = {
     "/intel/market": PRICING.intel.market,
     "/intel/competitive": PRICING.intel.competitive,
     "/intel/site-audit": PRICING.intel.siteAudit,
-    "/monitor/create": `${PRICING.monitor.setup} + ${PRICING.monitor.perCheck}/check`,
-    "/memory/set": PRICING.memory.write,
 };
 
 export function isPaidEndpoint(endpoint: string): boolean {

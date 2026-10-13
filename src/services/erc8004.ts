@@ -24,10 +24,11 @@
  */
 
 import { keccak256, stringToHex } from "viem";
-import { PRICING, supportedNetworks, supportedNetworkNames, absolutePathPublication } from "../config";
+import { supportedNetworks, supportedNetworkNames, absolutePathPublication } from "../config";
 import type { NetworkEnv } from "../config";
 import type { Env } from "../types";
 import { signContext } from "./crypto";
+import { getPriceRange } from "./pricing";
 
 export const ERC8004_REGISTRATION_TYPE =
     "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
@@ -76,7 +77,7 @@ export function buildRegistration(baseUrl: string, env: NetworkEnv) {
             version: 2,
             networks: supportedNetworks(env),
             asset: "USDC",
-            priceRange: `${PRICING.memory.read} - ${PRICING.intel.competitive}`,
+            priceRange: getPriceRange(),
         },
         feedback: {
             /** Where a buyer turns a served call into citable payment evidence. */

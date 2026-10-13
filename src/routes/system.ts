@@ -1,25 +1,14 @@
 import type { Hono } from "hono";
-import { FREE_TIER, supportedNetworks, PRICING, pathExample } from "../config";
-import { createCreditMiddleware } from "../middleware/credit-middleware";
-import { createLazyPaymentMiddleware } from "../middleware/payment";
-import {
-    validateRequest,
-} from "../middleware/validation";
+import { FREE_TIER, supportedNetworks, pathExample } from "../config";
 import { registerOpenAPIRoutes } from "../openapi";
 
 // Tool Handlers
-import {
-    MonitorCreateRequestSchema,
-    MemorySetRequestSchema,
-} from "../schemas";
 import { dashboardHandler } from "../tools/dashboard";
 import { discoveryHandler, wellKnownX402Handler, x402ResourceCatalogHandler } from "../tools/discovery";
 import { faviconSvgHandler, faviconIcoHandler, faviconPngHandler } from "../tools/favicon";
 import { health } from "../tools/health";
 import { getLandingPageHTML } from "../tools/landing";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "../tools/mcp";
-import { memorySetHandler, memoryGetHandler, memoryDeleteHandler, memoryListHandler } from "../tools/memory";
-import { monitorCreateHandler, monitorGetHandler, monitorDeleteHandler } from "../tools/monitor";
 
 import type { Env, Variables } from "../types";
 
@@ -139,58 +128,4 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
     app.get("/mcp/info", mcpInfoHandler);
     app.get("/mcp", mcpGetHandler);
     app.post("/mcp", mcpPostHandler); // Public JSON-RPC transport — tool calls are paid at their own endpoints.
-
-    // ============================================
-    // Monitor Endpoints
-    // ============================================
-    app.use(
-        "/monitor/create",
-        validateRequest(MonitorCreateRequestSchema),
-        createCreditMiddleware(PRICING.monitor.setup, "URL Monitor Setup"),
-        createLazyPaymentMiddleware(
-            "/monitor/create",
-            PRICING.monitor.setup,
-            "Create a URL monitor for change detection.",
-            { url: "https://example.com/status", webhookUrl: "https://your-app.com/webhook" },
-            {
-                properties: {
-                    url: { type: "string" },
-                    webhookUrl: { type: "string" },
-                },
-                required: ["url", "webhookUrl"],
-            },
-            {},
-            {}
-        )
-    );
-    app.post("/monitor/create", monitorCreateHandler);
-
-    // Auth required for these
-    app.get("/monitor/:id", monitorGetHandler);
-    app.delete("/monitor/:id", monitorDeleteHandler);
-
-    // ============================================
-    // Memory Endpoints
-    // ============================================
-    app.use(
-        "/memory/set",
-        validateRequest(MemorySetRequestSchema),
-        createCreditMiddleware(PRICING.memory.write, "Memory Write"),
-        createLazyPaymentMiddleware(
-            "/memory/set",
-            PRICING.memory.write,
-            "Store key-value data in Agent Memory.",
-            { key: "user_prefs", value: { theme: "dark" } },
-            {},
-            {},
-            {}
-        )
-    );
-    app.post("/memory/set", memorySetHandler);
-
-    // Auth required for these
-    app.get("/memory/get", memoryGetHandler); // Reads ?key=; wallet auth is enforced inside the handler.
-
-    app.delete("/memory/delete", memoryDeleteHandler);
-    app.get("/memory/list", memoryListHandler);
 }

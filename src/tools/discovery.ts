@@ -388,26 +388,6 @@ export const SERVICE_CATALOG = {
             latency: "10-20 seconds",
             rateLimit: "20/minute",
         },
-        {
-            endpoint: "/monitor/create",
-            method: "POST",
-            name: "URL Monitor",
-            description: "Create change detection monitors with webhook notifications",
-            price: PRICING.monitor.setup,
-            tags: ["monitoring", "change-detection", "webhook", "alerts"],
-            latency: "1-2 seconds",
-            rateLimit: "50/minute",
-        },
-        {
-            endpoint: "/memory/set",
-            method: "POST",
-            name: "Memory Storage",
-            description: "Persistent key-value storage for AI agent context",
-            price: PRICING.memory.write,
-            tags: ["memory", "storage", "persistence", "agent-context"],
-            latency: "<1 second",
-            rateLimit: "100/minute",
-        },
         // Intelligence Endpoints (Knowledge Arbitrageur)
         {
             endpoint: "/intel/company",

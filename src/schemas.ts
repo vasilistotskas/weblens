@@ -218,19 +218,6 @@ export const CompareRequestSchema = z.object({
 // System & Utility Endpoints
 // ============================================
 
-export const MonitorCreateRequestSchema = z.object({
-    url: urlSchema,
-    webhookUrl: urlSchema,
-    checkInterval: z.number().min(1).max(24).optional().default(1),
-    notifyOn: z.enum(["any", "content", "status"]).optional().default("any"),
-});
-
-export const MemorySetRequestSchema = z.object({
-    key: z.string().min(1).max(256),
-    value: z.unknown(),
-    ttl: z.number().min(1).max(720).optional().default(168), // hours
-});
-
 export const CreditsBuyRequestSchema = z.object({
     amount: z.number().min(2).max(1000), // USD
 });

@@ -150,8 +150,6 @@ seconds**; `deep` (5 sub-questions, 12 sources, $0.35) takes longer. Set a gener
 
 | Endpoint | Description | Price |
 |----------|-------------|-------|
-| `/memory/set` | Persistent key-value storage for agents | $0.001 |
-| `/monitor/create` | URL change monitor with webhooks | $0.01 + $0.001/check |
 | `/credits/buy` | Prepay credits (bonus 20–40% at $10/$50/$100) | $2–$1000 |
 
 Free and unauthenticated: `/`, `/health`, `/docs`, `/openapi.json`, `/llms.txt`, `/discovery`, `/.well-known/x402`, `/mcp`, `/r/{url}`, `/s/{query}`, `/free/fetch`, `/free/search`, `/preview`, `/.well-known/agent-registration.json`, `/receipts/{requestId}`, `/feedback`, `/feedback/{id}`.

@@ -92,8 +92,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       { name: "Extraction", description: "Data extraction endpoints" },
       { name: "Research", description: "AI-powered research tools" },
       { name: "Intelligence", description: "Premium AI-powered intelligence products" },
-      { name: "Monitoring", description: "URL change monitoring" },
-      { name: "Memory", description: "Persistent key-value storage for agents" },
       { name: "System", description: "Health and documentation endpoints" },
       { name: "Discovery", description: "Free evaluation and ERC-8004 off-chain surfaces — previews, receipts, feedback" },
       { name: "Credits", description: "Prepaid credit system" },
@@ -458,29 +456,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           responses: { "200": { description: "Comparison results", content: { "application/json": { schema: { $ref: "#/components/schemas/CompareResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
         },
       },
-      "/monitor/create": {
-        post: {
-          tags: ["Monitoring"], summary: "Create Monitor", operationId: "createMonitor",
-          description: `Create URL change monitor. Price: ${PRICING.monitor.setup}`,
-          "x-payment-info": fixedPayment(PRICING.monitor.setup),
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MonitorCreateRequest" }, example: { url: "https://example.com/status", webhookUrl: "https://your-app.com/webhook" } } } },
-          responses: { "200": { description: "Monitor created", content: { "application/json": { schema: { $ref: "#/components/schemas/MonitorCreateResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
-        },
-      },
-      "/monitor/{id}": {
-        get: {
-          tags: ["Monitoring"], summary: "Get Monitor", operationId: "getMonitor",
-          security: [],
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-          responses: { "200": { description: "Monitor status" }, "404": { description: "Not found" } },
-        },
-        delete: {
-          tags: ["Monitoring"], summary: "Delete Monitor", operationId: "deleteMonitor",
-          security: [],
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-          responses: { "200": { description: "Deleted" }, "404": { description: "Not found" } },
-        },
-      },
       "/free/fetch": {
         post: {
           tags: ["Free"], summary: "Free Fetch", operationId: "freeFetch",
@@ -616,41 +591,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             "200": { description: "Off-chain due diligence report", content: { "application/json": { schema: { $ref: "#/components/schemas/ProjectAuditResponse" } } } },
             "402": { $ref: "#/components/responses/PaymentRequired" },
           },
-        },
-      },
-      "/memory/set": {
-        post: {
-          tags: ["Memory"], summary: "Store Value", operationId: "memorySet",
-          description: `Store in key-value storage. Price: ${PRICING.memory.write}`,
-          "x-payment-info": fixedPayment(PRICING.memory.write),
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MemorySetRequest" }, example: { key: "user_prefs", value: { theme: "dark" } } } } },
-          responses: { "200": { description: "Stored", content: { "application/json": { schema: { $ref: "#/components/schemas/MemorySetResponse" } } } }, "402": { $ref: "#/components/responses/PaymentRequired" } },
-        },
-      },
-      "/memory/get": {
-        get: {
-          tags: ["Memory"], summary: "Get Value", operationId: "memoryGet",
-          description: `Retrieve stored value. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header). Price: ${PRICING.memory.read}`,
-          security: [],
-          parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
-          responses: { "200": { description: "Value retrieved" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
-        },
-      },
-      "/memory/delete": {
-        delete: {
-          tags: ["Memory"], summary: "Delete Value", operationId: "memoryDelete",
-          description: "Delete a stored value. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header).",
-          security: [],
-          parameters: [{ name: "key", in: "query", required: true, schema: { type: "string" } }],
-          responses: { "200": { description: "Deleted" }, "401": { description: "Unauthorized — wallet auth required" }, "404": { description: "Key not found" } },
-        },
-      },
-      "/memory/list": {
-        get: {
-          tags: ["Memory"], summary: "List Keys", operationId: "memoryList",
-          description: `List all keys for the authenticated wallet. Requires wallet auth (Payment-Signature or X-CREDIT-WALLET header).`,
-          security: [],
-          responses: { "200": { description: "Keys list" }, "401": { description: "Unauthorized — wallet auth required" } },
         },
       },
       "/mcp": {
@@ -1009,10 +949,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         PdfExtractResponse: { type: "object", properties: { url: { type: "string" }, metadata: { type: "object" }, pages: { type: "array" }, fullText: { type: "string" }, extractedAt: { type: "string" }, requestId: { type: "string" } } },
         CompareRequest: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string", format: "uri" }, minItems: 2, maxItems: 3, example: ["https://product-a.com", "https://product-b.com"] }, focus: { type: "string" } } },
         CompareResponse: { type: "object", properties: { sources: { type: "array" }, comparison: { type: "object" }, comparedAt: { type: "string" }, requestId: { type: "string" } } },
-        MonitorCreateRequest: { type: "object", required: ["url", "webhookUrl"], properties: { url: { type: "string", format: "uri", example: "https://example.com/status" }, webhookUrl: { type: "string", format: "uri", example: "https://your-app.com/webhook" }, checkInterval: { type: "integer" }, notifyOn: { type: "string" } } },
-        MonitorCreateResponse: { type: "object", properties: { monitorId: { type: "string" }, url: { type: "string" }, webhookUrl: { type: "string" }, checkInterval: { type: "integer" }, nextCheckAt: { type: "string" }, createdAt: { type: "string" }, requestId: { type: "string" } } },
-        MemorySetRequest: { type: "object", required: ["key", "value"], properties: { key: { type: "string" }, value: {}, ttl: { type: "integer" } } },
-        MemorySetResponse: { type: "object", properties: { key: { type: "string" }, stored: { type: "boolean" }, expiresAt: { type: "string" }, requestId: { type: "string" } } },
         ErrorResponse: { type: "object", properties: { error: { type: "string" }, code: { type: "string" }, message: { type: "string" }, requestId: { type: "string" } } },
         PreviewRequest: {
           type: "object", required: ["endpoint"],
@@ -1514,22 +1450,6 @@ Compare 2-3 webpages with AI-generated analysis of similarities and differences.
 - Body: \`{"urls": ["string"], "focus?": "string"}\`
 - Returns: \`{"sources", "comparison": {"summary", "similarities", "differences"}, "comparedAt", "requestId"}\`
 
-### Monitoring
-
-#### POST /monitor/create
-Create a URL monitor for change detection.
-- Price: ${PRICING.monitor.setup}
-- Body: \`{"url": "string", "webhookUrl": "string", "checkInterval?": number, "notifyOn?": "any"|"content"|"status"}\`
-- Returns: \`{"monitorId", "url", "webhookUrl", "checkInterval", "nextCheckAt", "createdAt", "requestId"}\`
-
-#### GET /monitor/{id}
-Get monitor status and history. (Free)
-- Returns: \`{"monitorId", "url", "webhookUrl", "checkInterval", "status", "lastCheck", "nextCheckAt", "requestId"}\`
-
-#### DELETE /monitor/{id}
-Delete a monitor. (Free)
-- Returns: \`{"monitorId", "deleted", "requestId"}\`
-
 ### Intelligence (AI-powered, premium)
 
 These endpoints chain multiple tools and AI synthesis. They're the highest-value services on the platform.
@@ -1557,26 +1477,6 @@ Full site audit: SEO, performance, security, accessibility scoring with actionab
 - Price: ${PRICING.intel.siteAudit}
 - Body: \`{"url": "string"}\`
 - Returns: \`{"url", "scores": {"seo", "performance", "security", "accessibility"}, "issues", "recommendations", "requestId"}\`
-
-### Memory (Key-Value Storage)
-
-#### POST /memory/set
-Store a value in persistent key-value storage.
-- Price: ${PRICING.memory.write}
-- Body: \`{"key": "string", "value": any, "ttl?": number}\`
-- Returns: \`{"key", "stored", "expiresAt", "requestId"}\`
-
-#### GET /memory/get?key={key}
-Retrieve a stored value by key. Requires wallet auth.
-- Returns: \`{"key", "value", "storedAt", "expiresAt", "requestId"}\`
-
-#### GET /memory/list
-List all stored keys for the authenticated wallet.
-- Returns: \`{"keys": ["string"], "count", "requestId"}\`
-
-#### DELETE /memory/delete?key={key}
-Delete a stored value. Requires wallet auth.
-- Returns: \`{"key", "deleted", "requestId"}\`
 
 ### System
 
@@ -1642,8 +1542,6 @@ For AI agents using Model Context Protocol:
 - \`crawl_site\` - Bounded same-host crawl to markdown (${PRICING.crawl.minPages}-${PRICING.crawl.maxPages} pages) — ${PRICING.crawl.perPage}/requested page
 - \`extract_pdf\` - Extract text from PDFs — ${PRICING.pdf}
 - \`compare_urls\` - Compare 2-3 webpages — ${PRICING.compare}
-- \`monitor_create\` - Create URL change monitor — ${PRICING.monitor.setup}
-- \`memory_set\` - Persistent key-value storage — ${PRICING.memory.write}
 - \`intel_company\` - Company deep dive (AI-powered) — ${PRICING.intel.company}
 - \`intel_market\` - Market research report — ${PRICING.intel.market}
 - \`intel_competitive\` - Competitive analysis — ${PRICING.intel.competitive}

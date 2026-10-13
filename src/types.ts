@@ -25,10 +25,7 @@ export interface Env {
   // Cloudflare services
   BROWSER?: Fetcher; // Cloudflare Browser Rendering
   CACHE?: KVNamespace; // Cloudflare KV for caching
-  MEMORY?: KVNamespace; // Cloudflare KV for agent memory
-  MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
   CREDIT_MANAGER?: DurableObjectNamespace;
-  MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
   PAYMENT_EVENTS: AnalyticsEngineDataset; // Payment funnel events (services/payment-telemetry.ts)
   // Optional API keys
   SERP_API_KEY?: string;
@@ -219,13 +216,9 @@ export type ErrorCode =
   | "BATCH_TOO_LARGE"
   | "INVALID_PDF"
   | "PDF_TOO_LARGE"
-  | "MONITOR_NOT_FOUND"
-  | "WEBHOOK_INVALID"
   | "EXTRACTION_FAILED"
   | "RESEARCH_FAILED"
   | "AI_UNAVAILABLE"
-  | "MEMORY_KEY_NOT_FOUND"
-  | "MEMORY_VALUE_TOO_LARGE"
   | "ACV_FAILED"
   | "UNSUPPORTED_CONTENT" // Target served binary / non-text content (422)
   // --- Validation middleware (src/middleware/validation.ts) ---
@@ -371,51 +364,6 @@ export interface SmartExtractResponse {
 }
 
 // ============================================
-// Monitor Types (Requirement 4)
-// ============================================
-
-export interface MonitorCreateResponse {
-  monitorId: string;
-  url: string;
-  webhookUrl: string;
-  checkInterval: number;
-  nextCheckAt: string;
-  createdAt: string;
-  requestId: string;
-}
-
-export interface MonitorStatus {
-  monitorId: string;
-  url: string;
-  status: "active" | "paused" | "error";
-  lastCheck?: {
-    checkedAt: string;
-    changed: boolean;
-    contentHash: string;
-  };
-  checkCount: number;
-  totalCost: string;        // Total spent on checks
-  createdAt: string;
-}
-
-export interface StoredMonitor {
-  id: string;
-  url: string;
-  webhookUrl: string;
-  checkInterval: number;
-  notifyOn: "any" | "content" | "status";
-  status: "active" | "paused" | "error";
-  lastContentHash?: string;
-  lastStatusCode?: number;
-  checkCount: number;
-  totalCost: number;        // In cents
-  createdAt: string;
-  lastCheckAt?: string;
-  nextCheckAt: string;
-  ownerId?: string;         // Wallet address
-}
-
-// ============================================
 // PDF Extraction Types (Requirement 5)
 // ============================================
 
@@ -456,31 +404,6 @@ export interface CompareResponse {
     summary: string;        // AI-generated comparison summary
   };
   comparedAt: string;
-  requestId: string;
-}
-
-// ============================================
-// Agent Memory Types (Requirement 7)
-// ============================================
-
-export interface MemorySetResponse {
-  key: string;
-  stored: boolean;
-  expiresAt: string;
-  requestId: string;
-}
-
-export interface MemoryGetResponse {
-  key: string;
-  value: unknown;
-  storedAt: string;
-  expiresAt: string;
-  requestId: string;
-}
-
-export interface MemoryListResponse {
-  keys: string[];
-  count: number;
   requestId: string;
 }
 

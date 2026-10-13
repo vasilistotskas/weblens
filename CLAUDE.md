@@ -55,7 +55,7 @@ Global middleware applied in this order, then route groups registered:
 1. Logger → CORS → Payment Debug → Request ID (also creates the request-scoped structured logger) → Security Headers → POST-only enforcement (for `PAID_ENDPOINTS` array). Global errors are caught by `app.onError(errorHandler)` (idiomatic Hono) — **not** a `*` middleware — and the 404 by `app.notFound`.
 2. Route groups registered in order: System → Reader → Free → Credits → Core → Verticals → Advanced → Intel
 
-Durable Object classes (`CreditAccountDO`, `MonitorScheduler`) are re-exported from the entry point for Workers binding.
+The Durable Object class `CreditAccountDO` is re-exported from the entry point for Workers binding.
 
 ### Key Directories
 - **`src/routes/`** — Route registrars grouped by tier (system, reader, free, credits, core, verticals, advanced, intel). Each function takes the Hono app and registers endpoints with their middleware stack. `verticals.ts` holds the SERP verticals (`/search/news|images|places|shopping|scholar|autocomplete|trends`), `/social/youtube/transcript`, `/contents` (per-URL dynamic pricing), and `/answer`. `advanced.ts` holds `/batch/fetch`, `/research`, `/pdf`, `/compare`, `/map`, and `/crawl` (per-page dynamic pricing).
@@ -162,8 +162,8 @@ Unauthenticated POSTs to a path in `PAID_ENDPOINTS` (`src/config.ts`, also used 
 - Uses HMAC-SHA256 keyed by `SIGNING_PRIVATE_KEY` (falls back to `CDP_API_KEY_SECRET`); since it is symmetric it is not third-party-verifiable — true ECDSA signing is a roadmap item
 
 ### Cloudflare Bindings (wrangler.toml)
-- **KV namespaces**: CACHE, MEMORY, MONITOR
-- **Durable Objects**: CREDIT_MANAGER (CreditAccountDO), MONITOR_SCHEDULER (MonitorScheduler with SQLite)
+- **KV namespaces**: CACHE (production and testnet each have their own)
+- **Durable Objects**: CREDIT_MANAGER (CreditAccountDO). `MonitorScheduler` was deleted by the `v3` migration; migrations are append-only, and Wrangler refuses a rollback to a version from before a delete migration
 - **Browser**: Cloudflare Browser Rendering binding (for `/fetch/pro`, `/screenshot`; requires paid Workers plan)
 - **Environments**: production (Base mainnet + Solana mainnet when `PAY_TO_ADDRESS_SVM` is set, custom domain `api.weblens.dev`) and testnet (Base Sepolia + Solana devnet, `workers_dev = true`)
 

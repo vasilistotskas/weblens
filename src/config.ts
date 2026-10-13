@@ -115,28 +115,11 @@ export const PRICING = {
   // Smart extraction (AI-powered, higher cost)
   smartExtract: "$0.035",
 
-  // URL monitoring
-  monitor: {
-    setup: "$0.01",
-    perCheck: "$0.001",
-    minInterval: 1,   // hours
-    maxInterval: 24,  // hours
-  },
-
   // PDF extraction — native fetch + parse, no AI call (see tools/pdf.ts)
   pdf: "$0.004",
 
   // URL comparison
   compare: "$0.05",
-
-  // Agent memory storage
-  memory: {
-    write: "$0.001",
-    read: "$0.0005",
-    minTtl: 1,        // hours
-    maxTtl: 720,      // 30 days
-    defaultTtl: 168,  // 7 days
-  },
 
   // Intelligence endpoints (Knowledge Arbitrageur)
   // Premium pricing — chains multiple tools + AI into structured intelligence.
@@ -175,7 +158,7 @@ export const PRICING = {
 export const PAID_ENDPOINTS: readonly string[] = [
   "/fetch/basic", "/fetch/pro", "/fetch/resilient", "/screenshot", "/search", "/extract",
   "/batch/fetch", "/research", "/extract/smart", "/pdf", "/compare",
-  "/monitor/create", "/memory/set", "/credits/buy",
+  "/credits/buy",
   "/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit",
   "/search/news", "/search/images", "/search/places", "/search/shopping",
   "/search/scholar", "/search/autocomplete", "/search/trends",
@@ -244,14 +227,6 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     param: "id",
     example: "/feedback/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
     hint: "Use the id from the feedbackURI returned by POST /feedback.",
-    callableExample: false,
-  },
-  {
-    template: "/monitor/{id}",
-    methods: ["GET", "DELETE"],
-    param: "id",
-    example: "/monitor/6f9619ff-8b86-d011-b42d-00cf4fc964ff",
-    hint: "Use the monitor id returned by POST /monitor/create.",
     callableExample: false,
   },
 ];
@@ -504,8 +479,6 @@ const TAG_PREFIXES: readonly (readonly [string, readonly string[]])[] = [
   ["/batch/fetch", ["fetch", "scraping", "batch"]],
   ["/research", ["research", "ai"]],
   ["/screenshot", ["screenshot", "rendering"]],
-  ["/monitor", ["monitoring", "change-detection"]],
-  ["/memory", ["storage", "agent-memory"]],
   ["/credits", ["billing", "credits"]],
   ["/contents", ["fetch", "scraping", "batch"]],
   ["/answer", ["search", "ai", "question-answering"]],

@@ -165,4 +165,3 @@ export default app;
 
 // Export Durable Objects
 export { CreditAccountDO } from "./durable_objects/CreditAccountDO";
-export { MonitorScheduler } from "./services/scheduler";

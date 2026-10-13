@@ -585,31 +585,6 @@ export const TOOLS = [
       required: ["url"],
     },
   },
-  {
-    name: "monitor_create",
-    description: `Create a URL change detection monitor with webhook notifications. Price: ${PRICING.monitor.setup}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "URL to monitor for changes" },
-        webhookUrl: { type: "string", description: "Webhook URL for change notifications" },
-      },
-      required: ["url", "webhookUrl"],
-    },
-  },
-  {
-    name: "memory_set",
-    description: `Store key-value data in persistent agent memory. Price: ${PRICING.memory.write}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        key: { type: "string", description: "Storage key (max 256 chars)" },
-        value: { description: "Value to store (any JSON)" },
-        ttl: { type: "number", description: "Time to live in hours (1-720, default: 168)" },
-      },
-      required: ["key", "value"],
-    },
-  },
 ];
 
 // MCP tool name → REST endpoint, method, and price.
@@ -648,8 +623,6 @@ export const TOOL_ENDPOINTS: Partial<Record<string, { endpoint: string; method: 
   crawl_site:        { endpoint: "/crawl",           method: "POST", price: `${PRICING.crawl.perPage}/page` },
   extract_pdf:       { endpoint: "/pdf",             method: "POST", price: PRICING.pdf },
   compare_urls:      { endpoint: "/compare",         method: "POST", price: PRICING.compare },
-  monitor_create:    { endpoint: "/monitor/create",  method: "POST", price: PRICING.monitor.setup },
-  memory_set:        { endpoint: "/memory/set",      method: "POST", price: PRICING.memory.write },
   intel_company:     { endpoint: "/intel/company",   method: "POST", price: PRICING.intel.company },
   intel_market:      { endpoint: "/intel/market",    method: "POST", price: PRICING.intel.market },
   intel_competitive: { endpoint: "/intel/competitive", method: "POST", price: PRICING.intel.competitive },

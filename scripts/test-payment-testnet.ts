@@ -98,19 +98,6 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     "/pdf":         { url: "https://raw.githubusercontent.com/mozilla/pdf.js-sample-files/master/tracemonkey.pdf" },
     "/compare":     { urls: ["https://example.com", "https://example.org"] },
 
-    // System — paid
-    "/monitor/create": {
-        url: "https://example.com",
-        webhookUrl: "https://example.com/webhook",
-        checkInterval: 1,
-        notifyOn: "any",
-    },
-    "/memory/set": {
-        key: "testnet-test-key",
-        value: { status: "ok", timestamp: Date.now() },
-        ttl: 1, // 1 hour minimum
-    },
-
     // Intel endpoints — each route validates its own per-endpoint schema.
     "/intel/company":    { target: "coinbase.com" },
     "/intel/market":     { topic: "web3 payments" },
@@ -246,10 +233,9 @@ async function run(): Promise<void> {
     // ============================================
     // 1. Free & System Endpoints (no payment)
     // ============================================
-    // Note: /memory/list, /memory/get, /memory/delete and /credits/balance,
-    // /credits/history are NOT in this list — they require wallet auth (the
-    // wallet is the namespace key) and are tested in the chained section
-    // below using buildCreditAuthHeaders().
+    // Note: /credits/balance and /credits/history are NOT in this list — they
+    // require wallet auth and are tested in the chained section below using
+    // buildCreditAuthHeaders().
     const freeEndpoints: ITestEndpoint[] = [
         { name: "Health Check",       method: "GET",  path: "/health",                         price: "FREE", free: true },
         { name: "Root Info",          method: "GET",  path: "/",                               price: "FREE", free: true },
@@ -299,7 +285,7 @@ async function run(): Promise<void> {
             "/fetch/basic", "/fetch/pro", "/fetch/resilient",
             "/screenshot", "/search", "/extract", "/extract/smart",
             "/research", "/batch/fetch", "/pdf", "/compare",
-            "/monitor/create", "/memory/set", "/credits/buy",
+            "/credits/buy",
             ...(!skipIntel ? ["/intel/company", "/intel/market", "/intel/competitive", "/intel/site-audit"] : []),
         ];
 
@@ -316,8 +302,6 @@ async function run(): Promise<void> {
     // 3. Run tests and collect state for chained tests
     // ============================================
     const results: { name: string; success: boolean; path: string }[] = [];
-    let capturedMonitorId: string | undefined;
-    const MEMORY_TEST_KEY = "testnet-test-key";
 
     // --- Free / system endpoints ---
     console.log("\n" + "=".repeat(50));
@@ -341,14 +325,8 @@ async function run(): Promise<void> {
             continue;
         }
 
-        const { success, data } = await testEndpoint(paidClient, ep, baseAxios);
+        const { success } = await testEndpoint(paidClient, ep, baseAxios);
         results.push({ name: ep.name, success, path: ep.path });
-
-        // Capture monitor ID for chained test
-        if (ep.path === "/monitor/create" && success && data?.monitorId) {
-            capturedMonitorId = data.monitorId;
-            console.log("  📌 Captured monitorId:", capturedMonitorId);
-        }
 
         await sleep(1000); // throttle between paid requests
     }
@@ -393,36 +371,6 @@ async function run(): Promise<void> {
                 console.error("❌ Error:", err instanceof Error ? err.message : String(err));
                 results.push({ name: creditEp.name, success: false, path: creditEp.path });
             }
-        }
-        await sleep(300);
-    }
-
-    // Memory: list → get → delete (key was set in paid endpoints above).
-    // All memory operations are namespaced per wallet, so they require the
-    // same EIP-191 credit-wallet auth headers as /credits/balance.
-    for (const memEp of [
-        { name: "Memory List",   method: "GET" as const,    path: "/memory/list" },
-        { name: "Memory Get",    method: "GET" as const,    path: `/memory/get?key=${encodeURIComponent(MEMORY_TEST_KEY)}` },
-        { name: "Memory Delete", method: "DELETE" as const, path: `/memory/delete?key=${encodeURIComponent(MEMORY_TEST_KEY)}` },
-    ]) {
-        console.log(`\n--- Testing ${memEp.name} (signed) (FREE) ---`);
-        console.log(`${memEp.method} ${memEp.path} [FREE]`);
-        try {
-            const authHeaders = await buildCreditAuthHeaders(account);
-            const resp = memEp.method === "DELETE"
-                ? await baseAxios.delete<IWebLensResponseData>(memEp.path, { headers: authHeaders })
-                : await baseAxios.get<IWebLensResponseData>(memEp.path, { headers: authHeaders });
-            console.log("✅ Success! Status:", resp.status);
-            if (resp.data.keys) { console.log("  Keys:", resp.data.keys); }
-            if (resp.data.deleted !== undefined) { console.log("  Deleted:", resp.data.deleted); }
-            results.push({ name: memEp.name, success: true, path: memEp.path });
-        } catch (err) {
-            if (axios.isAxiosError(err) && err.response) {
-                console.log("❌ Error:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
-            } else {
-                console.error("❌ Error:", err instanceof Error ? err.message : String(err));
-            }
-            results.push({ name: memEp.name, success: false, path: memEp.path });
         }
         await sleep(300);
     }
@@ -561,33 +509,6 @@ async function run(): Promise<void> {
             }
         }
         await sleep(200);
-    }
-
-    // Monitor: get → delete (requires capturedMonitorId from /monitor/create)
-    if (capturedMonitorId) {
-        const monitorGetEp: ITestEndpoint = {
-            name: "Monitor Get",
-            method: "GET",
-            path: `/monitor/${capturedMonitorId}`,
-            price: "FREE",
-            free: true,
-        };
-        const { success: monGetOk } = await testEndpoint(paidClient, monitorGetEp, baseAxios);
-        results.push({ name: monitorGetEp.name, success: monGetOk, path: monitorGetEp.path });
-        await sleep(300);
-
-        const monitorDeleteEp: ITestEndpoint = {
-            name: "Monitor Delete",
-            method: "DELETE",
-            path: `/monitor/${capturedMonitorId}`,
-            price: "FREE",
-            free: true,
-        };
-        const { success: monDelOk } = await testEndpoint(paidClient, monitorDeleteEp, baseAxios);
-        results.push({ name: monitorDeleteEp.name, success: monDelOk, path: monitorDeleteEp.path });
-        await sleep(300);
-    } else {
-        console.log("\n⏩ Skipping Monitor Get/Delete — no monitorId captured (monitor/create may have failed)");
     }
 
     // ============================================
