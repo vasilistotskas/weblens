@@ -191,13 +191,10 @@ async function loadPayer(network: PayNetwork): Promise<Payer> {
     return { address: signer.address, register: (client) => { registerExactSvmScheme(client, { signer }); } };
 }
 
-/**
- * Read an endpoint's own 402 challenge for the chosen network: its price,
- * payTo, and a body guaranteed to validate (the published bazaar example).
- */
-async function probe(apiUrl: string, path: string, caip2: string): Promise<Plan | null> {
+/** POST `body` unpaid and return the endpoint's 402 challenge, or null (logged) when there is none. */
+async function challengeFor(apiUrl: string, path: string, body: Record<string, unknown>): Promise<Challenge | null> {
     try {
-        await axios.post(`${apiUrl}${path}`, {}, { timeout: 30000 });
+        await axios.post(`${apiUrl}${path}`, body, { timeout: 30000 });
         console.log(`   ${path}: expected 402, got 2xx — skipping`);
         return null;
     } catch (err) {
@@ -208,18 +205,34 @@ async function probe(apiUrl: string, path: string, caip2: string): Promise<Plan 
         }
         const header = err.response.headers["payment-required"] as string | undefined;
         const challenge = header ? decodeB64Json(header) as Challenge | null : null;
-        const accept = challenge?.accepts?.find((a) => a.network === caip2);
-        if (!challenge || !accept?.amount || !accept.payTo) {
-            console.log(`   ${path}: challenge does not offer ${caip2} — skipping`);
-            return null;
-        }
-        const body = challenge.extensions?.bazaar?.info?.input?.body;
-        if (!body) {
-            console.log(`   ${path}: no bazaar input example to build a valid body — skipping`);
-            return null;
-        }
-        return { path, amount: Number(accept.amount), body, payTo: accept.payTo };
+        if (!challenge) { console.log(`   ${path}: 402 without a decodable challenge — skipping`); }
+        return challenge;
     }
+}
+
+/**
+ * Read an endpoint's own 402 challenge for the chosen network: a body
+ * guaranteed to validate (the published bazaar example), and the price and
+ * payTo for exactly that body.
+ */
+async function probe(apiUrl: string, path: string, caip2: string): Promise<Plan | null> {
+    // An empty body still reaches the 402 (probe-friendly validation), which carries the example.
+    const example = (await challengeFor(apiUrl, path, {}))?.extensions?.bazaar?.info?.input?.body;
+    if (!example) {
+        console.log(`   ${path}: no bazaar input example to build a valid body — skipping`);
+        return null;
+    }
+    // A canary must run the handler and pay the full price. A cache hit skips
+    // the handler and charges the discounted price, which CDP rejects below its
+    // minimum as `amount_too_low` (a $0.0006 cached /fetch/basic was refused).
+    const body = endpointForPath(path)?.cacheKey ? { ...example, cache: false } : example;
+    // Price the body that will be paid with: dynamic prices depend on it.
+    const accept = (await challengeFor(apiUrl, path, body))?.accepts?.find((a) => a.network === caip2);
+    if (!accept?.amount || !accept.payTo) {
+        console.log(`   ${path}: challenge does not offer ${caip2} — skipping`);
+        return null;
+    }
+    return { path, amount: Number(accept.amount), body, payTo: accept.payTo };
 }
 
 /** True for transient settle failures worth one more attempt (e.g. CDP #1065 gas estimation). */
