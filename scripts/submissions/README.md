@@ -5,7 +5,7 @@ actually produce paying traffic. Ordered by ROI × effort.
 
 ## Day 1 — free, ~4 hours
 
-1. **Bootstrap CDP Bazaar** — `pnpm run bootstrap-payment` (needs funded Base wallet)
+1. **Bootstrap CDP Bazaar** — `FACILITATOR=cdp PAY_NETWORK=base pnpm run canary` (needs a funded Base burner wallet)
 2. **Publish `@weblens/mcp` to npm** — `cd mcp-server && npm publish --access public`
 3. **x402scan.com/resources/register** — instant, no review
 4. **x402 Foundation PR** — see [`x402-foundation/`](./x402-foundation/)
