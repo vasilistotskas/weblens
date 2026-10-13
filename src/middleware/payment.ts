@@ -162,6 +162,11 @@ export function facilitatorEntries(env: Env, preferCdp = false): [FacilitatorEnt
     return preferCdp ? [cdp, payai] : [payai, cdp];
 }
 
+/** The facilitators as discovery documents name them: precedence order joined by "+", e.g. "payai+cdp". */
+export function facilitatorNames(env: Env): string {
+    return facilitatorEntries(env).map(({ label }) => label).join("+");
+}
+
 /**
  * Get or create the x402 resource server for the given env. Cached per env
  * signature so the cost of `httpServer.initialize()` (one network call to

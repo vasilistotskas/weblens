@@ -9,6 +9,7 @@ import type { Context } from "hono";
 import { supportedNetworkNames, supportedNetworks } from "../config";
 import { ENDPOINTS } from "../endpoints";
 import { describePrice, endpointBodySchema, requestBodySchema } from "../endpoints/define";
+import { facilitatorNames } from "../middleware/payment";
 import { PreviewRequestSchema } from "../schemas";
 import { getPriceRange } from "../services/pricing";
 import type { AppEnv, Env } from "../types";
@@ -509,7 +510,7 @@ export function mcpInfoHandler(c: Context<AppEnv>) {
     },
     x402: {
       version: 2,
-      facilitator: "payai+cdp",
+      facilitator: facilitatorNames(c.env),
       bazaarListed: false,
     },
   });

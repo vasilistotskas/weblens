@@ -12,7 +12,7 @@
 import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { facilitatorEntries } from "../../src/middleware/payment";
+import { facilitatorEntries, facilitatorNames } from "../../src/middleware/payment";
 import { payaiAuthHeaders } from "../../src/services/payai-auth";
 import { health } from "../../src/tools/health";
 import type { AppEnv, Env, HealthResponse } from "../../src/types";
@@ -104,6 +104,11 @@ describe("facilitatorEntries", () => {
     it("uses PayAI alone without CDP keys, and x402.org alone on testnet", () => {
         expect(facilitatorEntries(envWith({})).map((e) => e.label)).toEqual(["payai"]);
         expect(facilitatorEntries(envWith({ ...cdpKeys, NETWORK: "base-sepolia" })).map((e) => e.label)).toEqual(["x402.org"]);
+    });
+
+    it("names the facilitators for discovery documents in precedence order", () => {
+        expect(facilitatorNames(envWith(cdpKeys))).toBe("payai+cdp");
+        expect(facilitatorNames(envWith({ ...cdpKeys, NETWORK: "base-sepolia" }))).toBe("x402.org");
     });
 
     it("authenticates PayAI verify and settle with the API key", async () => {

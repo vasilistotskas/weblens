@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
-import { FREE_TIER, supportedNetworks, pathExample } from "../config";
+import { FREE_TIER, SERVICE_NAME, SERVICE_VERSION, supportedNetworks, pathExample } from "../config";
+import { facilitatorNames } from "../middleware/payment";
 import { registerOpenAPIRoutes } from "../openapi";
 
 // Tool Handlers
@@ -78,8 +79,8 @@ export function registerSystemRoutes(app: Hono<AppEnv>) {
         }
 
         return c.json({
-            name: "WebLens",
-            version: "2.0.0",
+            name: SERVICE_NAME,
+            version: SERVICE_VERSION,
             description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments",
             tagline: "Web scraping, research, and data extraction for AI agents",
             documentation: {
@@ -97,7 +98,7 @@ export function registerSystemRoutes(app: Hono<AppEnv>) {
             x402: {
                 version: 2,
                 protocol: "https://x402.org",
-                facilitator: "payai+cdp",
+                facilitator: facilitatorNames(c.env),
                 description: "HTTP-native micropayments using 402 Payment Required",
                 bazaarListed: false,
             },

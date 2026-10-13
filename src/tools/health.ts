@@ -7,6 +7,7 @@
  */
 
 import type { Context } from "hono";
+import { SERVICE_VERSION } from "../config";
 import { facilitatorEntries } from "../middleware/payment";
 import type { FacilitatorEntry } from "../middleware/payment";
 import type { FacilitatorLabel } from "../services/payment-telemetry";
@@ -144,7 +145,7 @@ export async function health(c: Context<AppEnv>): Promise<Response> {
       [cacheStatus, browserStatus, ...facilitatorChecks.map(([, status]) => status)],
       [cacheStatus, primaryCheck[1]],
     ),
-    version: "2.0.0",
+    version: SERVICE_VERSION,
     timestamp: new Date().toISOString(),
     services,
   };

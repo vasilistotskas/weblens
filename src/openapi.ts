@@ -5,7 +5,7 @@
 
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
-import { FREE_TIER, PRICING, supportedNetworkNames, supportedNetworks } from "./config";
+import { FREE_TIER, PRICING, SERVICE_NAME, SERVICE_VERSION, supportedNetworkNames, supportedNetworks } from "./config";
 import type { NetworkEnv } from "./config";
 import { ENDPOINT_GROUPS } from "./endpoints/define";
 import { llmsEndpointSections, llmsMcpToolLines, openApiPaidPaths } from "./endpoints/docs";
@@ -17,8 +17,8 @@ export function getOpenAPIDocument(env: NetworkEnv, baseUrl: string = "https://a
   return {
     openapi: "3.1.0",
     info: {
-      title: "WebLens API",
-      version: "2.0.0",
+      title: `${SERVICE_NAME} API`,
+      version: SERVICE_VERSION,
       description: `# WebLens - Web Intelligence API, pay per call
 
 Scrape, crawl, map and extract the web. No account, no API key, no monthly

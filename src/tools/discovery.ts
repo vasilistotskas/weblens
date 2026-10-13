@@ -4,9 +4,10 @@
  */
 
 import type { Context } from "hono";
-import { FACILITATOR_URLS, FREE_TIER, pathPublication, absolutePathPublication, supportedNetworks } from "../config";
+import { FACILITATOR_URLS, FREE_TIER, pathPublication, absolutePathPublication, SERVICE_NAME, SERVICE_VERSION, supportedNetworks } from "../config";
 import { ENDPOINTS } from "../endpoints";
 import { describePrice } from "../endpoints/define";
+import { facilitatorNames } from "../middleware/payment";
 import { getPriceRange } from "../services/pricing";
 import type { AppEnv } from "../types";
 
@@ -17,8 +18,8 @@ import type { AppEnv } from "../types";
  * fell five endpoints behind when it was maintained by hand).
  */
 export const SERVICE_CATALOG = {
-    name: "WebLens",
-    version: "2.0.0",
+    name: SERVICE_NAME,
+    version: SERVICE_VERSION,
     tagline: "Give your AI agents web superpowers",
     description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments. No API keys, no accounts, just pay per request in USDC.",
     baseUrl: "https://api.weblens.dev",
@@ -26,7 +27,6 @@ export const SERVICE_CATALOG = {
         name: "x402",
         version: 2,
         token: "USDC",
-        facilitator: "payai+cdp",
         bazaarListed: false,
     },
     documentation: {
@@ -237,7 +237,7 @@ export function discoveryHandler(c: Context<AppEnv>) {
     return c.json({
         ...SERVICE_CATALOG,
         baseUrl,
-        protocol: { ...SERVICE_CATALOG.protocol, networks },
+        protocol: { ...SERVICE_CATALOG.protocol, networks, facilitator: facilitatorNames(c.env) },
         pricing: { ...SERVICE_CATALOG.pricing, networks },
         documentation: {
             ...SERVICE_CATALOG.documentation,
@@ -269,11 +269,11 @@ export function wellKnownX402Handler(c: Context<AppEnv>) {
 
     return c.json({
         x402Version: 2,
-        name: "WebLens",
+        name: SERVICE_NAME,
         tagline: "Web access for AI agents, paid per call",
         description: "Web data API for AI agents, paid per call with x402 USDC: fetch and render pages, search, extract structured data, crawl sites, and run cited research.",
         baseUrl,
-        facilitator: "payai+cdp",
+        facilitator: facilitatorNames(c.env),
         networks: supportedNetworks(c.env),
         token: "USDC",
         bazaarListed: false,

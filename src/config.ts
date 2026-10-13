@@ -3,6 +3,9 @@
  * Pricing, facilitators, and cache settings
  */
 
+// A named import, so the bundler keeps only this field of package.json.
+import { version } from "../package.json";
+
 // Unified pricing configuration for all endpoints
 // Requirements: 1.4, 2.6, 3.5, 4.2, 4.4, 5.4, 6.4, 7.2
 /**
@@ -470,6 +473,9 @@ export const TIMEOUT_CONFIG = {
 // (x402-foundation/x402#2112). Facilitator catalogs write the record at
 // **settle** time, so a route only picks these up on its next settled payment.
 export const SERVICE_NAME = "WebLens";
+
+/** The release, as package.json records it. */
+export const SERVICE_VERSION = version;
 
 /** Catalog icon. Served by `faviconPngHandler`; origin is taken from the request. */
 export const SERVICE_ICON_PATH = "/favicon.png";
