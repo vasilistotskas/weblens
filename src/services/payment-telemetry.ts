@@ -1,7 +1,7 @@
 /**
  * Payment funnel telemetry: one event per paid-route request, written to
- * Workers Analytics Engine (unsampled at our volume, 3-month retention) and to
- * the structured log.
+ * Workers Analytics Engine (adaptively sampled, 3-month retention) and to the
+ * structured log.
  *
  * Why both: Workers Logs are head-sampled at 10%, which drops 90% of rare
  * payment events, and they carry no reliable signal for payment attempts. The

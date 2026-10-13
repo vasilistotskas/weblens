@@ -94,7 +94,7 @@ deleted_classes = ["MonitorScheduler"]
 binding = "BROWSER"
 
 # Payment funnel events (src/services/payment-telemetry.ts): one data point per
-# paid-route request, unsampled, 3-month retention. Queried by
+# paid-route request, adaptively sampled, 3-month retention. Queried by
 # scripts/payment-funnel.ts through the Analytics Engine SQL API.
 [[analytics_engine_datasets]]
 binding = "PAYMENT_EVENTS"

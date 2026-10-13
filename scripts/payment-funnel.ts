@@ -1,7 +1,7 @@
 /**
  * Payment funnel report from the PAYMENT_EVENTS Analytics Engine dataset
  * (written by src/services/payment-telemetry.ts, one event per paid-route
- * request, unsampled at our volume).
+ * request; the dataset is adaptively sampled).
  *
  * Usage:
  *   CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=… pnpm run funnel
@@ -13,8 +13,9 @@
  *   DATASET_ENV            "production" (default) or "testnet" — which PAYMENT_EVENTS_DATASETS entry to read
  *   EXCLUDE_PAYERS         comma-separated payer addresses to leave out (the canary payer)
  *
- * Counts use SUM(_sample_interval), as the Analytics Engine SQL API requires
- * for correct totals if a dataset is ever sampled.
+ * Counts use SUM(_sample_interval), as the Analytics Engine SQL API requires.
+ * Sampling happens even at our volume (2026-10-13: 8 stored settle rows carried a
+ * total weight of 14), so the totals are estimates; count revenue on-chain.
  */
 
 import process from "node:process";
