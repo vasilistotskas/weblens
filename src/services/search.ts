@@ -14,7 +14,7 @@
  */
 
 import { PAID_UPSTREAMS } from "../config";
-import { asRecords, num, str } from "../utils/narrow";
+import { asRecords, isRecord, num, str } from "../utils/narrow";
 
 export interface SearchResult {
   title: string;
@@ -63,9 +63,20 @@ async function serpApiQuery(
   if (!response.ok) {
     throw new SearchUpstreamError(response.status, `HTTP ${String(response.status)}`);
   }
-  const data: Record<string, unknown> & { error?: string } = await response.json();
-  if (data.error) {
-    throw new SearchUpstreamError(undefined, data.error);
+  const data: unknown = await response.json();
+  if (!isRecord(data)) {
+    throw new SearchUpstreamError(undefined, "response is not a JSON object");
+  }
+  // A search with no results is still a successful search: SerpApi sets
+  // search_metadata.status to "Success" and puts "Google hasn't returned any
+  // results for this query." in the top-level `error`
+  // (serpapi.com/search-errors). Only status "Error" is a failed search.
+  // Treating the former as a failure answered a query with no matches as a
+  // 502 "provider temporarily unavailable".
+  const status = isRecord(data.search_metadata) ? str(data.search_metadata.status) : undefined;
+  const error = str(data.error);
+  if (error && status !== "Success") {
+    throw new SearchUpstreamError(undefined, error);
   }
   return data;
 }

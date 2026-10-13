@@ -27,6 +27,8 @@ import type { PriceModel } from "./define";
 
 const SEARCH_TAGS = ["search", "serp"] as const;
 const VERTICAL_INPUT_EXAMPLE = { query: "x402 payment protocol", limit: 10 };
+/** Shopping needs a product query: "x402 payment protocol" has no shopping results. */
+const SHOPPING_INPUT_EXAMPLE = { query: "mechanical keyboard", limit: 10 };
 
 /** Base search price, plus PRICING.contents.perUrl per result page fetched as markdown. */
 const searchPricing: PriceModel<{ includeContent: boolean; contentResults: number }> = {
@@ -239,7 +241,7 @@ export const SEARCH_ENDPOINTS = [
         description: "Google Shopping product search. Returns products with prices, sellers, ratings, and links.",
         catalogTags: SEARCH_TAGS,
         input: VerticalSearchRequestSchema,
-        inputExample: VERTICAL_INPUT_EXAMPLE,
+        inputExample: SHOPPING_INPUT_EXAMPLE,
         outputExample: {
             query: "mechanical keyboard",
             results: [{ position: 1, title: "Mechanical Keyboard RGB", url: "https://shop.example.com/kb", price: "$89.99", extractedPrice: 89.99, source: "Example Store", rating: 4.5, reviews: 1200 }],
