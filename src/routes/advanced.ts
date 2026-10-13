@@ -40,7 +40,7 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
     // /batch/fetch
     // ============================================
     //
-    // Pricing is dynamic — N URLs × $0.003 per URL. validateRequest runs
+    // Pricing is dynamic — N URLs × PRICING.batchFetch.perUrl. validateRequest runs
     // before both credit and payment middleware, so by the time pricing is
     // calculated `validatedBody` is guaranteed to be a parsed BatchFetchRequest
     // with `urls` populated.
@@ -62,7 +62,7 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
             "/batch/fetch",
             // Dynamic price — re-evaluated per request from the parsed body.
             (c) => Promise.resolve(batchFetchPriceCalc(c)),
-            "Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at $0.003/URL.",
+            `Fetch multiple URLs in parallel with a single request. Efficient for bulk operations. Supports 2-20 URLs per request at ${PRICING.batchFetch.perUrl}/URL.`,
             { urls: ["https://example.com/1", "https://example.com/2"], timeout: 10000, tier: "basic" },
             {
                 properties: {
@@ -78,7 +78,7 @@ export function registerAdvancedRoutes(app: Hono<{ Bindings: Env; Variables: Var
                     { url: "https://example.com/2", status: "success", title: "Page 2", content: "Content 2..." },
                 ],
                 summary: { total: 2, successful: 2, failed: 0 },
-                totalPrice: "$0.006",
+                totalPrice: getBatchFetchPrice(2),
                 requestId: "req_batch123",
             },
             {

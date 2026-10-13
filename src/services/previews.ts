@@ -13,6 +13,7 @@
  */
 
 import { PAID_ENDPOINTS, PRICING } from "../config";
+import { getBatchFetchPrice } from "./pricing";
 
 /**
  * Endpoints whose marginal cost is a native fetch (no paid upstream API), so
@@ -127,7 +128,7 @@ export const PREVIEW_SAMPLES: Record<string, PreviewEntry> = {
     },
     "/batch/fetch": {
         summary: "2-20 URLs fetched in parallel in one call.",
-        sample: { results: [{ url: "https://example.com/1", status: "success", title: "Page 1", content: "Content..." }], summary: { total: 2, successful: 2, failed: 0 }, totalPrice: "$0.006" },
+        sample: { results: [{ url: "https://example.com/1", status: "success", title: "Page 1", content: "Content..." }], summary: { total: 2, successful: 2, failed: 0 }, totalPrice: getBatchFetchPrice(2) },
     },
     "/map": {
         summary: "Every URL on a site, from sitemaps and links — no page fetches.",

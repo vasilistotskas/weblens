@@ -5,7 +5,7 @@
 
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
-import { PRICING, supportedNetworkNames } from "./config";
+import { FREE_TIER, PRICING, supportedNetworkNames, supportedNetworks } from "./config";
 import type { NetworkEnv } from "./config";
 import { MAX_COMPLEXITY_MULTIPLIER, parsePrice } from "./services/pricing";
 import type { Env, Variables } from "./types";
@@ -76,7 +76,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         "Also available: POST /search for web search and POST /research for search + fetch + AI summary. " +
         "Not sure an endpoint is worth its price? POST /preview {\"endpoint\": \"/answer\"} is free and returns the live " +
         "price plus a real sample of the response shape before you pay. " +
-        "Free, unauthenticated tries: GET /r/{url} and GET /s/{query} (rate limited).",
+        "Free, unauthenticated try: GET /r/{url} (rate limited).",
       contact: { name: "WebLens Support", url: "https://api.weblens.dev", email: "vassilistotskas@msn.com" },
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
     },
@@ -137,25 +137,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
             "400": { description: "Invalid or missing URL" },
             "429": { description: "Rate limit exceeded (10/hour)" },
             "502": { description: "Target URL timeout" },
-          },
-        },
-      },
-      "/s/{query}": {
-        get: {
-          tags: ["Free"],
-          summary: "Search Reader (Zero-Friction)",
-          operationId: "searchReader",
-          security: [],
-          description: "Search the web with a single GET request. No auth, no payment, no POST body. Just append a query. Rate limited to 10/hour, max 3 results. Upgrade to POST /search for up to 20 results.",
-          parameters: [
-            { name: "query", in: "path", required: true, schema: { type: "string" }, description: "Search query (use + for spaces)", example: "cloudflare+workers" },
-            { name: "format", in: "query", required: false, schema: { type: "string", enum: ["json", "text"] }, description: "Response format: json (default) or text" },
-          ],
-          responses: {
-            "200": { description: "Search results (JSON or plain text)" },
-            "400": { description: "Missing or invalid query" },
-            "429": { description: "Rate limit exceeded (10/hour)" },
-            "502": { description: "Search provider failure" },
           },
         },
       },
@@ -507,15 +488,6 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           security: [],
           requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["url"], properties: { url: { type: "string" }, timeout: { type: "integer" } } } } } },
           responses: { "200": { description: "Page content (truncated)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
-        },
-      },
-      "/free/search": {
-        post: {
-          tags: ["Free"], summary: "Free Search", operationId: "freeSearch",
-          description: "Web search (max 3 results). Rate limited to 10/hour. No payment required.",
-          security: [],
-          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["query"], properties: { query: { type: "string" } } } } } },
-          responses: { "200": { description: "Search results (max 3)" }, "400": { description: "Invalid request" }, "429": { description: "Rate limit exceeded" } },
         },
       },
       "/preview": {
@@ -1245,11 +1217,10 @@ cached responses are another 70% off.
 Fetch any webpage as markdown with a single GET request — no auth, no payment, no setup:
 
   GET https://api.weblens.dev/r/https://example.com
-  GET https://api.weblens.dev/s/your+search+query
 
-Add ?format=text for plain output. Rate limited to 10/hour.
-Reader: content truncated to 2000 chars. Search: max 3 results.
-Upgrade to paid endpoints for full content and more results.
+Add ?format=text for plain output. Rate limited to ${String(FREE_TIER.maxRequestsPerHour)}/hour;
+content truncated to ${String(FREE_TIER.fetchMaxContentLength)} chars.
+Upgrade to the paid endpoints for full content.
 
 ## Preview Before You Pay (Free)
 
@@ -1313,7 +1284,6 @@ Serves the stored document byte-for-byte, so keccak-256 of the response equals t
 ## Discovery Endpoints
 
 - GET /r/{url} - Zero-friction reader (free, no auth needed)
-- GET /s/{query} - Zero-friction search (free, no auth needed)
 - POST /preview - Price + real response sample for any paid endpoint, before you pay (free)
 - GET /discovery - Full service catalog with all endpoints, pricing, and capabilities
 - GET /.well-known/x402 - Standard x402 discovery for Bazaar indexing
@@ -1338,7 +1308,7 @@ All paid endpoints use [x402 v2](https://x402.org) micropayments:
 4. Retry the request with the \`Payment-Signature\` header containing the signed payload
 5. Receive the response with a \`PAYMENT-RESPONSE\` header (settlement proof)
 
-Supported networks: Base (mainnet), Base Sepolia (testnet)
+Supported networks: ${supportedNetworkNames(c.env)} (CAIP-2: ${supportedNetworks(c.env).join(", ")})
 Token: USDC
 
 ## Endpoints

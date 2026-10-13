@@ -261,11 +261,7 @@ async function run(): Promise<void> {
         { name: "Robots",             method: "GET",  path: "/robots.txt",                     price: "FREE", free: true },
         { name: "Sitemap",            method: "GET",  path: "/sitemap.xml",                    price: "FREE", free: true },
         { name: "Reader (/r/)",       method: "GET",  path: "/r/https://example.com",          price: "FREE", free: true },
-        // Note: /s/ search reader omitted from automated tests — it depends on
-        // SERP_API_KEY upstream or DuckDuckGo (which often serves CAPTCHAs to
-        // datacenter IPs), making the result non-deterministic across envs.
         { name: "Free Fetch",         method: "POST", path: "/free/fetch",                     price: "FREE", free: true, body: { url: "https://example.com" } },
-        { name: "Free Search",        method: "POST", path: "/free/search",                    price: "FREE", free: true, body: { query: "x402 protocol", limit: 3 } },
     ];
 
     // ============================================

@@ -108,6 +108,13 @@ export async function deepResearch(options: DeepResearchOptions): Promise<DeepRe
     const searches = await Promise.allSettled(
         subQuestions.map((sub) => searchWeb({ query: sub, limit: 5, serpApiKey })),
     );
+    // One failed sub-question degrades the research; every one failing means
+    // the provider is down, which must surface as that error — not as "no
+    // sources found".
+    const firstFailure = searches.find((s): s is PromiseRejectedResult => s.status === "rejected");
+    if (firstFailure && searches.every((s) => s.status === "rejected")) {
+        throw firstFailure.reason;
+    }
 
     // 3. Collect results, deduping by URL and remembering which sub-question
     //    surfaced each one.

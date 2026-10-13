@@ -1,6 +1,6 @@
 /**
  * Answer Endpoint Handler
- * POST /answer — grounded answer with inline [n] citations ($0.05)
+ * POST /answer — grounded answer with inline [n] citations (PRICING.answer)
  *
  * Pipeline: one SerpAPI search → fetch top-N pages (safeFetch via
  * fetchBasicPage) → one capped Haiku call. Content is truncated to keep the
@@ -9,7 +9,7 @@
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { createErrorResponse } from "../middleware/errorHandler";
+import { classifySearchError, createErrorResponse } from "../middleware/errorHandler";
 import type { AnswerRequestSchema } from "../schemas";
 import { callClaude, isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import { searchWeb } from "../services/search";
@@ -109,7 +109,7 @@ Respond ONLY with valid JSON.`;
                 aiError.status as 503,
             );
         }
-        const message = error instanceof Error ? error.message : "Unknown error";
-        return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
+        const { code, status, message } = classifySearchError(error);
+        return c.json(createErrorResponse(code, message, requestId), status);
     }
 }

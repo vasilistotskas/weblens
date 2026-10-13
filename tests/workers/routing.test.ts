@@ -106,7 +106,7 @@ describe("unsubstituted path templates", () => {
         // Well past the 10/hour free-tier allowance; a malformed path must not
         // consume it, so none of these may come back 429.
         for (let i = 0; i < 12; i++) {
-            const res = await SELF.fetch(`${ORIGIN}/s/%7Bquery%7D`);
+            const res = await SELF.fetch(`${ORIGIN}/r/%7Burl%7D`);
             expect(res.status).toBe(400);
         }
     });

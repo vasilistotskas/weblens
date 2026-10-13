@@ -21,10 +21,6 @@ describe("Free Tier: Configuration properties", () => {
     it("fetchMaxContentLength is positive", () => {
         expect(FREE_TIER.fetchMaxContentLength).toBeGreaterThan(0);
     });
-
-    it("searchMaxResults is positive", () => {
-        expect(FREE_TIER.searchMaxResults).toBeGreaterThan(0);
-    });
 });
 
 describe("Free Tier: Content truncation properties", () => {
@@ -64,32 +60,6 @@ describe("Free Tier: Content truncation properties", () => {
                 fc.string({ minLength: 0, maxLength: maxLen }),
                 (content) => {
                     expect(content.length <= maxLen).toBe(true);
-                }
-            ),
-            { numRuns: 100 }
-        );
-    });
-
-    /**
-     * Property: Search results are always capped at searchMaxResults.
-     */
-    it("search results are always capped at searchMaxResults", () => {
-        const maxResults = FREE_TIER.searchMaxResults;
-
-        fc.assert(
-            fc.property(
-                fc.array(
-                    fc.record({
-                        title: fc.string(),
-                        url: fc.string(),
-                        snippet: fc.string(),
-                        position: fc.nat(),
-                    }),
-                    { minLength: 0, maxLength: 20 }
-                ),
-                (results) => {
-                    const capped = results.slice(0, maxResults);
-                    expect(capped.length).toBeLessThanOrEqual(maxResults);
                 }
             ),
             { numRuns: 100 }

@@ -4,7 +4,7 @@ import { validateRequest } from "../middleware/validation";
 import { FeedbackDocumentSchema, PreviewRequestSchema } from "../schemas";
 
 // Tool handlers + their canonical free-tier request schemas
-import { freeFetch, freeSearch, freeFetchSchema, freeSearchSchema } from "../tools/free";
+import { freeFetch, freeFetchSchema } from "../tools/free";
 import {
     agentRegistrationHandler,
     getFeedbackHandler,
@@ -22,13 +22,6 @@ export function registerFreeRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     app.use("/free/fetch", rateLimitMiddleware);
     app.use("/free/fetch", validateRequest(freeFetchSchema));
     app.post("/free/fetch", freeFetch);
-
-    // ============================================
-    // /free/search
-    // ============================================
-    app.use("/free/search", rateLimitMiddleware);
-    app.use("/free/search", validateRequest(freeSearchSchema));
-    app.post("/free/search", freeSearch);
 
     // ============================================
     // /preview — see the price and a real response sample before paying

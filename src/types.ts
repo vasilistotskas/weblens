@@ -248,11 +248,9 @@ export type ErrorCode =
   | "NOT_FOUND" // Unknown route (404)
   // --- Crawl (tools/crawl.ts) ---
   | "FORBIDDEN" // robots.txt disallows crawling the requested URL (403)
-  // --- Free-tier reader/search (tools/reader.ts, tools/search-reader.ts) ---
+  // --- Free-tier reader (tools/reader.ts) ---
   | "MISSING_URL" // Reader called without a URL (400)
   | "REDIRECT_BLOCKED" // Reader hit a blocked redirect target (400)
-  | "MISSING_QUERY" // Search-reader called without a query (400)
-  | "QUERY_TOO_LONG" // Search-reader query exceeds max length (400)
   // --- Compare endpoint (tools/compare.ts) ---
   | "COMPARE_TOO_SMALL" // Fewer than 2 URLs supplied (400)
   | "COMPARE_TOO_LARGE" // More than 3 URLs supplied (400)
@@ -492,8 +490,7 @@ export interface MemoryListResponse {
 export interface FreeTierMetadata {
   tier: "free";
   limits: {
-    contentLength?: number;
-    maxResults?: number;
+    contentLength: number;
     requestsPerHour: number;
   };
   remainingRequests: number;

@@ -6,8 +6,9 @@
  */
 
 import type { Context, Next } from "hono";
-import { FREE_TIER } from "../config";
+import { FREE_TIER, PRICING } from "../config";
 import type { Env } from "../types";
+import { createErrorResponse } from "./errorHandler";
 
 /** KV-stored rate limit state for a single IP address. */
 interface RateLimitEntry {
@@ -78,14 +79,16 @@ export async function rateLimitMiddleware(
 
         return c.json(
             {
-                error: "RATE_LIMITED",
-                code: "RATE_LIMITED",
-                message: `Free tier limit exceeded (${FREE_TIER.maxRequestsPerHour} requests/hour). Upgrade to paid tier for unlimited access.`,
-                retryAfter,
-                upgradeUrl: "https://api.weblens.dev/docs",
+                ...createErrorResponse(
+                    "RATE_LIMITED",
+                    `Free tier limit exceeded (${String(FREE_TIER.maxRequestsPerHour)} requests/hour). Paid endpoints have no rate limit.`,
+                    c.get("requestId"),
+                    retryAfter,
+                ),
+                upgradeUrl: `${new URL(c.req.url).origin}/docs`,
                 paidEndpoints: {
-                    fetch: "/fetch/basic ($0.005/request)",
-                    search: "/search ($0.005/request)",
+                    fetch: `/fetch/basic (${PRICING.fetch.basic}/request)`,
+                    search: `/search (${PRICING.search}/request)`,
                 },
             },
             429

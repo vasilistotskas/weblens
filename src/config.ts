@@ -231,14 +231,6 @@ export const PARAMETERIZED_ROUTES: readonly ParameterizedRoute[] = [
     callableExample: true,
   },
   {
-    template: "/s/{query}",
-    methods: ["GET"],
-    param: "query",
-    example: "/s/cloudflare+workers",
-    hint: "Append the search query, using + or %20 between words.",
-    callableExample: true,
-  },
-  {
     template: "/receipts/{requestId}",
     methods: ["GET"],
     param: "requestId",
@@ -335,7 +327,6 @@ export const FREE_TIER = {
 
   // Content limits
   fetchMaxContentLength: 2000, // chars
-  searchMaxResults: 3,
 } as const;
 
 // CAIP-2 chain identifiers for every network WebLens can be paid on.
@@ -424,6 +415,16 @@ export function supportedNetworkNames(env: NetworkEnv): string {
   const last = names.pop() ?? "";
   return names.length > 0 ? `${names.join(", ")} or ${last}` : last;
 }
+
+/**
+ * Upstream APIs that bill us per call. Free routes must never reach these
+ * (tests/workers/free-routes-cost.test.ts derives its forbidden hosts from
+ * this map), and every paid route that uses one must clear its cost floor.
+ */
+export const PAID_UPSTREAMS = {
+  anthropicMessages: "https://api.anthropic.com/v1/messages",
+  serpApiSearch: "https://serpapi.com/search.json",
+} as const;
 
 // Crawl/map execution bounds. Workers on paid plans allow 10k subrequests per
 // invocation and bill CPU (not network wait), so these are set for predictable

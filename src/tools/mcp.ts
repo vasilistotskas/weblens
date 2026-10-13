@@ -6,7 +6,7 @@
  */
 
 import type { Context } from "hono";
-import { PRICING, supportedNetworks } from "../config";
+import { PRICING, supportedNetworkNames, supportedNetworks } from "../config";
 import { getPriceRange } from "../services/pricing";
 import type { Env } from "../types";
 
@@ -915,7 +915,7 @@ export function mcpInfoHandler(c: Context<{ Bindings: Env }>) {
     name: "WebLens MCP Server",
     version: "2.1.0",
     tagline: "Scrape, crawl, map and extract the web — pay per call",
-    description: "Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts, no monthly minimum - just pay per request with USDC on Base.",
+    description: `Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts, no monthly minimum - just pay per request with USDC on ${supportedNetworkNames(c.env)}.`,
     protocolVersion: MCP_VERSION,
     transport: "streamable-http",
     capabilities: [

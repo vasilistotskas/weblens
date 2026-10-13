@@ -1,15 +1,14 @@
 /**
  * Free Tier Endpoint Handlers
  *
- * Provides rate-limited, truncated access to fetch and search
- * without requiring x402 payment. Reuses existing handler logic.
+ * Rate-limited, truncated fetch without x402 payment. Free routes must never
+ * call a paid upstream: this one is a native fetch only.
  */
 
 import type { Context } from "hono";
 import { z } from "zod/v4";
 import { FREE_TIER } from "../config";
 import { classifyFetchError, createErrorResponse } from "../middleware/errorHandler";
-import { searchWeb } from "../services/search";
 import { validateURL } from "../services/validator";
 import type { Env, FreeTierMetadata } from "../types";
 import { fetchBasicPage } from "./fetch-basic";
@@ -24,10 +23,6 @@ import { fetchBasicPage } from "./fetch-basic";
 export const freeFetchSchema = z.object({
     url: z.url(),
     timeout: z.number().min(1000).max(15000).default(10000),
-});
-
-export const freeSearchSchema = z.object({
-    query: z.string().min(1).max(200),
 });
 
 // ============================================
@@ -119,45 +114,3 @@ export async function freeFetch(c: Context<{ Bindings: Env }>) {
     }
 }
 
-// ============================================
-// Free Search Handler
-// ============================================
-
-/**
- * POST /free/search
- * Free tier search — capped results, rate limited.
- */
-export async function freeSearch(c: Context<{ Bindings: Env }>) {
-    const requestId = c.get("requestId");
-    const remaining = getRemainingFromContext(c);
-
-    try {
-        const { query } = c.get("validatedBody") as z.infer<typeof freeSearchSchema>;
-        const maxResults = FREE_TIER.searchMaxResults;
-
-        const allResults = await searchWeb({
-            query,
-            limit: maxResults,
-            serpApiKey: c.env.SERP_API_KEY,
-        });
-
-        return c.json({
-            query,
-            results: allResults,
-            searchedAt: new Date().toISOString(),
-            requestId,
-            _freeTier: buildFreeTierMeta(remaining, {
-                maxResults,
-                requestsPerHour: FREE_TIER.maxRequestsPerHour,
-            }),
-        });
-    } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-
-        if (message.includes("bot detection") || message.includes("challenge")) {
-            return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Search provider temporarily unavailable", requestId), 502);
-        }
-
-        return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
-    }
-}

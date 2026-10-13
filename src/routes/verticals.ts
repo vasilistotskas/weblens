@@ -316,7 +316,7 @@ export function registerVerticalRoutes(app: Hono<{ Bindings: Env; Variables: Var
         createLazyPaymentMiddleware(
             "/contents",
             (c) => Promise.resolve(contentsPrice(c)),
-            "Cheap bulk page text: fetch 1-20 URLs and get clean markdown, truncated to a per-page cap. $0.002 per URL.",
+            `Cheap bulk page text: fetch 1-20 URLs and get clean markdown, truncated to a per-page cap. ${PRICING.contents.perUrl} per URL.`,
             { urls: ["https://example.com/article"], maxChars: 20000 },
             {
                 properties: {

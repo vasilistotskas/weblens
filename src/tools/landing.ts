@@ -5,9 +5,11 @@
  * Agents/API clients get JSON (via Accept header detection).
  */
 
-import { PRICING } from "../config";
+import { PRICING, supportedNetworkNames } from "../config";
+import type { NetworkEnv } from "../config";
 
-export function getLandingPageHTML(baseUrl: string): string {
+export function getLandingPageHTML(baseUrl: string, env: NetworkEnv): string {
+    const networks = supportedNetworkNames(env);
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,7 +18,7 @@ export function getLandingPageHTML(baseUrl: string): string {
 <title>WebLens — Web Intelligence API for AI Agents</title>
 <meta name="description" content="Premium web scraping, search, and data extraction API with x402 micropayments. No accounts, no API keys. Pay per request with USDC.">
 <meta property="og:title" content="WebLens — Web Intelligence API for AI Agents">
-<meta property="og:description" content="Give your AI agents web superpowers. Pay-per-request with USDC on Base via x402.">
+<meta property="og:description" content="Give your AI agents web superpowers. Pay-per-request with USDC on ${networks} via x402.">
 <meta property="og:url" content="${baseUrl}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
@@ -71,7 +73,7 @@ code{background:#1a1a1a;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.85e
 <p class="tagline">Web Intelligence API for AI Agents — powered by x402 micropayments</p>
 <div class="badges">
 <span class="badge badge-blue">x402 Protocol</span>
-<span class="badge badge-green">USDC on Base</span>
+<span class="badge badge-green">USDC on ${networks}</span>
 <span class="badge badge-purple">MCP Server</span>
 </div>
 </header>
@@ -97,7 +99,6 @@ code{background:#1a1a1a;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.85e
 <div class="card">
 <h3>Search</h3>
 <span class="price">FREE</span>
-<p>GET /s/{query} — Web search results. Just append your query.</p>
 </div>
 </div>
 </section>
@@ -142,7 +143,7 @@ code{background:#1a1a1a;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.85e
 <section>
 <h2>How Payment Works</h2>
 <p style="color:#9ca3af;font-size:0.9rem">
-POST to any paid endpoint &rarr; get <code>402 Payment Required</code> with price &rarr; sign USDC transfer on Base &rarr; retry with payment header &rarr; get data. ~2 seconds. No accounts. No API keys. Your wallet is your identity.
+POST to any paid endpoint &rarr; get <code>402 Payment Required</code> with price &rarr; sign a USDC transfer on ${networks} &rarr; retry with payment header &rarr; get data. ~2 seconds. No accounts. No API keys. Your wallet is your identity.
 </p>
 </section>
 

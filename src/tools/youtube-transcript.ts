@@ -8,9 +8,9 @@
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { createErrorResponse } from "../middleware/errorHandler";
+import { classifySearchError, createErrorResponse } from "../middleware/errorHandler";
 import type { YoutubeTranscriptRequestSchema } from "../schemas";
-import { SearchProviderUnavailableError, fetchYoutubeTranscript } from "../services/search";
+import { fetchYoutubeTranscript } from "../services/search";
 import type { Env } from "../types";
 
 /** Extract the 11-char video ID from a bare ID or any YouTube URL form. */
@@ -71,19 +71,7 @@ export async function youtubeTranscriptHandler(c: Context<{ Bindings: Env }>) {
             requestId,
         });
     } catch (error) {
-        if (error instanceof SearchProviderUnavailableError) {
-            return c.json(
-                createErrorResponse("SERVICE_UNAVAILABLE", "Transcript provider not configured", requestId),
-                503,
-            );
-        }
-        const message = error instanceof Error ? error.message : "Unknown error";
-        if (message.includes("SerpAPI")) {
-            return c.json(
-                createErrorResponse("SERVICE_UNAVAILABLE", "Transcript provider temporarily unavailable", requestId),
-                502,
-            );
-        }
-        return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
+        const { code, status, message } = classifySearchError(error);
+        return c.json(createErrorResponse(code, message, requestId), status);
     }
 }

@@ -243,7 +243,7 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
     // ============================================
     // /search
     // ============================================
-    // Base price + $0.002 per fetched-content result when includeContent is
+    // Base price + PRICING.contents.perUrl per fetched-content result when includeContent is
     // set. Shared by credit AND x402 so the two paths can never diverge.
     const searchPrice = (c: AppContext): string => {
         const body = c.get("validatedBody") as
@@ -268,7 +268,7 @@ export function registerCoreRoutes(app: Hono<{ Bindings: Env; Variables: Variabl
                 properties: {
                     query: { type: "string", description: "Search query" },
                     limit: { type: "number", description: "Number of results to return (default: 10, max: 20)", maximum: 20 },
-                    includeContent: { type: "boolean", description: "Also fetch top result pages as markdown (+$0.002/result)" },
+                    includeContent: { type: "boolean", description: `Also fetch top result pages as markdown (+${PRICING.contents.perUrl}/result)` },
                     contentResults: { type: "number", description: "How many top results to fetch content for (default 5, max 10)", maximum: 10 },
                     contentChars: { type: "number", description: "Per-page content character cap (default 8000)" },
                 },

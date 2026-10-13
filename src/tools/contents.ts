@@ -1,6 +1,6 @@
 /**
  * Contents Endpoint Handler
- * POST /contents — cheap bulk page-text retrieval ($0.002/URL)
+ * POST /contents — cheap bulk page-text retrieval (PRICING.contents.perUrl per URL)
  *
  * The "give me the page text" primitive at market clearing price. Unlike
  * /batch/fetch it accepts a single URL, has no tier/proof overhead, and

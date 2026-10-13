@@ -8,10 +8,11 @@
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { createErrorResponse } from "../middleware/errorHandler";
+import { classifySearchError, createErrorResponse } from "../middleware/errorHandler";
 import type { DeepResearchRequestSchema } from "../schemas";
 import { isAIAvailable, handleAIError, AIUnavailableError } from "../services/ai";
 import { deepResearch } from "../services/deep-research";
+import { SearchProviderUnavailableError, SearchUpstreamError } from "../services/search";
 import type { Env } from "../types";
 
 export async function deepResearchHandler(c: Context<{ Bindings: Env }>) {
@@ -46,6 +47,10 @@ export async function deepResearchHandler(c: Context<{ Bindings: Env }>) {
                 createErrorResponse(aiError.code as "AI_UNAVAILABLE", aiError.message, requestId),
                 aiError.status as 503,
             );
+        }
+        if (error instanceof SearchProviderUnavailableError || error instanceof SearchUpstreamError) {
+            const searchError = classifySearchError(error);
+            return c.json(createErrorResponse(searchError.code, searchError.message, requestId), searchError.status);
         }
         const message = error instanceof Error ? error.message : "Unknown error";
         if (message.includes("No web sources")) {

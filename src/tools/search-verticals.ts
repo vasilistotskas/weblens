@@ -10,14 +10,13 @@
 
 import type { Context } from "hono";
 import type { z } from "zod/v4";
-import { createErrorResponse } from "../middleware/errorHandler";
+import { classifySearchError, createErrorResponse } from "../middleware/errorHandler";
 import type {
     VerticalSearchRequestSchema,
     PlacesSearchRequestSchema,
     TrendsRequestSchema,
 } from "../schemas";
 import {
-    SearchProviderUnavailableError,
     searchNews,
     searchImages,
     searchPlaces,
@@ -31,20 +30,8 @@ import type { Env } from "../types";
 type AppContext = Context<{ Bindings: Env }>;
 
 function verticalError(c: AppContext, requestId: string, error: unknown) {
-    if (error instanceof SearchProviderUnavailableError) {
-        return c.json(
-            createErrorResponse("SERVICE_UNAVAILABLE", "Search provider not configured", requestId),
-            503,
-        );
-    }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    if (message.includes("SerpAPI")) {
-        return c.json(
-            createErrorResponse("SERVICE_UNAVAILABLE", "Search provider temporarily unavailable", requestId),
-            502,
-        );
-    }
-    return c.json(createErrorResponse("INTERNAL_ERROR", message, requestId), 500);
+    const { code, status, message } = classifySearchError(error);
+    return c.json(createErrorResponse(code, message, requestId), status);
 }
 
 /** Build a handler for verticals that take {query, limit}. */

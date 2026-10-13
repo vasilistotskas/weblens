@@ -1,7 +1,9 @@
 import type { Context } from "hono";
 import type { z } from "zod/v4";
+import { PAID_UPSTREAMS } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { ExtractRequestSchema } from "../schemas";
+import { isAIAvailable } from "../services/ai";
 import { hashContent, signContext } from "../services/crypto";
 import { validateURL } from "../services/validator";
 import type { Env, ExtractResponse } from "../types";
@@ -13,6 +15,13 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
 
   try {
     const { url, schema, instructions } = c.get("validatedBody") as z.infer<typeof ExtractRequestSchema>;
+
+    // Extraction is an AI product: without a model the paid call fails (and is
+    // refunded) instead of returning a regex guess at full price.
+    const anthropicKey = c.env.ANTHROPIC_API_KEY;
+    if (!isAIAvailable(anthropicKey)) {
+      return c.json(createErrorResponse("AI_UNAVAILABLE", "AI service not configured", requestId), 503);
+    }
 
     const urlValidation = validateURL(url);
     if (!urlValidation.valid) {
@@ -34,19 +43,6 @@ export async function extractData(c: Context<{ Bindings: Env }>) {
 
     const html = await readDocument(response);
     const content = htmlToMarkdown(html);
-
-    const anthropicKey = c.env.ANTHROPIC_API_KEY;
-
-    if (!anthropicKey) {
-      const data = basicExtraction(html, schema);
-      return c.json({
-        url,
-        data,
-        extractedAt: new Date().toISOString(),
-        requestId,
-        note: "Basic extraction (no AI). Set ANTHROPIC_API_KEY for intelligent extraction.",
-      });
-    }
 
     const data = await aiExtraction(content, schema, instructions, anthropicKey);
 
@@ -107,7 +103,7 @@ ${content.slice(0, 8000)}
 
 Respond ONLY with valid JSON matching the schema. No explanations.`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch(PAID_UPSTREAMS.anthropicMessages, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -135,33 +131,4 @@ Respond ONLY with valid JSON matching the schema. No explanations.`;
   } catch {
     return { raw: text };
   }
-}
-
-function basicExtraction(
-  html: string,
-  schema: Record<string, unknown>
-): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
-
-  for (const key of Object.keys(schema)) {
-    const lowerKey = key.toLowerCase();
-
-    if (lowerKey.includes("price")) {
-      const priceMatch = /\$[\d,]+\.?\d*/.exec(html);
-      data[key] = priceMatch?.[0] ?? null;
-    } else if (lowerKey.includes("email")) {
-      const emailMatch = /[\w.-]+@[\w.-]+\.\w+/.exec(html);
-      data[key] = emailMatch?.[0] ?? null;
-    } else if (lowerKey.includes("phone")) {
-      const phoneMatch = /[\d-()+ ]{10,}/.exec(html);
-      data[key] = phoneMatch?.[0]?.trim() ?? null;
-    } else if (lowerKey.includes("title")) {
-      const titleMatch = /<title>([^<]+)<\/title>/i.exec(html);
-      data[key] = titleMatch?.[1] ?? null;
-    } else {
-      data[key] = null;
-    }
-  }
-
-  return data;
 }

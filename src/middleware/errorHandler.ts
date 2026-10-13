@@ -9,6 +9,7 @@
 
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { SearchProviderUnavailableError, SearchUpstreamError } from "../services/search";
 import type { ErrorCode, ErrorResponse } from "../types";
 import { loggerFromEnv } from "../utils/logger";
 import { TargetHttpError, UnsupportedContentError } from "../utils/safe-fetch";
@@ -99,8 +100,6 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "INVALID_JSON":
     case "MISSING_URL":
     case "REDIRECT_BLOCKED":
-    case "MISSING_QUERY":
-    case "QUERY_TOO_LONG":
     case "COMPARE_TOO_SMALL":
     case "COMPARE_TOO_LARGE":
     case "BATCH_TOO_SMALL":
@@ -229,4 +228,20 @@ export function classifyFetchError(error: unknown): { code: ErrorCode; status: C
     code = "INTERNAL_ERROR";
   }
   return { code, status: getHttpStatus(code), message };
+}
+
+/**
+ * Classify a failure from the search provider. A missing key is our
+ * configuration (503); a provider error, non-2xx or timeout is the provider's
+ * failure (502). Either way the paid request fails rather than degrading.
+ */
+export function classifySearchError(error: unknown): { code: ErrorCode; status: ContentfulStatusCode; message: string } {
+  if (error instanceof SearchProviderUnavailableError) {
+    return { code: "SERVICE_UNAVAILABLE", status: getHttpStatus("SERVICE_UNAVAILABLE"), message: error.message };
+  }
+  if (error instanceof SearchUpstreamError || (error instanceof Error && error.name === "TimeoutError")) {
+    return { code: "PROVIDER_ERROR", status: getHttpStatus("PROVIDER_ERROR"), message: "Search provider temporarily unavailable" };
+  }
+  const message = error instanceof Error ? error.message : "Unknown error";
+  return { code: "INTERNAL_ERROR", status: getHttpStatus("INTERNAL_ERROR"), message };
 }

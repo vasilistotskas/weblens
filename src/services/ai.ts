@@ -8,6 +8,8 @@
  * - Use Claude for comparison analysis
  */
 
+import { PAID_UPSTREAMS } from "../config";
+
 export interface AIServiceConfig {
   apiKey: string;
   model?: string;
@@ -78,7 +80,7 @@ export async function callClaude(
   prompt: string,
   systemPrompt?: string
 ): Promise<string> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch(PAID_UPSTREAMS.anthropicMessages, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { supportedNetworks, PRICING, pathExample } from "../config";
+import { FREE_TIER, supportedNetworks, PRICING, pathExample } from "../config";
 import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import {
@@ -71,7 +71,6 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
             { loc: "/.well-known/x402", priority: "0.6", changefreq: "monthly" },
             { loc: "/mcp/info", priority: "0.7", changefreq: "weekly" },
             { loc: "/r/https://example.com", priority: "0.5", changefreq: "monthly" },
-            { loc: "/s/web+scraping+api", priority: "0.5", changefreq: "monthly" },
         ];
         const entries = urls.map(u =>
             `  <url>\n    <loc>${baseUrl}${u.loc}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
@@ -88,7 +87,7 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
         const accept = c.req.header("Accept") ?? "";
         if (accept.includes("text/html")) {
             const baseUrl = new URL(c.req.url).origin;
-            return c.html(getLandingPageHTML(baseUrl));
+            return c.html(getLandingPageHTML(baseUrl, c.env));
         }
 
         return c.json({
@@ -123,22 +122,13 @@ export function registerSystemRoutes(app: Hono<{ Bindings: Env; Variables: Varia
                     method: "GET",
                     description: "Zero-friction: just GET /r/ + any URL → markdown",
                     example: `GET ${pathExample("/r/{url}")}`,
-                    limit: "10 requests/hour, 2000 char content limit",
-                },
-                search: {
-                    path: "/s/{query}",
-                    method: "GET",
-                    description: "Zero-friction: just GET /s/ + query → search results",
-                    example: `GET ${pathExample("/s/{query}")}`,
-                    limit: "10 requests/hour, 3 results max",
+                    limit: `${String(FREE_TIER.maxRequestsPerHour)} requests/hour, ${String(FREE_TIER.fetchMaxContentLength)} char content limit`,
                 },
                 endpoints: [
-                    { path: "/r/{url}", method: "GET", example: pathExample("/r/{url}"), description: "Zero-friction reader — just append any URL", limit: "10 requests/hour" },
-                    { path: "/s/{query}", method: "GET", example: pathExample("/s/{query}"), description: "Zero-friction search — just append a query", limit: "10 requests/hour" },
-                    { path: "/free/fetch", method: "POST", description: "Fetch any webpage (truncated to 2000 chars)", limit: "10 requests/hour" },
-                    { path: "/free/search", method: "POST", description: "Web search (max 3 results)", limit: "10 requests/hour" },
+                    { path: "/r/{url}", method: "GET", example: pathExample("/r/{url}"), description: "Zero-friction reader — just append any URL", limit: `${String(FREE_TIER.maxRequestsPerHour)} requests/hour` },
+                    { path: "/free/fetch", method: "POST", description: `Fetch any webpage (truncated to ${String(FREE_TIER.fetchMaxContentLength)} chars)`, limit: `${String(FREE_TIER.maxRequestsPerHour)} requests/hour` },
                 ],
-                rateLimit: "10 requests/hour per IP (shared across all free endpoints)",
+                rateLimit: `${String(FREE_TIER.maxRequestsPerHour)} requests/hour per IP (shared across all free endpoints)`,
                 upgrade: "Use paid endpoints for full content and unlimited access",
             },
         });
