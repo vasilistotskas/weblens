@@ -26,6 +26,7 @@ import type {
     SupportedResponse,
     VerifyResponse,
 } from "@x402/core/types";
+import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "@x402/svm";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mask } from "../utils/logger";
 import type { Logger } from "../utils/logger";
@@ -231,10 +232,39 @@ function tryDecode<T>(decode: (header: string) => T, header: string | null | und
 }
 
 /** Build the single funnel event for a request that went through the payment wall. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The payer a payment payload claims: the EIP-3009 or Permit2 `from` on EVM,
+ * the token-transfer authority on Solana. It is unverified (it comes from the
+ * buyer's header), so it only attributes attempts the facilitator never
+ * named a payer for, such as verify errors and pre-verify rejections.
+ */
+export function claimedPayer(payload: PaymentPayload | undefined): string | undefined {
+    if (!payload) { return undefined; }
+    const inner = payload.payload;
+    if (payload.accepted.network.startsWith("solana:")) {
+        const { transaction } = inner;
+        if (typeof transaction !== "string") { return undefined; }
+        try {
+            return getTokenPayerFromTransaction(decodeTransactionFromPayload({ transaction })) || undefined;
+        } catch {
+            return undefined;
+        }
+    }
+    for (const authorization of [inner.authorization, inner.permit2Authorization]) {
+        if (isRecord(authorization) && typeof authorization.from === "string") { return authorization.from; }
+    }
+    return undefined;
+}
+
 export function classifyPaymentRequest(facts: PaymentRequestFacts, attempt: PaymentAttempt): PaymentEvent {
     const base = { route: facts.route, requestId: facts.requestId, latencyMs: facts.latencyMs, facilitator: attempt.facilitator };
     const challenge = tryDecode(decodePaymentRequiredHeader, facts.paymentRequired);
     const quoted = challenge?.accepts[0]?.amount;
+    const payload = tryDecode(decodePaymentSignatureHeader, facts.paymentSignature);
 
     if (facts.wallUnavailable) {
         return { ...base, outcome: "wall_unavailable", amount: quoted };
@@ -246,7 +276,7 @@ export function classifyPaymentRequest(facts: PaymentRequestFacts, attempt: Paym
             network: attempt.network,
             scheme: attempt.scheme,
             reason: attempt.reason,
-            payer: attempt.payer,
+            payer: attempt.payer ?? claimedPayer(payload),
             transaction: attempt.transaction,
             amount: attempt.amount,
         };
@@ -260,7 +290,6 @@ export function classifyPaymentRequest(facts: PaymentRequestFacts, attempt: Paym
             : { ...base, outcome: "unclassified", reason: `unpaid request answered ${String(facts.status)}` };
     }
 
-    const payload = tryDecode(decodePaymentSignatureHeader, facts.paymentSignature);
     const settle = tryDecode(decodePaymentResponseHeader, facts.paymentResponse);
     if (settle?.success) {
         return {
@@ -268,7 +297,7 @@ export function classifyPaymentRequest(facts: PaymentRequestFacts, attempt: Paym
             outcome: "settled",
             network: settle.network,
             scheme: payload?.accepted.scheme,
-            payer: settle.payer,
+            payer: settle.payer ?? claimedPayer(payload),
             transaction: settle.transaction,
             amount: payload?.accepted.amount,
         };
@@ -279,6 +308,7 @@ export function classifyPaymentRequest(facts: PaymentRequestFacts, attempt: Paym
             outcome: "rejected",
             network: payload?.accepted.network,
             scheme: payload?.accepted.scheme,
+            payer: claimedPayer(payload),
             amount: payload?.accepted.amount ?? quoted,
             reason: challenge?.error ?? (payload ? undefined : "malformed Payment-Signature header"),
         };

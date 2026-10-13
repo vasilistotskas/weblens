@@ -143,7 +143,7 @@ async function main(): Promise<void> {
                ${blob("payer")} AS payer, ${blob("transaction")} AS transaction, ${double("amount")} AS amount
         FROM ${dataset}
         WHERE ${window} AND ${blob("outcome")} = 'settled'
-        ORDER BY timestamp DESC
+        ORDER BY time DESC
         LIMIT 100
         FORMAT JSON`)).filter((r) => !excluded.has(r.payer.toLowerCase()));
     if (settled.length > 0) {

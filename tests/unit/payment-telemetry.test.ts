@@ -16,6 +16,7 @@ import type { FacilitatorClient } from "@x402/core/server";
 import type { PaymentRequirements } from "@x402/core/types";
 import { describe, expect, it, vi } from "vitest";
 import {
+    claimedPayer,
     classifyPaymentRequest,
     emitPaymentEvent,
     noteCanceled,
@@ -201,5 +202,39 @@ describe("emitPaymentEvent", () => {
 
         const failing = { writeDataPoint: () => { throw new Error("binding missing"); } };
         expect(() => { emitPaymentEvent(failing, log, event); }).not.toThrow();
+    });
+});
+
+describe("claimedPayer", () => {
+    const PAYER = "0x1111111111111111111111111111111111111111";
+    const evmSignature = (payload: Record<string, unknown>) =>
+        encodePaymentSignatureHeader({ x402Version: 2, accepted: requirements, payload });
+
+    it("reads the EIP-3009 and Permit2 `from` on EVM", () => {
+        expect(claimedPayer({ x402Version: 2, accepted: requirements, payload: { authorization: { from: PAYER } } })).toBe(PAYER);
+        expect(claimedPayer({ x402Version: 2, accepted: requirements, payload: { permit2Authorization: { from: PAYER } } })).toBe(PAYER);
+        expect(claimedPayer({ x402Version: 2, accepted: requirements, payload: {} })).toBeUndefined();
+    });
+
+    it("names no payer for an undecodable Solana transaction, and never throws", () => {
+        const solana = { ...requirements, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" };
+        expect(claimedPayer({ x402Version: 2, accepted: solana, payload: { transaction: "not-a-transaction" } })).toBeUndefined();
+        expect(claimedPayer({ x402Version: 2, accepted: solana, payload: {} })).toBeUndefined();
+    });
+
+    it("attributes a verify error the facilitator named no payer for", () => {
+        const event = classifyPaymentRequest(
+            facts({ paymentSignature: evmSignature({ authorization: { from: PAYER } }), status: 402 }),
+            { outcome: "verify_error", reason: "amount_too_low" },
+        );
+        expect(event).toMatchObject({ outcome: "verify_error", payer: PAYER });
+    });
+
+    it("attributes a payment rejected before verify", () => {
+        const event = classifyPaymentRequest(
+            facts({ paymentSignature: evmSignature({ authorization: { from: PAYER } }), paymentRequired: challenge, status: 402 }),
+            {},
+        );
+        expect(event).toMatchObject({ outcome: "rejected", payer: PAYER });
     });
 });
