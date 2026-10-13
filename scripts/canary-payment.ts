@@ -21,7 +21,8 @@
  *            buyers' traffic is unaffected.
  *
  * Networks (PAY_NETWORK):
- *   base     EVM_PRIVATE_KEY = 0x-prefixed hex key of a wallet holding USDC on
+ *   base     EVM_PRIVATE_KEY = 64-hex-character key (0x prefix optional; Phantom
+ *            shows one key for all its EVM networks) of a wallet holding USDC on
  *            Base. No ETH needed: EIP-3009 transferWithAuthorization is
  *            submitted (and paid for) by the facilitator.
  *   solana   SVM_PRIVATE_KEY = base58 64-byte secret key (Phantom's "Export
@@ -161,14 +162,32 @@ function parseFacilitator(): FacilitatorPath {
     return value;
 }
 
+/** A 32-byte hex private key. Wallet exports differ on the 0x prefix, so either form is accepted. */
+function evmPrivateKey(): Hex {
+    const raw = required("EVM_PRIVATE_KEY").trim();
+    const hex = raw.startsWith("0x") ? raw.slice(2) : raw;
+    if (!/^[0-9a-fA-F]{64}$/u.test(hex)) {
+        throw new Error("EVM_PRIVATE_KEY must be 64 hex characters (32 bytes), with or without a 0x prefix");
+    }
+    return `0x${hex}`;
+}
+
+/** The 64-byte Solana secret key, from the base58 string Phantom exports. */
+function svmSecretKey(): Uint8Array {
+    const secret = getBase58Encoder().encode(required("SVM_PRIVATE_KEY").trim());
+    if (secret.length !== 64) {
+        throw new Error(`SVM_PRIVATE_KEY must decode to a 64-byte secret key (got ${String(secret.length)} bytes): paste the Solana private key exactly as Phantom shows it`);
+    }
+    return new Uint8Array(secret);
+}
+
 /** Build the payer for the chosen network from its key; only that scheme is registered. */
 async function loadPayer(network: PayNetwork): Promise<Payer> {
     if (network === "base") {
-        const account = privateKeyToAccount(required("EVM_PRIVATE_KEY") as Hex);
+        const account = privateKeyToAccount(evmPrivateKey());
         return { address: account.address, register: (client) => { registerExactEvmScheme(client, { signer: account }); } };
     }
-    const secret = getBase58Encoder().encode(required("SVM_PRIVATE_KEY"));
-    const signer = await createKeyPairSignerFromBytes(secret);
+    const signer = await createKeyPairSignerFromBytes(svmSecretKey());
     return { address: signer.address, register: (client) => { registerExactSvmScheme(client, { signer }); } };
 }
 
