@@ -48,7 +48,10 @@ export const PRICING = {
     shopping: "$0.015",
     scholar: "$0.015",
     autocomplete: "$0.015",
-    trends: "$0.015",
+    // Market anchor: x402atlas sells the same interest-over-time series at
+    // $0.05, the most-paid web-data endpoint on the CDP Bazaar (1,138
+    // calls in the 30 days to 2026-10-13). Still above the SerpAPI floor.
+    trends: "$0.04",
   },
   // Per-result page-content addon for search (includeContent) and the
   // standalone /contents endpoint. Native fetch has ~zero marginal cost.

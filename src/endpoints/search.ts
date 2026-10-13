@@ -361,8 +361,8 @@ export const SEARCH_ENDPOINTS = [
         mcpTool: "search_trends",
         latency: "1-3 seconds",
         previewSummary: "Interest-over-time timeline for a topic.",
-        description: "Google Trends interest-over-time for a query. Returns a timeline of relative search interest.",
-        catalogTags: SEARCH_TAGS,
+        description: "Google Trends interest over time for a topic, worldwide: a timeline of relative search interest per period (0-100, where 100 is the topic's peak). Use it to see whether interest in a product, technology, brand or keyword is rising, falling or seasonal.",
+        catalogTags: ["google trends", "trends", "search interest", "keyword research", "market research"],
         input: TrendsRequestSchema,
         inputExample: { query: "cloudflare workers" },
         outputExample: {
