@@ -29,6 +29,7 @@ export interface Env {
   MONITOR?: KVNamespace; // Cloudflare KV for URL monitors
   CREDIT_MANAGER?: DurableObjectNamespace;
   MONITOR_SCHEDULER?: DurableObjectNamespace; // Durable Object for monitor scheduling
+  PAYMENT_EVENTS: AnalyticsEngineDataset; // Payment funnel events (services/payment-telemetry.ts)
   // Optional API keys
   SERP_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;

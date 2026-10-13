@@ -11,6 +11,17 @@ import { paymentMiddleware } from "@x402/hono";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import type { Context, MiddlewareHandler } from "hono";
 import { EVM_ONLY_PAID_PATHS, evmNetwork, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork, tagsForPath } from "../config";
+import {
+    classifyPaymentRequest,
+    emitPaymentEvent,
+    noteCanceled,
+    noteSettled,
+    noteSettleFailure,
+    noteVerifyError,
+    noteVerifyResult,
+    runPaymentAttempt,
+    TrackedFacilitatorClient,
+} from "../services/payment-telemetry";
 import type { Env, Variables } from "../types";
 import { createLogger } from "../utils/logger";
 
@@ -127,19 +138,21 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     //     for the "exact" scheme. CDP is kept as fallback for any schemes
     //     PayAI doesn't advertise via /supported.
     //   - otherwise → PayAI only
-    let facilitatorClients: HTTPFacilitatorClient[];
+    // Each client is wrapped so the payment telemetry records which
+    // facilitator verified/settled a given request.
+    let facilitatorClients: TrackedFacilitatorClient[];
     let facilitatorLabel: string;
 
     if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
         const url = env.FACILITATOR_URL ?? "https://x402.org/facilitator";
-        facilitatorClients = [new HTTPFacilitatorClient({ url })];
+        facilitatorClients = [new TrackedFacilitatorClient("x402.org", new HTTPFacilitatorClient({ url }))];
         facilitatorLabel = `testnet (${url})`;
     } else if (env.CDP_API_KEY_ID && env.CDP_API_KEY_SECRET) {
         const payaiUrl = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
-        const payaiClient = new HTTPFacilitatorClient({ url: payaiUrl });
-        const cdpClient = new HTTPFacilitatorClient(
+        const payaiClient = new TrackedFacilitatorClient("payai", new HTTPFacilitatorClient({ url: payaiUrl }));
+        const cdpClient = new TrackedFacilitatorClient("cdp", new HTTPFacilitatorClient(
             createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)
-        );
+        ));
         // PayAI first = gets precedence for shared scheme/network combos.
         // x402ResourceServer uses "earlier facilitator wins" during initialize().
         //
@@ -155,7 +168,7 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
             : `payai (primary) + cdp (fallback)`;
     } else {
         const url = env.PAYAI_FACILITATOR_URL ?? "https://facilitator.payai.network";
-        facilitatorClients = [new HTTPFacilitatorClient({ url })];
+        facilitatorClients = [new TrackedFacilitatorClient("payai", new HTTPFacilitatorClient({ url }))];
         facilitatorLabel = `payai (${url})`;
     }
 
@@ -173,33 +186,33 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     }
     server.registerExtension(bazaarResourceServerExtension);
 
-    // Visibility hooks: without these, every verify or settle failure returns
-    // a generic 402 with no log line. Hook context contains paymentPayload,
-    // requirements, and error.
-    // The hook signatures require Promise<void | { recovered, result }>, so
-    // these intentionally return a resolved promise without awaiting anything.
+    // Lifecycle hooks record into the request's PaymentAttempt; the payment
+    // middleware turns it into exactly one funnel event per request. A
+    // facilitator rejection (HTTP 200, isValid:false) never reaches
+    // onVerifyFailure — it arrives as a normal verify result — so onAfterVerify
+    // is what makes rejected payments visible. The signatures require a
+    // Promise, so each hook returns a resolved one without awaiting anything.
+    server.onAfterVerify((ctx) => {
+        noteVerifyResult(ctx.requirements, ctx.result);
+        return Promise.resolve();
+    });
     server.onVerifyFailure((ctx) => {
-        const payload = ctx.paymentPayload as { scheme?: string; network?: string } | undefined;
-        const reqs = ctx.requirements as { payTo?: string; amount?: string } | undefined;
-        log.error("x402.verify_failure", {
-            scheme: payload?.scheme,
-            network: payload?.network,
-            payTo: reqs?.payTo,
-            amount: reqs?.amount,
-            error: ctx.error.message,
-        });
+        noteVerifyError(ctx.requirements, ctx.error);
+        return Promise.resolve();
+    });
+    server.onAfterSettle((ctx) => {
+        // A "cancel"-phase settle is a refund, not a sale.
+        if (ctx.phase !== "cancel") {
+            noteSettled(ctx.requirements, ctx.result);
+        }
         return Promise.resolve();
     });
     server.onSettleFailure((ctx) => {
-        const payload = ctx.paymentPayload as { scheme?: string; network?: string } | undefined;
-        const reqs = ctx.requirements as { payTo?: string; amount?: string } | undefined;
-        log.error("x402.settle_failure", {
-            scheme: payload?.scheme,
-            network: payload?.network,
-            payTo: reqs?.payTo,
-            amount: reqs?.amount,
-            error: ctx.error.message,
-        });
+        noteSettleFailure(ctx.requirements, ctx.error);
+        return Promise.resolve();
+    });
+    server.onVerifiedPaymentCanceled((ctx) => {
+        noteCanceled(ctx.requirements, ctx.reason, ctx.responseStatus);
         return Promise.resolve();
     });
 
@@ -439,51 +452,71 @@ export function createLazyPaymentMiddleware(
             return { response, wallFailed: !state.reachedHandler && status >= 500 };
         };
 
-        const first = await run(middleware);
-        if (!first.wallFailed) {
-            return first.response;
-        }
+        const paymentSignature = c.req.header("payment-signature");
+        const v1Payment = c.req.header("x-payment");
 
-        // The wall failed before the handler. The cause we actually see in
-        // production is a facilitator whose /supported response omitted our
-        // scheme/network: `initialize()` then resolves "successfully" with no
-        // supported kind, @x402/hono latches `isInitialized = true` for the
-        // life of that closure, and every later request throws out of
-        // buildPaymentRequirements. A momentary facilitator blip therefore
-        // poisons the isolate until it is recycled, turning 402 challenges
-        // into 500s. Drop the caches so the next request re-syncs /supported.
-        evictPaymentCaches(env);
-        c.get("log").error("x402.wall_failure", { path, price });
-
-        // Retry once only when no payment was attached. Re-running the wall
-        // re-runs verification, and re-verifying a payment that may already
-        // have settled risks charging twice; building a bare 402 challenge
-        // moves no money, so retrying that is free — and with zero payment
-        // attempts in production, that is every failure observed here.
-        const paymentAttached = Boolean(
-            c.req.header("payment-signature") ?? c.req.header("x-payment")
-        );
-        if (!paymentAttached) {
-            const retry = await run(build());
-            if (!retry.wallFailed) {
-                return retry.response;
+        const payThroughWall = async (): Promise<{ response: Response | undefined; wallUnavailable: boolean }> => {
+            const first = await run(middleware);
+            if (!first.wallFailed) {
+                return { response: first.response, wallUnavailable: false };
             }
-        }
 
-        // Still failing: answer in the standard envelope. @x402/hono's own
-        // body is `{"error":"Internal Server Error"}`, which carries no code
-        // and no requestId, and 500 tells a caller nothing useful — this is a
-        // transient upstream condition, so 503 + retryAfter is the honest code.
-        return c.json(
-            {
-                error: "SERVICE_UNAVAILABLE",
-                code: "SERVICE_UNAVAILABLE",
-                message:
-                    "The payment facilitator is not currently advertising support for this network, so a payment challenge could not be issued. Retry shortly.",
-                requestId: c.get("requestId"),
-                retryAfter: 5,
-            },
-            503
-        );
+            // The wall failed before the handler. The cause we actually see in
+            // production is a facilitator whose /supported response omitted our
+            // scheme/network: `initialize()` then resolves "successfully" with no
+            // supported kind, @x402/hono latches `isInitialized = true` for the
+            // life of that closure, and every later request throws out of
+            // buildPaymentRequirements. A momentary facilitator blip therefore
+            // poisons the isolate until it is recycled, turning 402 challenges
+            // into 500s. Drop the caches so the next request re-syncs /supported.
+            evictPaymentCaches(env);
+            c.get("log").warn("x402.wall_failure", { path, price });
+
+            // Retry once only when no payment was attached. Re-running the wall
+            // re-runs verification, and re-verifying a payment that may already
+            // have settled risks charging twice; building a bare 402 challenge
+            // moves no money, so retrying that is free.
+            if (!paymentSignature && !v1Payment) {
+                const retry = await run(build());
+                if (!retry.wallFailed) {
+                    return { response: retry.response, wallUnavailable: false };
+                }
+            }
+
+            // Still failing: answer in the standard envelope. @x402/hono's own
+            // body is `{"error":"Internal Server Error"}`, which carries no code
+            // and no requestId, and 500 tells a caller nothing useful — this is a
+            // transient upstream condition, so 503 + retryAfter is the honest code.
+            const unavailable = c.json(
+                {
+                    error: "SERVICE_UNAVAILABLE",
+                    code: "SERVICE_UNAVAILABLE",
+                    message:
+                        "The payment facilitator is not currently advertising support for this network, so a payment challenge could not be issued. Retry shortly.",
+                    requestId: c.get("requestId"),
+                    retryAfter: 5,
+                },
+                503
+            );
+            return { response: unavailable, wallUnavailable: true };
+        };
+
+        // Run the wall inside a payment-attempt scope so the x402 hooks can
+        // record what happened, then emit exactly one funnel event.
+        const startedAt = Date.now();
+        const { result: outcome, attempt } = await runPaymentAttempt(payThroughWall);
+        const final = outcome.response ?? c.res;
+        emitPaymentEvent(env.PAYMENT_EVENTS, c.get("log"), classifyPaymentRequest({
+            route: path,
+            requestId: c.get("requestId"),
+            status: final.status,
+            paymentSignature,
+            v1Payment,
+            paymentRequired: final.headers.get("PAYMENT-REQUIRED"),
+            paymentResponse: final.headers.get("PAYMENT-RESPONSE"),
+            wallUnavailable: outcome.wallUnavailable,
+            latencyMs: Date.now() - startedAt,
+        }, attempt));
+        return outcome.response;
     };
 }

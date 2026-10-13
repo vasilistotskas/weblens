@@ -417,6 +417,17 @@ export function supportedNetworkNames(env: NetworkEnv): string {
 }
 
 /**
+ * Analytics Engine dataset names behind the PAYMENT_EVENTS binding, per
+ * wrangler environment. wrangler.toml must declare exactly these
+ * (tests/unit/payment-events-dataset.test.ts); scripts/payment-funnel.ts reads
+ * them from here.
+ */
+export const PAYMENT_EVENTS_DATASETS = {
+  production: "weblens_payment_events",
+  testnet: "weblens_payment_events_testnet",
+} as const;
+
+/**
  * Upstream APIs that bill us per call. Free routes must never reach these
  * (tests/workers/free-routes-cost.test.ts derives its forbidden hosts from
  * this map), and every paid route that uses one must clear its cost floor.

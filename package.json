@@ -27,6 +27,7 @@
     "lint:fix": "eslint src scripts --fix",
     "verify-bazaar": "npx tsx scripts/verify-bazaar.ts",
     "bootstrap-payment": "npx tsx scripts/bootstrap-payment.ts",
+    "funnel": "npx tsx scripts/payment-funnel.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
   },
   "dependencies": {

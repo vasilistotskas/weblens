@@ -108,6 +108,13 @@ new_sqlite_classes = ["CreditAccountDO"]
 [browser]
 binding = "BROWSER"
 
+# Payment funnel events (src/services/payment-telemetry.ts): one data point per
+# paid-route request, unsampled, 3-month retention. Queried by
+# scripts/payment-funnel.ts through the Analytics Engine SQL API.
+[[analytics_engine_datasets]]
+binding = "PAYMENT_EVENTS"
+dataset = "weblens_payment_events"
+
 # ============================================
 # Secrets (set via `wrangler secret put` or Cloudflare dashboard)
 # ============================================
@@ -195,6 +202,10 @@ PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
 
 [env.testnet.browser]
 binding = "BROWSER"
+
+[[env.testnet.analytics_engine_datasets]]
+binding = "PAYMENT_EVENTS"
+dataset = "weblens_payment_events_testnet"
 
 [env.testnet.observability]
 enabled = true
