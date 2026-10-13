@@ -180,7 +180,7 @@ export function noteCanceled(requirements: Readonly<PaymentRequirements>, reason
  * Facilitator client that records which facilitator handled the request.
  * Delegates everything; `@x402/core` only ever calls these three methods.
  */
-/** The facilitators WebLens can settle through (facilitatorEntries in middleware/payment.ts). */
+/** The facilitators WebLens can settle through (facilitatorPlans in middleware/payment.ts). */
 export type FacilitatorLabel = "payai" | "cdp" | "x402.org";
 
 export class TrackedFacilitatorClient implements FacilitatorClient {

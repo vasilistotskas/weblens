@@ -325,10 +325,10 @@ export const FREE_TIER = {
 // Default facilitator base URLs; `PAYAI_FACILITATOR_URL` / `FACILITATOR_URL`
 // override them. CDP's URL comes from `@coinbase/x402`'s facilitator config.
 //
-// Facilitator selection is NOT configured here — it happens at runtime in
-// src/middleware/payment.ts based on env vars (NETWORK, CDP_API_KEY_ID,
-// CDP_API_KEY_SECRET, FACILITATOR_URL, PAYAI_FACILITATOR_URL). See
-// facilitatorEntries() in payment.ts for the full branch logic.
+// Facilitator selection is NOT configured here — facilitatorPlans() in
+// src/middleware/payment.ts reads the order from FACILITATORS_EVM /
+// FACILITATORS_SVM and each facilitator's credentials and URL overrides
+// (CDP_API_KEY_*, PAYAI_API_KEY_*, FACILITATOR_URL, PAYAI_FACILITATOR_URL).
 export const FACILITATOR_URLS = {
   payai: "https://facilitator.payai.network",
   testnet: "https://x402.org/facilitator",

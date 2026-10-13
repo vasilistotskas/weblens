@@ -9,6 +9,8 @@ import { ExactSvmScheme } from "@x402/svm/exact/server";
 import type { Context, MiddlewareHandler } from "hono";
 import { evmNetwork, FACILITATOR_URLS, SERVICE_ICON_PATH, SERVICE_NAME, svmNetwork } from "../config";
 import type { JsonObjectSchema } from "../endpoints/define";
+import { FacilitatorChain, parseFacilitatorOrder } from "../services/facilitator-chain";
+import type { NetworkFamily } from "../services/facilitator-chain";
 import { payaiAuthHeaders } from "../services/payai-auth";
 import {
     classifyPaymentRequest,
@@ -69,31 +71,6 @@ export function catalogIconUrl(requestUrl: string): string {
     return url.toString();
 }
 
-/**
- * Constant-time string compare. Used for the bootstrap header so a wrong
- * secret cannot be recovered by timing the 402 path.
- */
-function secretsMatch(a: string, b: string): boolean {
-    if (a.length !== b.length) {return false;}
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) {
-        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-    }
-    return diff === 0;
-}
-
-/**
- * True when this request asked to settle through the CDP facilitator instead
- * of PayAI. Fails closed: with no `BAZAAR_BOOTSTRAP_SECRET` configured the
- * header is ignored entirely, so the CDP-primary path cannot be reached from
- * the internet. Used only to seed CDP Bazaar listings (see getResourceServer).
- */
-export function wantsCdpBootstrap(env: Env, header: string | undefined): boolean {
-    const secret = env.BAZAAR_BOOTSTRAP_SECRET;
-    if (!secret || !header) {return false;}
-    return secretsMatch(header, secret);
-}
-
 function envSignature(env: Env): string {
     return [
         env.NETWORK ?? "base",
@@ -103,6 +80,8 @@ function envSignature(env: Env): string {
         env.PAYAI_FACILITATOR_URL ?? "",
         env.PAYAI_API_KEY_ID ?? "",
         fingerprint(env.PAYAI_API_KEY_SECRET),
+        env.FACILITATORS_EVM ?? "",
+        env.FACILITATORS_SVM ?? "",
         // Decides whether the SVM scheme is registered at all, so turning
         // Solana on or off must rebuild the server rather than wait for the
         // isolate to be recycled.
@@ -129,42 +108,58 @@ function payaiConfig(env: Env): FacilitatorConfig {
     return { url };
 }
 
-/**
- * The facilitators this env settles through, in precedence order —
- * x402ResourceServer gives the earlier facilitator a shared scheme/network
- * combo during initialize():
- *   - testnet env or explicit x402.org URL → x402.org facilitator (single)
- *   - CDP keys present → [PayAI, CDP]. CDP's Base-mainnet /settle has failed
- *     intermittently (coinbase/x402#1065), and it rejects payments below a
- *     minimum as `amount_too_low` (measured 2026-10-13: a cache-discounted
- *     $0.0006 was rejected, $0.0015 and $0.002 settled), so CDP is kept as the
- *     fallback for any scheme PayAI doesn't advertise via /supported.
- *   - otherwise → PayAI only
- *
- * `preferCdp` puts CDP first for one request only (see the bootstrap header in
- * createLazyPaymentMiddleware). CDP's Bazaar indexes a resource only after the
- * CDP facilitator itself settles a payment for it, and indexing is
- * per-resource — so a listing can only be seeded by routing a real payment
- * through CDP.
- */
-export function facilitatorEntries(env: Env, preferCdp = false): [FacilitatorEntry, ...FacilitatorEntry[]] {
-    if (env.NETWORK === "base-sepolia" || env.FACILITATOR_URL?.includes("x402.org")) {
-        return [{ label: "x402.org", client: new HTTPFacilitatorClient({ url: env.FACILITATOR_URL ?? FACILITATOR_URLS.testnet }) }];
-    }
-    const payai: FacilitatorEntry = { label: "payai", client: new HTTPFacilitatorClient(payaiConfig(env)) };
-    if (!env.CDP_API_KEY_ID || !env.CDP_API_KEY_SECRET) {
-        return [payai];
-    }
-    const cdp: FacilitatorEntry = {
-        label: "cdp",
-        client: new HTTPFacilitatorClient(createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)),
-    };
-    return preferCdp ? [cdp, payai] : [payai, cdp];
+/** The facilitators one network family settles through, in the order they are tried. */
+export interface FacilitatorPlan {
+    family: NetworkFamily;
+    facilitators: [FacilitatorEntry, ...FacilitatorEntry[]];
 }
 
-/** The facilitators as discovery documents name them: precedence order joined by "+", e.g. "payai+cdp". */
+function facilitatorEntry(env: Env, label: FacilitatorLabel): FacilitatorEntry {
+    switch (label) {
+        case "payai":
+            return { label, client: new HTTPFacilitatorClient(payaiConfig(env)) };
+        case "cdp":
+            if (!env.CDP_API_KEY_ID || !env.CDP_API_KEY_SECRET) {
+                throw new Error("cdp is a configured facilitator but CDP_API_KEY_ID / CDP_API_KEY_SECRET are not set");
+            }
+            return { label, client: new HTTPFacilitatorClient(createFacilitatorConfig(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET)) };
+        case "x402.org":
+            return { label, client: new HTTPFacilitatorClient({ url: env.FACILITATOR_URL ?? FACILITATOR_URLS.testnet }) };
+    }
+}
+
+/**
+ * The facilitators each network family settles through, from config:
+ * `FACILITATORS_EVM` always, `FACILITATORS_SVM` when Solana is live (see
+ * svmNetwork). Production tries CDP first on Base: the CDP Bazaar indexes and
+ * ranks a route only by payments the CDP facilitator settled, and CDP carries
+ * most x402 buyers. PayAI takes over a Base payment CDP fails on (CDP's Base
+ * /settle has failed intermittently, coinbase/x402#1065). Solana stays on
+ * PayAI alone: its fee payer is part of the quote (FacilitatorChain).
+ */
+export function facilitatorPlans(env: Env): FacilitatorPlan[] {
+    const plan = (family: NetworkFamily, order: string | undefined): FacilitatorPlan => {
+        const [first, ...rest] = parseFacilitatorOrder(family, order);
+        return { family, facilitators: [facilitatorEntry(env, first), ...rest.map((label) => facilitatorEntry(env, label))] };
+    };
+    return [
+        plan("eip155", env.FACILITATORS_EVM),
+        ...(svmNetwork(env) ? [plan("solana", env.FACILITATORS_SVM)] : []),
+    ];
+}
+
+/** Every facilitator in use, once each, in the order the plans first try them. */
+export function distinctFacilitators(plans: readonly FacilitatorPlan[]): FacilitatorEntry[] {
+    const seen = new Map<FacilitatorLabel, FacilitatorEntry>();
+    for (const entry of plans.flatMap((plan) => plan.facilitators)) {
+        if (!seen.has(entry.label)) { seen.set(entry.label, entry); }
+    }
+    return [...seen.values()];
+}
+
+/** The facilitators as discovery documents name them, joined by "+", e.g. "cdp+payai". */
 export function facilitatorNames(env: Env): string {
-    return facilitatorEntries(env).map(({ label }) => label).join("+");
+    return distinctFacilitators(facilitatorPlans(env)).map(({ label }) => label).join("+");
 }
 
 /**
@@ -172,8 +167,8 @@ export function facilitatorNames(env: Env): string {
  * signature so the cost of `httpServer.initialize()` (one network call to
  * `/supported`) is paid once per distinct facilitator config, not per request.
  */
-function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
-    const key = preferCdp ? `${envSignature(env)}|cdp-primary` : envSignature(env);
+function getResourceServer(env: Env): x402ResourceServer {
+    const key = envSignature(env);
     const cached = resourceServerCache.get(key);
     if (cached) {return cached;}
 
@@ -184,10 +179,12 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     const evmCaip2 = evmNetwork(env);
     const svmCaip2 = svmNetwork(env);
 
-    // Each client is wrapped so the payment telemetry records which
-    // facilitator verified/settled a given request.
-    const facilitators = facilitatorEntries(env, preferCdp);
-    const server = new x402ResourceServer(facilitators.map(({ label, client }) => new TrackedFacilitatorClient(label, client)));
+    // One chain per network family. Each facilitator is wrapped so the payment
+    // telemetry records which one verified/settled a given request.
+    const plans = facilitatorPlans(env);
+    const tracked = ({ label, client }: FacilitatorEntry) => new TrackedFacilitatorClient(label, client);
+    const server = new x402ResourceServer(plans.map(({ family, facilitators: [first, ...rest] }) =>
+        new FacilitatorChain(family, [tracked(first), ...rest.map(tracked)], log)));
     server.register(evmCaip2, new ExactEvmScheme());
     // Solana settles a plain SPL TransferChecked, with transaction fees paid
     // by a facilitator-sponsored feePayer that arrives in the supported-kind
@@ -236,8 +233,8 @@ function getResourceServer(env: Env, preferCdp = false): x402ResourceServer {
     log.info("x402.init_ready", {
         network: evmCaip2,
         svmNetwork: svmCaip2 ?? "disabled",
-        // Precedence order, e.g. "payai > cdp".
-        facilitators: facilitators.map(({ label }) => label).join(" > "),
+        // Order tried per family, e.g. "eip155: cdp > payai; solana: payai".
+        facilitators: plans.map(({ family, facilitators }) => `${family}: ${facilitators.map(({ label }) => label).join(" > ")}`).join("; "),
         payaiApiKey: Boolean(env.PAYAI_API_KEY_ID && env.PAYAI_API_KEY_SECRET),
     });
 
@@ -377,12 +374,6 @@ export function createLazyPaymentMiddleware(
         const isStatic = typeof priceOrCalculator === "string";
         const price = isStatic ? priceOrCalculator : await priceOrCalculator(c);
 
-        // Opt-in, per-request CDP settlement for seeding Bazaar listings.
-        const preferCdp = wantsCdpBootstrap(env, c.req.header("X-Bazaar-Bootstrap"));
-        if (preferCdp) {
-            c.get("log").info("x402.bootstrap_facilitator", { path, facilitator: "cdp" });
-        }
-
         // Catalog metadata. iconUrl tracks the serving origin so testnet and
         // production each advertise their own reachable icon.
         const catalog = {
@@ -394,8 +385,8 @@ export function createLazyPaymentMiddleware(
         // Static pricing → cacheable. Dynamic pricing recomputes per request
         // so the middleware instance is rebuilt each time (cheap; the
         // expensive `/supported` init lives on the cached resourceServer).
-        // The cache key includes a fingerprint of the CDP secret so a secret
-        // rotation invalidates the cache even if the key ID stays the same.
+        // The cache key carries the env signature (credentials and facilitator
+        // order), so a rotation or reorder rebuilds the middleware.
         const cacheKey = isStatic
             ? [
                 path,
@@ -405,11 +396,7 @@ export function createLazyPaymentMiddleware(
                 // The advertised accepts list changes with this, so a stale
                 // entry would keep offering (or withholding) Solana.
                 svmTarget ? `${svmTarget.network}|${svmTarget.payTo}` : "",
-                env.CDP_API_KEY_ID ?? "",
-                fingerprint(env.CDP_API_KEY_SECRET),
-                // A bootstrap request must not populate (or read) the cache
-                // entry the normal PayAI-primary path uses.
-                preferCdp ? "cdp-primary" : "",
+                envSignature(env),
                 catalog.iconUrl,
             ].join("|")
             : null;
@@ -423,7 +410,7 @@ export function createLazyPaymentMiddleware(
                 svmTarget,
                 catalog
             );
-            return paymentMiddleware(config, getResourceServer(env, preferCdp)) as MiddlewareHandler<AppEnv>;
+            return paymentMiddleware(config, getResourceServer(env)) as MiddlewareHandler<AppEnv>;
         };
 
         let middleware = cacheKey ? middlewareCache.get(cacheKey) : undefined;

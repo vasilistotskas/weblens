@@ -46,6 +46,12 @@ PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
 # EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v. Never close that token account
 # in the wallet: Solana payments would fail to settle until it is re-created.
 PAY_TO_ADDRESS_SVM = "34sd6wPrmoR9UG9rUgYAFtcWYSVzqDNsvH9VkCkycUeb"
+# Facilitators per network family, tried in order (src/services/facilitator-chain.ts).
+# Base: CDP first, because the CDP Bazaar indexes and ranks a route only by
+# payments the CDP facilitator settled; PayAI takes over a payment CDP fails on.
+# Solana: PayAI only, since its fee payer is part of the quote.
+FACILITATORS_EVM = "cdp,payai"
+FACILITATORS_SVM = "payai"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
 # Do NOT add API keys here — they will be committed to version control
 
@@ -173,6 +179,8 @@ NETWORK = "base-sepolia"
 LOG_LEVEL = "info"
 # Payment receiving address (use same or different for testing)
 PAY_TO_ADDRESS = "0x5f71Ce4135004b5fa4dF81014721598E1C7c5AF8"
+FACILITATORS_EVM = "x402.org"
+FACILITATORS_SVM = "payai"
 # Blank keeps Solana devnet unadvertised: the payout address has no devnet
 # USDC account, and a destination without one cannot receive a settlement
 # (see PAY_TO_ADDRESS_SVM in the top-level [vars]).

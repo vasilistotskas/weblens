@@ -8,7 +8,7 @@
 
 import type { Context } from "hono";
 import { SERVICE_VERSION } from "../config";
-import { facilitatorEntries } from "../middleware/payment";
+import { distinctFacilitators, facilitatorPlans } from "../middleware/payment";
 import type { FacilitatorEntry } from "../middleware/payment";
 import type { FacilitatorLabel } from "../services/payment-telemetry";
 import type { AppEnv, HealthResponse, ServiceStatus } from "../types";
@@ -99,17 +99,14 @@ async function checkFacilitatorHealth(url: string): Promise<ServiceStatus> {
 
 /**
  * Determine overall system status. Any service that is not healthy degrades
- * the system; an unhealthy critical service (the cache, or the facilitator
- * that settles payments first) makes it unhealthy.
+ * the system; it is unhealthy only when the cache is down or a network family
+ * has no reachable facilitator left to settle its payments.
  */
-function getOverallStatus(all: ServiceStatus[], critical: ServiceStatus[]): HealthResponse["status"] {
+function getOverallStatus(all: ServiceStatus[], criticalDown: boolean): HealthResponse["status"] {
   if (all.every((s) => s.status === "healthy")) {
     return "healthy";
   }
-  if (critical.some((s) => s.status === "unhealthy")) {
-    return "unhealthy";
-  }
-  return "degraded";
+  return criticalDown ? "unhealthy" : "degraded";
 }
 
 /** Probe one facilitator, keyed by its name for the response. */
@@ -121,18 +118,20 @@ async function probeFacilitator({ label, client }: FacilitatorEntry): Promise<[F
  * Health check endpoint handler
  * GET /health
  *
- * Reports every facilitator the payment wall uses, from the same selection
- * logic (facilitatorEntries), with the primary one counted as critical.
+ * Reports every facilitator the payment wall uses, from the same plans
+ * (facilitatorPlans). A family still takes payments while any facilitator in
+ * its chain is reachable.
  */
 export async function health(c: Context<AppEnv>): Promise<Response> {
   const browserStatus = checkBrowserHealth(c.env.BROWSER);
-  const [primary, ...fallbacks] = facilitatorEntries(c.env);
-  const [cacheStatus, primaryCheck, fallbackChecks] = await Promise.all([
+  const plans = facilitatorPlans(c.env);
+  const [cacheStatus, facilitatorChecks] = await Promise.all([
     checkCacheHealth(c.env.CACHE),
-    probeFacilitator(primary),
-    Promise.all(fallbacks.map(probeFacilitator)),
+    Promise.all(distinctFacilitators(plans).map(probeFacilitator)),
   ]);
-  const facilitatorChecks = [primaryCheck, ...fallbackChecks];
+  const statusOf = new Map(facilitatorChecks);
+  const familyDown = plans.some(({ facilitators }) =>
+    facilitators.every(({ label }) => statusOf.get(label)?.status === "unhealthy"));
 
   const services: HealthResponse["services"] = {
     cache: cacheStatus,
@@ -143,7 +142,7 @@ export async function health(c: Context<AppEnv>): Promise<Response> {
   const response: HealthResponse = {
     status: getOverallStatus(
       [cacheStatus, browserStatus, ...facilitatorChecks.map(([, status]) => status)],
-      [cacheStatus, primaryCheck[1]],
+      cacheStatus.status === "unhealthy" || familyDown,
     ),
     version: SERVICE_VERSION,
     timestamp: new Date().toISOString(),

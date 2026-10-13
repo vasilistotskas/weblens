@@ -58,6 +58,7 @@ describe('Payment Flow Integration', () => {
             headers: { 'Content-Type': 'application/json' }
         }, {
             NETWORK: "base-sepolia",
+            FACILITATORS_EVM: "x402.org",
             CDP_API_KEY_ID: "test",
             CDP_API_KEY_SECRET: "test",
             PAY_TO_ADDRESS: "0x123",
@@ -82,6 +83,7 @@ describe('Payment Flow Integration', () => {
             headers: { 'Content-Type': 'application/json' }
         }, {
             NETWORK: "base-sepolia",
+            FACILITATORS_EVM: "x402.org",
             CDP_API_KEY_ID: "test",
             CDP_API_KEY_SECRET: "test",
             PAY_TO_ADDRESS: "0x123",

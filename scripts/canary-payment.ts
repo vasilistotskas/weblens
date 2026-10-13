@@ -1,24 +1,20 @@
 /**
  * Canary payments: settle real x402 payments against the live API, on a
- * chosen network, through a chosen facilitator path, and report what happened.
+ * chosen network, through the production facilitator path, and report what
+ * happened.
  *
  * Three jobs, one tool:
  *   1. Prove a payment path works end-to-end. A settle path nobody has
  *      exercised (Solana, until this script) fails silently from the outside:
  *      buyers get an error and leave, which looks exactly like no demand.
- *   2. Measure facilitator reliability (settled / attempted per facilitator),
- *      which decides the facilitator order in production.
+ *   2. Measure settle reliability. Base settles through CDP first and falls
+ *      back to PayAI (FACILITATORS_EVM); `pnpm run funnel` shows which
+ *      facilitator settled each payment, and `facilitator.fallback` log lines
+ *      show every CDP failure the fallback absorbed.
  *   3. Seed catalog listings. A catalog record is written by whichever
  *      facilitator settles the payment, and the CDP Bazaar indexes a route only
  *      after the CDP facilitator itself settles a payment for it
  *      (https://docs.cdp.coinbase.com/x402/seller/get-discovered).
- *
- * Paths (FACILITATOR):
- *   normal   (default) the request takes the production path — whatever
- *            facilitator the Worker prefers for that network.
- *   cdp      sends `X-Bazaar-Bootstrap: $BAZAAR_BOOTSTRAP_SECRET`, which makes
- *            that one request CDP-primary (see wantsCdpBootstrap); other
- *            buyers' traffic is unaffected.
  *
  * Networks (PAY_NETWORK):
  *   base     EVM_PRIVATE_KEY = 64-hex-character key (0x prefix optional; Phantom
@@ -43,7 +39,6 @@
  *
  * Options:
  *   PAY_NETWORK=base|solana   network to pay on (required)
- *   FACILITATOR=normal|cdp    facilitator path (default normal)
  *   ENDPOINTS=/a,/b           pay exactly these paths, ignoring MAX_PRICE
  *   MAX_PRICE=0.02            skip endpoints dearer than this, in USDC
  *   MAX_TOTAL=0.10            abort if the plan exceeds this total, in USDC
@@ -66,7 +61,6 @@ import { endpointForPath, EVM_ONLY_PAID_PATHS, PAID_ENDPOINTS } from "../src/end
 const CDP_VALIDATE = "https://api.cdp.coinbase.com/platform/v2/x402/validate";
 
 type PayNetwork = "base" | "solana";
-type FacilitatorPath = "normal" | "cdp";
 
 /** Mainnet CAIP-2 id each PAY_NETWORK pays on. */
 const CAIP2: Record<PayNetwork, string> = {
@@ -152,14 +146,6 @@ function parseNetwork(): PayNetwork {
     const value = required("PAY_NETWORK");
     if (value !== "base" && value !== "solana") {
         throw new Error(`PAY_NETWORK must be "base" or "solana", got "${value}"`);
-    }
-    return value;
-}
-
-function parseFacilitator(): FacilitatorPath {
-    const value = process.env.FACILITATOR ?? "normal";
-    if (value !== "normal" && value !== "cdp") {
-        throw new Error(`FACILITATOR must be "normal" or "cdp", got "${value}"`);
     }
     return value;
 }
@@ -263,7 +249,6 @@ async function pay(
     apiUrl: string,
     plan: Plan,
     payer: Payer,
-    bootstrapSecret: string | undefined,
     retries: number,
 ): Promise<{ ok: boolean; tx?: string; detail?: string; attempts: number }> {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -272,9 +257,7 @@ async function pay(
         payer.register(client);
         const http = wrapAxiosWithPayment(axios.create({ baseURL: apiUrl, timeout: 120000 }), client);
         try {
-            const res = await http.post(plan.path, plan.body, {
-                headers: bootstrapSecret ? { "X-Bazaar-Bootstrap": bootstrapSecret } : {},
-            });
+            const res = await http.post(plan.path, plan.body);
             const receipt = decodeB64Json((res.headers["payment-response"] as string | undefined) ?? "") as PaymentReceipt | null;
             if (receipt?.success === true) {
                 return { ok: true, tx: receipt.transaction, attempts: attempt };
@@ -316,8 +299,6 @@ async function cdpIndexState(resource: string): Promise<string> {
 
 async function run(): Promise<void> {
     const network = parseNetwork();
-    const facilitator = parseFacilitator();
-    const bootstrapSecret = facilitator === "cdp" ? required("BAZAAR_BOOTSTRAP_SECRET") : undefined;
     const apiUrl = process.env.API_URL ?? "https://api.weblens.dev";
     const confirmed = process.env.CONFIRM === "yes";
     const retries = Number(process.env.RETRIES ?? 2);
@@ -336,7 +317,6 @@ async function run(): Promise<void> {
     console.log("  WebLens canary payments");
     console.log("━".repeat(64));
     console.log(`  Network:     ${network} (${caip2})`);
-    console.log(`  Facilitator: ${facilitator === "cdp" ? "CDP (bootstrap header)" : "normal production path"}`);
     console.log(`  API:         ${apiUrl}`);
     console.log(`  Payer:       ${payer.address}   ← pass to \`pnpm run funnel\` as EXCLUDE_PAYERS`);
     console.log(`  Mode:        ${confirmed ? "PAY (CONFIRM=yes)" : "PLAN ONLY — set CONFIRM=yes to pay"}`);
@@ -375,7 +355,7 @@ async function run(): Promise<void> {
     const results: { path: string; ok: boolean; tx?: string; detail?: string; attempts: number }[] = [];
     for (const plan of plans) {
         console.log(`\n   → ${plan.path} (${usd(plan.amount)})`);
-        const r = await pay(apiUrl, plan, payer, bootstrapSecret, retries);
+        const r = await pay(apiUrl, plan, payer, retries);
         results.push({ path: plan.path, ...r });
         if (r.ok) {
             console.log(`      settled  ${r.tx ? EXPLORER_TX[network] + r.tx : "(no tx hash returned)"}`);
@@ -390,7 +370,8 @@ async function run(): Promise<void> {
     console.log(`  settled ${String(ok.length)}/${String(results.length)} endpoint(s) in ${String(attempts)} attempt(s), spent ${usd(ok.reduce((s, r) => s + (plans.find((p) => p.path === r.path)?.amount ?? 0), 0))}`);
     console.log("━".repeat(64));
 
-    if (ok.length > 0 && facilitator === "cdp") {
+    // Base payments settle through CDP first, which indexes the route.
+    if (ok.length > 0 && network === "base") {
         console.log("\nCDP index state (indexing is not instant; re-check in a few minutes):");
         for (const r of ok) {
             console.log(`   ${r.path.padEnd(30)} ${await cdpIndexState(`${apiUrl}${r.path}`)}`);

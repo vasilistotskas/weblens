@@ -43,12 +43,11 @@ export interface Env {
   // Set via: wrangler secret put PAYAI_API_KEY_ID / PAYAI_API_KEY_SECRET
   PAYAI_API_KEY_ID?: string;
   PAYAI_API_KEY_SECRET?: string;
-  // Seeds CDP Bazaar listings: a request carrying this secret in
-  // `X-Bazaar-Bootstrap` settles through the CDP facilitator instead of PayAI,
-  // which is the only way a resource enters CDP's catalog (indexing is
-  // per-resource and driven by CDP's own settles). Unset = feature off.
-  // Set via: wrangler secret put BAZAAR_BOOTSTRAP_SECRET
-  BAZAAR_BOOTSTRAP_SECRET?: string;
+  // Facilitators each network family settles through, in the order they are
+  // tried, comma-separated (cdp | payai | x402.org). Required; a Solana list
+  // holds exactly one (see services/facilitator-chain.ts).
+  FACILITATORS_EVM?: string;
+  FACILITATORS_SVM?: string;
   // Stripe fiat onramp — agents/devs without on-chain wallets can buy
   // credits via card. Webhook credits the wallet on `checkout.session.completed`.
   // Set via: wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET

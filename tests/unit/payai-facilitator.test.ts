@@ -2,17 +2,18 @@
  * PayAI authentication and facilitator selection.
  *
  * PayAI rejects a bad credential instead of downgrading to anonymous access
- * (docs.payai.network/x402/facilitators/authentication), and it is the
- * primary facilitator: a malformed token, or a key attached when only half of
- * it is configured, would fail every payment. /health reads the same
- * selection, so it reports the facilitators that actually settle, with the
- * primary one as critical.
+ * (docs.payai.network/x402/facilitators/authentication), and it settles every
+ * Solana payment and every Base payment CDP fails on: a malformed token, or a
+ * key attached when only half of it is configured, would fail those payments.
+ * /health reads the same plans, so it reports the facilitators that actually
+ * settle, and is down only when a network family has none left.
  */
 
 import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { facilitatorEntries, facilitatorNames } from "../../src/middleware/payment";
+import { distinctFacilitators, facilitatorNames, facilitatorPlans } from "../../src/middleware/payment";
+import type { FacilitatorEntry } from "../../src/middleware/payment";
 import { payaiAuthHeaders } from "../../src/services/payai-auth";
 import { health } from "../../src/tools/health";
 import type { AppEnv, Env, HealthResponse } from "../../src/types";
@@ -90,30 +91,48 @@ describe("payaiAuthHeaders", () => {
     });
 });
 
-describe("facilitatorEntries", () => {
-    const cdpKeys = { CDP_API_KEY_ID: "cdp-id", CDP_API_KEY_SECRET: "cdp-secret" };
+/** The production facilitator config (wrangler.toml [vars]) with stand-in CDP credentials. */
+const PRODUCTION: Partial<Env> = {
+    CDP_API_KEY_ID: "cdp-id",
+    CDP_API_KEY_SECRET: "cdp-secret",
+    FACILITATORS_EVM: "cdp,payai",
+    FACILITATORS_SVM: "payai",
+    PAY_TO_ADDRESS_SVM: "34sd6wPrmoR9UG9rUgYAFtcWYSVzqDNsvH9VkCkycUeb",
+};
 
-    it("puts PayAI first and CDP second when CDP keys are set", () => {
-        expect(facilitatorEntries(envWith(cdpKeys)).map((e) => e.label)).toEqual(["payai", "cdp"]);
+function payaiEntry(env: Env): FacilitatorEntry {
+    const entry = distinctFacilitators(facilitatorPlans(env)).find(({ label }) => label === "payai");
+    if (!entry) { throw new Error("no PayAI facilitator configured"); }
+    return entry;
+}
+
+describe("facilitatorPlans", () => {
+    const order = (env: Env) => facilitatorPlans(env).map(({ family, facilitators }) => [family, facilitators.map(({ label }) => label)]);
+
+    it("tries CDP then PayAI on Base, and PayAI alone on Solana", () => {
+        expect(order(envWith(PRODUCTION))).toEqual([["eip155", ["cdp", "payai"]], ["solana", ["payai"]]]);
     });
 
-    it("puts CDP first only for a bootstrap request", () => {
-        expect(facilitatorEntries(envWith(cdpKeys), true).map((e) => e.label)).toEqual(["cdp", "payai"]);
+    it("leaves Solana out when no Solana payout address is set", () => {
+        expect(order(envWith({ ...PRODUCTION, PAY_TO_ADDRESS_SVM: "" }))).toEqual([["eip155", ["cdp", "payai"]]]);
     });
 
-    it("uses PayAI alone without CDP keys, and x402.org alone on testnet", () => {
-        expect(facilitatorEntries(envWith({})).map((e) => e.label)).toEqual(["payai"]);
-        expect(facilitatorEntries(envWith({ ...cdpKeys, NETWORK: "base-sepolia" })).map((e) => e.label)).toEqual(["x402.org"]);
+    it("uses the facilitator the testnet config names", () => {
+        const testnet = { ...PRODUCTION, NETWORK: "base-sepolia", FACILITATORS_EVM: "x402.org", PAY_TO_ADDRESS_SVM: "" };
+        expect(order(envWith(testnet))).toEqual([["eip155", ["x402.org"]]]);
     });
 
-    it("names the facilitators for discovery documents in precedence order", () => {
-        expect(facilitatorNames(envWith(cdpKeys))).toBe("payai+cdp");
-        expect(facilitatorNames(envWith({ ...cdpKeys, NETWORK: "base-sepolia" }))).toBe("x402.org");
+    it("refuses CDP without its keys instead of skipping it", () => {
+        expect(() => facilitatorPlans(envWith({ ...PRODUCTION, CDP_API_KEY_SECRET: undefined }))).toThrow(/CDP_API_KEY/u);
+    });
+
+    it("names each facilitator once for discovery documents", () => {
+        expect(facilitatorNames(envWith(PRODUCTION))).toBe("cdp+payai");
     });
 
     it("authenticates PayAI verify and settle with the API key", async () => {
         const { secret, publicKey } = await payaiKey();
-        const [payai] = facilitatorEntries(envWith({ PAYAI_API_KEY_ID: KEY_ID, PAYAI_API_KEY_SECRET: secret }));
+        const payai = payaiEntry(envWith({ ...PRODUCTION, PAYAI_API_KEY_ID: KEY_ID, PAYAI_API_KEY_SECRET: secret }));
 
         for (const path of ["verify", "settle"]) {
             const token = bearer((await payai.client.createAuthHeaders(path)).headers);
@@ -124,8 +143,8 @@ describe("facilitatorEntries", () => {
 
     it("sends no credential when only half of the key is configured", async () => {
         const { secret } = await payaiKey();
-        for (const env of [{ PAYAI_API_KEY_ID: KEY_ID }, { PAYAI_API_KEY_SECRET: secret }]) {
-            const [payai] = facilitatorEntries(envWith(env));
+        for (const half of [{ PAYAI_API_KEY_ID: KEY_ID }, { PAYAI_API_KEY_SECRET: secret }]) {
+            const payai = payaiEntry(envWith({ ...PRODUCTION, ...half }));
             expect((await payai.client.createAuthHeaders("verify")).headers).toEqual({});
         }
     });
@@ -135,11 +154,12 @@ describe("/health facilitators", () => {
     afterEach(() => { vi.restoreAllMocks(); });
 
     const production = envWith({
-        CDP_API_KEY_ID: "cdp-id",
-        CDP_API_KEY_SECRET: "cdp-secret",
+        ...PRODUCTION,
         CACHE: { get: () => Promise.resolve(null) } as unknown as KVNamespace,
         BROWSER: {} as Fetcher,
     });
+    const CDP_HOST = "api.cdp.coinbase.com";
+    const PAYAI_HOST = "facilitator.payai.network";
 
     /** Answer facilitator probes, failing the hosts listed in `down`. */
     function facilitatorsReachable(down: string[] = []): void {
@@ -155,17 +175,17 @@ describe("/health facilitators", () => {
         return { status: res.status, body: await res.json() };
     }
 
-    it("reports the facilitators that settle, in precedence order", async () => {
+    it("reports each facilitator that settles, once", async () => {
         facilitatorsReachable();
         const { status, body } = await check(production);
 
         expect(status).toBe(200);
         expect(body.status).toBe("healthy");
-        expect(Object.keys(body.services.facilitators)).toEqual(["payai", "cdp"]);
+        expect(Object.keys(body.services.facilitators)).toEqual(["cdp", "payai"]);
     });
 
-    it("is degraded, not down, when only the fallback facilitator is unreachable", async () => {
-        facilitatorsReachable(["api.cdp.coinbase.com"]);
+    it("is degraded, not down, when CDP is unreachable: PayAI still settles Base", async () => {
+        facilitatorsReachable([CDP_HOST]);
         const { status, body } = await check(production);
 
         expect(status).toBe(200);
@@ -173,17 +193,32 @@ describe("/health facilitators", () => {
         expect(body.services.facilitators.cdp?.status).toBe("unhealthy");
     });
 
-    it("is down when the primary facilitator is unreachable", async () => {
-        facilitatorsReachable(["facilitator.payai.network"]);
+    it("is down when PayAI, Solana's only facilitator, is unreachable", async () => {
+        facilitatorsReachable([PAYAI_HOST]);
         const { status, body } = await check(production);
 
         expect(status).toBe(503);
         expect(body.status).toBe("unhealthy");
     });
 
+    it("is only degraded without PayAI when Solana is off, since CDP settles Base", async () => {
+        facilitatorsReachable([PAYAI_HOST]);
+        const { status, body } = await check(envWith({ ...production, PAY_TO_ADDRESS_SVM: "" }));
+
+        expect(status).toBe(200);
+        expect(body.status).toBe("degraded");
+    });
+
+    it("is down when every Base facilitator is unreachable", async () => {
+        facilitatorsReachable([CDP_HOST, PAYAI_HOST]);
+        const { status } = await check(envWith({ ...production, PAY_TO_ADDRESS_SVM: "" }));
+
+        expect(status).toBe(503);
+    });
+
     it("probes only the testnet facilitator on testnet", async () => {
         facilitatorsReachable();
-        const { body } = await check(envWith({ ...production, NETWORK: "base-sepolia" }));
+        const { body } = await check(envWith({ ...production, NETWORK: "base-sepolia", FACILITATORS_EVM: "x402.org", PAY_TO_ADDRESS_SVM: "" }));
 
         expect(Object.keys(body.services.facilitators)).toEqual(["x402.org"]);
     });
