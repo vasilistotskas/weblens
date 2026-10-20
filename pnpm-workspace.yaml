@@ -32,25 +32,25 @@ peerDependencyRules:
 # records the ones we've already accepted here. pnpm appends to this list itself.
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@4.20260526.1 || 5.20260814.1 || 5.20260903.1 || 5.20261006.1'
-  - '@typescript-eslint/eslint-plugin@8.60.0 || 8.71.1'
-  - '@typescript-eslint/parser@8.60.0 || 8.71.1'
-  - '@typescript-eslint/project-service@8.60.0 || 8.71.1'
-  - '@typescript-eslint/scope-manager@8.60.0 || 8.71.1'
-  - '@typescript-eslint/tsconfig-utils@8.60.0 || 8.71.1'
-  - '@typescript-eslint/type-utils@8.60.0 || 8.71.1'
-  - '@typescript-eslint/types@8.60.0 || 8.71.1'
-  - '@typescript-eslint/typescript-estree@8.60.0 || 8.71.1'
-  - '@typescript-eslint/utils@8.60.0 || 8.71.1'
-  - '@typescript-eslint/visitor-keys@8.60.0 || 8.71.1'
-  - typescript-eslint@8.60.0 || 8.71.1
+  - '@typescript-eslint/eslint-plugin@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/parser@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/project-service@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/scope-manager@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/tsconfig-utils@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/type-utils@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/types@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/typescript-estree@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/utils@8.60.0 || 8.71.1 || 8.72.0'
+  - '@typescript-eslint/visitor-keys@8.60.0 || 8.71.1 || 8.72.0'
+  - typescript-eslint@8.60.0 || 8.71.1 || 8.72.0
   - '@cloudflare/workerd-darwin-64@1.20260526.1'
   - '@cloudflare/workerd-darwin-arm64@1.20260526.1'
   - '@cloudflare/workerd-linux-64@1.20260526.1'
   - '@cloudflare/workerd-linux-arm64@1.20260526.1'
   - '@cloudflare/workerd-windows-64@1.20260526.1'
-  - miniflare@4.20260526.0 || 5.20260811.1-alpha
+  - miniflare@4.20260526.0 || 5.20260811.1-alpha || 5.20261019.0-beta
   - workerd@1.20260526.1
-  - wrangler@4.95.0 || 4.123.0
+  - wrangler@4.95.0 || 4.123.0 || 4.151.2
   - eslint@10.8.0
   - viem@2.55.16
   - hono@4.13.4
@@ -78,6 +78,7 @@ minimumReleaseAgeExclude:
   - '@scalar/hono-api-reference@0.12.10'
   - '@scalar/schemas@0.13.0'
   - '@scalar/types@0.23.0'
+  - '@cloudflare/vitest-plugin@1.4.5'
 
 patchedDependencies:
   '@x402/extensions@2.28.0': patches/@x402__extensions@2.28.0.patch
