@@ -51,8 +51,7 @@ export interface PriceModel<Body> {
 
 /**
  * Sections of the catalog, in the order the docs present them. Each becomes
- * an OpenAPI tag and an llms.txt section. "Credits" holds billing actions,
- * which discovery catalogs leave out of the product list.
+ * an OpenAPI tag and an llms.txt section.
  */
 export const ENDPOINT_GROUPS = {
     Pages: "Fetch, render, map and crawl web pages",
@@ -61,7 +60,6 @@ export const ENDPOINT_GROUPS = {
     Research: "Cited answers and multi-step research",
     Social: "Social platform data",
     Intelligence: "Facts about a domain, a site's stack, a package, or a project",
-    Credits: "Prepaid credit",
 } as const;
 
 export type EndpointGroup = keyof typeof ENDPOINT_GROUPS;
@@ -74,7 +72,7 @@ export type RequestSchema = z.ZodType<unknown, Record<string, unknown>>;
 
 export interface EndpointDefinition<Path extends string = string, Input extends RequestSchema = RequestSchema> {
     path: Path;
-    /** Short product name; also the label on credit ledger entries. */
+    /** Short product name; also the label on account ledger entries. */
     title: string;
     group: EndpointGroup;
     /** OpenAPI operationId. Kept stable: generated clients key on it. */
@@ -101,10 +99,6 @@ export interface EndpointDefinition<Path extends string = string, Input extends 
     price: PriceModel<z.output<Input>>;
     /** Cache namespace for endpoints that serve cached responses at a discount (see middleware/cache.ts). */
     cacheKey?: string;
-    /** Whether a funded credit account can pay instead of x402. */
-    acceptsCredits: boolean;
-    /** Only payable on EVM networks (the handler needs an EIP-3009 payer). */
-    evmOnly: boolean;
 }
 
 /** Identity function that keeps each definition's literal path and its own body type. */

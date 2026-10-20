@@ -4,8 +4,8 @@
  */
 
 import type { Context } from "hono";
-import { FACILITATOR_URLS, FREE_TIER, pathPublication, absolutePathPublication, SERVICE_NAME, SERVICE_VERSION, supportedNetworks } from "../config";
-import { PRODUCT_ENDPOINTS, productPriceRange } from "../endpoints";
+import { absolutePathPublication, cardPaymentsEnabled, CREDIT_PACKS, FACILITATOR_URLS, FREE_TIER, packPrice, pathPublication, SERVICE_NAME, SERVICE_VERSION, supportedNetworks } from "../config";
+import { ENDPOINTS, productPriceRange } from "../endpoints";
 import { describePrice } from "../endpoints/define";
 import { facilitatorNames } from "../middleware/payment";
 import type { AppEnv } from "../types";
@@ -20,7 +20,7 @@ export const SERVICE_CATALOG = {
     name: SERVICE_NAME,
     version: SERVICE_VERSION,
     tagline: "Give your AI agents web superpowers",
-    description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments. No API keys, no accounts, just pay per request in USDC.",
+    description: "Premium Web Intelligence API - Give your AI agents web superpowers with x402 micropayments. No account needed, just pay per request in USDC.",
     baseUrl: "https://api.weblens.dev",
     protocol: {
         name: "x402",
@@ -35,7 +35,7 @@ export const SERVICE_CATALOG = {
         mcp: "/mcp/info",
     },
     whyChooseUs: [
-        "Zero friction - No accounts, API keys, or subscriptions",
+        "Zero friction - No account or subscription needed",
         "AI-optimized - Structured outputs designed for autonomous agents",
         "Instant settlement - Each payment settles on-chain in seconds",
         "No fees - x402 protocol has 0 platform fees",
@@ -89,9 +89,7 @@ export const SERVICE_CATALOG = {
         "Evaluating an endpoint's price and response shape before paying",
         "Citable payment receipts and ERC-8004 feedback for agent reputation",
     ],
-    // Products only: billing actions (group "Credits") are listed under
-    // integration.paymentMethods instead.
-    services: PRODUCT_ENDPOINTS.map((endpoint) => ({
+    services: ENDPOINTS.map((endpoint) => ({
         endpoint: endpoint.path,
         method: "POST",
         name: endpoint.title,
@@ -123,14 +121,9 @@ export const SERVICE_CATALOG = {
                 description: "Pay per request with on-chain USDC. No account needed.",
             },
             {
-                name: "Credit account (prepaid USDC)",
-                path: "POST /credits/buy",
-                description: "Deposit USDC once, sign subsequent requests with X-CREDIT-WALLET. 20–40% bonus at $10/$50/$100.",
-            },
-            {
-                name: "Credit account (prepaid via card)",
-                path: "POST /credits/deposit/fiat",
-                description: "Zero-crypto onboarding. Pay with card via Stripe Checkout; credits land on the wallet address you supply. Minimum $2.",
+                name: "Prepaid API key (card)",
+                path: "POST /billing/checkout",
+                description: `Buy a ${CREDIT_PACKS.map(packPrice).join(" / ")} pack by card (Stripe Checkout) and get an API key, shown once. Send it as Authorization: Bearer <key> on any paid endpoint; each call is debited at its list price.`,
             },
         ],
     },
@@ -223,12 +216,10 @@ export const SERVICE_CATALOG = {
 export function discoveryHandler(c: Context<AppEnv>) {
     const baseUrl = new URL(c.req.url).origin;
 
-    // Only advertise the fiat onramp when Stripe is actually configured —
-    // otherwise /discovery promises a payment method that `/credits/deposit/fiat`
-    // would answer with 503.
-    const fiatEnabled = Boolean(c.env.STRIPE_SECRET_KEY);
+    // Card sales are listed only where they work; elsewhere /billing/checkout answers 503.
+    const cards = cardPaymentsEnabled(c.env);
     const paymentMethods = SERVICE_CATALOG.integration.paymentMethods.filter(
-        (m) => fiatEnabled || !m.path.includes("/credits/deposit/fiat")
+        (m) => cards || m.path !== "POST /billing/checkout"
     );
 
     const networks = supportedNetworks(c.env);

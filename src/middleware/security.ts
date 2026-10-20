@@ -59,6 +59,16 @@ const LANDING_SECURITY_HEADERS = {
 };
 
 /**
+ * Billing pages (/billing/success, /billing/cancel): inline styles only, and no
+ * Referer, because the success page URL carries the Checkout Session id.
+ */
+const BILLING_PAGE_SECURITY_HEADERS = {
+  ...SECURITY_HEADERS,
+  "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+  "Referrer-Policy": "no-referrer",
+};
+
+/**
  * Headers to remove (information disclosure)
  */
 const BLOCKED_HEADERS = ["X-Powered-By", "Server"];
@@ -73,12 +83,15 @@ export async function securityMiddleware(c: Context, next: Next) {
   const path = c.req.path;
   const isDocsPage = path === "/docs" || path.startsWith("/docs/");
   const isLandingPage = path === "/" && c.req.header("Accept")?.includes("text/html");
+  const isBillingPage = path === "/billing/success" || path === "/billing/cancel";
 
   let headers = SECURITY_HEADERS;
   if (isDocsPage) {
     headers = DOCS_SECURITY_HEADERS;
   } else if (isLandingPage) {
     headers = LANDING_SECURITY_HEADERS;
+  } else if (isBillingPage) {
+    headers = BILLING_PAGE_SECURITY_HEADERS;
   }
 
   // Add security headers

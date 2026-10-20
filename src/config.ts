@@ -135,22 +135,51 @@ export const PRICING = {
      */
     project: "$0.05",
   },
-
-  // Agent Credit Accounts (Clearing House seed)
-  credits: {
-    tiers: [
-      { minDeposit: "$10", bonus: 0.20 },   // 20% bonus
-      { minDeposit: "$50", bonus: 0.30 },   // 30% bonus
-      { minDeposit: "$100", bonus: 0.40 },  // 40% bonus
-    ],
-  },
 } as const;
 
 /** Result pages /search fetches as markdown when `includeContent` is set; each is priced at PRICING.contents.perUrl. */
 export const SEARCH_CONTENT_RESULTS = { min: 1, max: 10, default: 5 } as const;
 
-/** Credit purchase bounds, in USD. */
-export const CREDIT_PURCHASE_USD = { min: 2, max: 1000 } as const;
+/**
+ * Prepaid packs a card buyer can choose, at face value: $10 buys $10 of calls.
+ * No pack bonus: a bonus would sell the SerpAPI-backed search family below its
+ * upstream cost (a $0.015 search at +40% is $0.0107 before card fees). Ten
+ * dollars is the floor because card fees are partly fixed (about EUR 0.25 a
+ * payment), which takes 10-12% of a $5 pack.
+ */
+export const CREDIT_PACKS = ["10", "50", "100"] as const;
+export type CreditPack = (typeof CREDIT_PACKS)[number];
+
+/** A pack's price, e.g. "$10". */
+export function packPrice(pack: CreditPack): string {
+  return `$${pack}`;
+}
+
+/**
+ * Stripe Checkout with Managed Payments: Link is the merchant of record and
+ * handles VAT, sales tax, invoices and disputes. Verified 2026-10-20 against
+ * docs.stripe.com/payments/managed-payments: it needs API version
+ * 2025-03-31.basil or later, and every product needs an eligible tax code.
+ */
+export const STRIPE = {
+  apiBase: "https://api.stripe.com/v1",
+  /** Pinned, so a change of Stripe's default version cannot alter responses (latest stable on 2026-10-20). */
+  apiVersion: "2026-09-30.endive",
+  /** Website Information Services - Business Use, eligible for Managed Payments. */
+  taxCode: "txcd_10701400",
+  productName: "WebLens API credits",
+  timeoutMs: 15_000,
+  /** Stripe's default webhook signature tolerance. */
+  webhookToleranceSeconds: 300,
+} as const;
+
+/**
+ * API keys: `<API_KEY_PREFIX><accountId>_<secret>`. The prefix is set per
+ * environment (wrangler.toml), the account id names the account's Durable
+ * Object, and the secret is 256 random bits in base64url, of which the account
+ * stores only a hash.
+ */
+export const API_KEY_PATTERN = /^(wl_(?:live|test)_)([0-9a-f]{32})_([A-Za-z0-9_-]{43})$/u;
 
 /**
  * The Claude model every AI step uses: extraction, answers, research planning
@@ -369,6 +398,26 @@ export interface NetworkEnv {
   PAY_TO_ADDRESS_SVM?: string;
 }
 
+/** The env fields that decide whether prepaid API keys are sold by card. */
+export interface CardPaymentsEnv {
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+}
+
+/**
+ * Card sales need both Stripe secrets: the key opens Checkout Sessions and the
+ * webhook secret confirms payments the buyer never returns from
+ * (docs.stripe.com/checkout/fulfillment: webhooks are required). Every surface
+ * that mentions API keys or /billing asks this, so nothing advertises a
+ * purchase that would answer 503.
+ */
+export function cardPaymentsEnabled(env: CardPaymentsEnv): boolean {
+  return Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET);
+}
+
+/** The env fields the public documents read: networks and card sales. */
+export type SurfaceEnv = NetworkEnv & CardPaymentsEnv;
+
 /** True on the testnet deployment (Base Sepolia + Solana devnet). */
 export function isTestnet(env: NetworkEnv): boolean {
   return env.NETWORK === "base-sepolia";
@@ -405,17 +454,6 @@ export function supportedNetworks(env: NetworkEnv): string[] {
   const svm = svmNetwork(env);
   return svm ? [evmNetwork(env), svm] : [evmNetwork(env)];
 }
-
-/**
- * Paid paths that must only be offered on the EVM network.
- *
- * `/credits/buy` credits the account of the payer it reads from the EIP-3009
- * `authorization.from`, and credit accounts are EVM wallets authenticated by
- * EIP-191 signatures (X-CREDIT-WALLET). A Solana payment has neither, so the
- * handler can only reject it — advertising Solana there offers buyers an
- * option that always fails.
- */
-export const EVM_ONLY_PAID_PATHS: readonly string[] = ["/credits/buy"];
 
 const NETWORK_DISPLAY_NAMES = new Map<string, string>([
   [NETWORKS.baseMainnet, "Base"],

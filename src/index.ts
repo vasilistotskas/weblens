@@ -17,7 +17,7 @@ import { paidEndpointsArePostOnly, pathTemplateMiddleware, routeMethodGuard } fr
 import { securityMiddleware } from "./middleware/security";
 
 // Route Registrars
-import { registerCreditsRoutes } from "./routes/credits";
+import { registerBillingRoutes } from "./routes/billing";
 import { registerFreeRoutes } from "./routes/free";
 import { registerPaidRoutes } from "./routes/paid";
 import { registerReaderRoutes } from "./routes/reader";
@@ -54,10 +54,8 @@ app.use("*", cors({
         "Accept",
         // x402 v2 payment header
         "Payment-Signature",
-        // Credit-account auth headers
-        "X-CREDIT-WALLET",
-        "X-CREDIT-SIGNATURE",
-        "X-CREDIT-TIMESTAMP",
+        // Prepaid API key (Bearer)
+        "Authorization",
     ],
     exposeHeaders: [
         // x402 v2 — required for browser clients to read payment challenge & receipt
@@ -66,9 +64,11 @@ app.use("*", cors({
         // WebLens diagnostics
         "X-Request-Id",
         "X-Processing-Time",
-        // Credit-account response indicators
+        // Prepaid API key response indicators (middleware/api-key.ts)
         "Payment-Method",
         "Credit-Cost",
+        "Credit-Balance",
+        "Credit-Refunded",
     ],
     maxAge: 600,
 }));
@@ -112,8 +112,8 @@ registerReaderRoutes(app);
 // 2. Free Tier (Rate-limited)
 registerFreeRoutes(app);
 
-// 3. Credits System
-registerCreditsRoutes(app);
+// 3. Prepaid packs by card, and the account an API key opens
+registerBillingRoutes(app);
 
 // 4. Paid endpoints, one per registry definition (src/endpoints)
 registerPaidRoutes(app);
@@ -137,7 +137,7 @@ app.onError(errorHandler);
 export { app };
 
 // MCP `tools/call` runs each tool through this same app, in-process, so a tool
-// call gets the identical middleware chain (validation -> credit -> payment ->
+// call gets the identical middleware chain (validation -> API key -> payment ->
 // handler) and the x402 wall still issues the 402. It must not reach its own
 // endpoints with `fetch()`: this Worker serves a Cloudflare Custom Domain, and
 // a Worker fetching its own hostname returns 522 — which is exactly what every

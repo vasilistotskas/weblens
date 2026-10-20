@@ -1,84 +1,122 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
-import { env } from "cloudflare:workers";
+/**
+ * The prepaid account ledger, in a real CreditAccountDO running in workerd.
+ * Storage is isolated per test file; each test uses its own account name.
+ */
 import { runInDurableObject } from "cloudflare:test";
-import { describe, it, expect } from "vitest";
+import { env } from "cloudflare:workers";
+import { describe, expect, it } from "vitest";
+import type { CreditAccountDO } from "../../src/durable_objects/CreditAccountDO";
+import type { Env } from "../../src/types";
 
-// Real CreditAccountDO running in workerd (via @cloudflare/vitest-plugin).
-// Storage is isolated per test file; each test uses a distinct wallet name so
-// the DO instances (keyed by idFromName) don't collide.
+const accounts = (env as unknown as Env).ACCOUNTS;
+const stub = (name: string) => accounts.getByName(name);
 
-function stubFor(wallet: string) {
-    const ns = (env as unknown as { CREDIT_MANAGER: DurableObjectNamespace }).CREDIT_MANAGER;
-    return ns.get(ns.idFromName(wallet));
+/** An account with `micros` deposited and its first key issued. */
+async function funded(name: string, micros: number): Promise<{ account: DurableObjectStub<CreditAccountDO>; secret: string }> {
+    const account = stub(name);
+    await account.deposit(`cs_test_${name}`, micros, "seed");
+    const secret = await account.issueFirstKey();
+    if (secret === null) { throw new Error("no key issued"); }
+    return { account, secret };
 }
 
-function call(wallet: string, p: string, method: "GET" | "POST", body?: unknown) {
-    const init: RequestInit = { method };
-    if (body !== undefined) {
-        init.body = JSON.stringify(body);
-        init.headers = { "Content-Type": "application/json" };
-    }
-    return stubFor(wallet).fetch(`https://do${p}`, init);
-}
-
-describe("CreditAccountDO (real workerd binding)", () => {
-    it("deposits and reflects the balance", async () => {
-        const dep = await call("0xdeposit", "/deposit", "POST", { amount: 10, description: "seed" });
-        expect(dep.status).toBe(200);
-        expect(await dep.json()).toMatchObject({ success: true, balance: 10 });
-
-        const bal = await call("0xdeposit", "/balance", "GET");
-        expect(await bal.json()).toMatchObject({ balance: 10, totalDeposited: 10 });
+describe("CreditAccountDO ledger", () => {
+    it("credits a deposit once per external id", async () => {
+        const account = stub("deposit-once");
+        expect(await account.deposit("cs_test_a", 10_000_000, "pack")).toEqual({ balanceMicros: 10_000_000, duplicate: false });
+        // Stripe's webhook and the success page fulfil the same session.
+        expect(await account.deposit("cs_test_a", 10_000_000, "pack")).toEqual({ balanceMicros: 10_000_000, duplicate: true });
+        expect(await account.deposit("cs_test_b", 50_000_000, "pack")).toEqual({ balanceMicros: 60_000_000, duplicate: false });
     });
 
-    it("spends and rejects overspend with 402 (no balance change)", async () => {
-        await call("0xspend", "/deposit", "POST", { amount: 5 });
-
-        const ok = await call("0xspend", "/spend", "POST", { amount: 2, description: "fetch" });
-        expect(ok.status).toBe(200);
-        expect(await ok.json()).toMatchObject({ success: true, balance: 3 });
-
-        const over = await call("0xspend", "/spend", "POST", { amount: 100, description: "too much" });
-        expect(over.status).toBe(402);
-        expect(await over.json()).toMatchObject({ error: "Insufficient funds" });
-
-        const bal = await call("0xspend", "/balance", "GET");
-        expect(await bal.json()).toMatchObject({ balance: 3, totalSpent: 2 });
+    // assertMicros itself is tested in tests/unit/api-keys.test.ts: a throw inside the object is printed by
+    // workerd as an uncaught exception before RPC hands it back, so it is not provoked here.
+    it("cannot record a zero or negative amount even through SQL", async () => {
+        const { account } = await funded("ledger-check", 1_000);
+        await expect(runInDurableObject(account, (_instance, state) =>
+            state.storage.sql.exec("INSERT INTO ledger (kind, amount_micros, external_id, description, created_at) VALUES ('deposit', 0, 'x', 'x', 'x')")))
+            .rejects.toThrow(/CHECK constraint/u);
     });
 
-    it("is idempotent on deposit externalId (no double credit)", async () => {
-        const first = await call("0xdedup", "/deposit", "POST", { amount: 7, externalId: "tx-abc" });
-        expect(await first.json()).toMatchObject({ success: true, balance: 7 });
-
-        const replay = await call("0xdedup", "/deposit", "POST", { amount: 7, externalId: "tx-abc" });
-        expect(await replay.json()).toMatchObject({ duplicate: true, balance: 7 });
-
-        const bal = await call("0xdedup", "/balance", "GET");
-        expect(await bal.json()).toMatchObject({ balance: 7 });
+    it("issues the first key once, and only to an account that exists", async () => {
+        expect(await stub("never-funded").issueFirstKey()).toBeNull();
+        const account = stub("first-key");
+        await account.deposit("cs_test_fk", 1_000_000, "seed");
+        const secret = await account.issueFirstKey();
+        expect(secret).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+        expect(await account.issueFirstKey()).toBeNull();
     });
 
-    it("refund reverses a spend (unwinds totalSpent, not totalDeposited)", async () => {
-        await call("0xrefund", "/deposit", "POST", { amount: 10 });
-        await call("0xrefund", "/spend", "POST", { amount: 4, description: "x" });
-
-        const refund = await call("0xrefund", "/refund", "POST", { amount: 4, externalId: "r-1" });
-        expect(await refund.json()).toMatchObject({ success: true, balance: 10 });
-
-        const bal = await call("0xrefund", "/balance", "GET");
-        expect(await bal.json()).toMatchObject({ balance: 10, totalDeposited: 10, totalSpent: 0 });
+    it("stores only a hash of the key", async () => {
+        const { account, secret } = await funded("hash-only", 1_000_000);
+        const stored = await runInDurableObject(account, (_instance, state) =>
+            state.storage.sql.exec<{ secret_hash: string }>("SELECT secret_hash FROM api_keys").toArray());
+        expect(stored).toHaveLength(1);
+        expect(stored[0]?.secret_hash).toMatch(/^[0-9a-f]{64}$/u);
+        expect(stored[0]?.secret_hash).not.toContain(secret);
     });
 
-    it("crosses the premium tier threshold at $100 deposited", async () => {
-        await call("0xtier", "/deposit", "POST", { amount: 100 });
-        const bal = await call("0xtier", "/balance", "GET");
-        expect(await bal.json()).toMatchObject({ tier: "premium" });
+    it("debits an active key and refuses a wrong one", async () => {
+        const { account, secret } = await funded("spend", 1_000_000);
+        expect(await account.spend(secret, 15_000, "req-1", "Search")).toEqual({ ok: true, balanceMicros: 985_000 });
+        expect(await account.spend(`${secret.slice(0, -1)}A`, 15_000, "req-2", "Search")).toEqual({ ok: false, reason: "invalid_key" });
     });
 
-    it("exposes internal storage via runInDurableObject", async () => {
-        await call("0xinternal", "/deposit", "POST", { amount: 3 });
-        await runInDurableObject(stubFor("0xinternal"), async (_instance, state) => {
-            const account = await state.storage.get<{ balance: number }>("account");
-            expect(account).toMatchObject({ balance: 3 });
-        });
+    it("never charges a request id twice", async () => {
+        const { account, secret } = await funded("replay", 1_000_000);
+        await account.spend(secret, 15_000, "req-same", "Search");
+        expect(await account.spend(secret, 15_000, "req-same", "Search")).toEqual({ ok: true, balanceMicros: 985_000 });
+    });
+
+    it("refuses an overspend without moving money", async () => {
+        const { account, secret } = await funded("overspend", 10_000);
+        expect(await account.spend(secret, 15_000, "req-big", "Search")).toEqual({ ok: false, reason: "insufficient_balance", balanceMicros: 10_000 });
+        expect((await account.summary(secret))?.balanceMicros).toBe(10_000);
+    });
+
+    it("refunds what the ledger charged, once", async () => {
+        const { account, secret } = await funded("refund", 1_000_000);
+        await account.spend(secret, 50_000, "req-r", "Company");
+        expect(await account.refund("req-r")).toEqual({ refundedMicros: 50_000 });
+        expect(await account.refund("req-r")).toEqual({ refundedMicros: 0 });
+        expect(await account.refund("req-never-charged")).toEqual({ refundedMicros: 0 });
+        const summary = await account.summary(secret);
+        expect(summary?.balanceMicros).toBe(1_000_000);
+        expect(summary?.recent.map((entry) => [entry.kind, entry.amountMicros])).toEqual([
+            ["refund", 50_000],
+            ["spend", 50_000],
+            ["deposit", 1_000_000],
+        ]);
+    });
+
+    it("rotates a key: the old one stops at once, the new one works", async () => {
+        const { account, secret } = await funded("rotate", 1_000_000);
+        const replacement = await account.rotateKey(secret);
+        expect(replacement).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+        expect(await account.spend(secret, 1_000, "req-old", "x")).toEqual({ ok: false, reason: "invalid_key" });
+        expect(await account.spend(replacement ?? "", 1_000, "req-new", "x")).toMatchObject({ ok: true });
+        expect(await account.rotateKey(secret)).toBeNull();
+    });
+
+    it("answers for the key holder only", async () => {
+        const { account } = await funded("summary", 1_000_000);
+        expect(await account.summary("A".repeat(43))).toBeNull();
+    });
+
+    it("stores nothing for a forged account id", async () => {
+        const forged = stub("forged-account");
+        expect(await forged.spend("A".repeat(43), 1_000, "req-f", "x")).toEqual({ ok: false, reason: "invalid_key" });
+        expect(await forged.summary("A".repeat(43))).toBeNull();
+        expect(await forged.refund("req-f")).toEqual({ refundedMicros: 0 });
+        const tables = await runInDurableObject(forged, (_instance, state) =>
+            state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf%' ESCAPE '\\'").toArray());
+        expect(tables).toEqual([]);
+    });
+
+    it("cannot overdraw even through SQL: the balance has a CHECK constraint", async () => {
+        const { account } = await funded("constraint", 1_000);
+        await expect(runInDurableObject(account, (_instance, state) =>
+            state.storage.sql.exec("UPDATE account SET balance_micros = -1 WHERE id = 1"))).rejects.toThrow(/CHECK constraint/u);
     });
 });

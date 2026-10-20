@@ -84,8 +84,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: searchPricing,
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/news",
@@ -129,8 +127,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.news),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/images",
@@ -175,8 +171,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.images),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/places",
@@ -227,8 +221,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.places),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/shopping",
@@ -274,8 +266,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.shopping),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/scholar",
@@ -318,8 +308,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.scholar),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/autocomplete",
@@ -352,8 +340,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.autocomplete),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/search/trends",
@@ -396,8 +382,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.searchVerticals.trends),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/social/youtube/transcript",
@@ -446,8 +430,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.youtubeTranscript),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/answer",
@@ -491,8 +473,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.answer),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/research/deep",
@@ -571,8 +551,6 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: deepResearchPricing,
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/discussions",
@@ -638,7 +616,5 @@ export const SEARCH_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.discussions),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
 ] as const;

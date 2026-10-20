@@ -27,9 +27,7 @@ function callTool(name: string, args: Record<string, unknown> = {}) {
         headers: {
             "Content-Type": "application/json",
             "Payment-Signature": "sig-payload",
-            "X-CREDIT-WALLET": "0xwallet",
-            "X-CREDIT-SIGNATURE": "0xcreditsig",
-            "X-CREDIT-TIMESTAMP": "1234567890",
+            Authorization: "Bearer wl_live_key",
             "cf-connecting-ip": "203.0.113.7",
             "X-Not-Forwarded": "nope",
         },
@@ -88,11 +86,8 @@ describe("MCP tool dispatch", () => {
 
         // x402 payload…
         expect(headers?.get("Payment-Signature")).toBe("sig-payload");
-        // …and the credit-account trio, which used not to be forwarded at all,
-        // so a funded credit wallet could not spend through MCP.
-        expect(headers?.get("X-CREDIT-WALLET")).toBe("0xwallet");
-        expect(headers?.get("X-CREDIT-SIGNATURE")).toBe("0xcreditsig");
-        expect(headers?.get("X-CREDIT-TIMESTAMP")).toBe("1234567890");
+        // …and a prepaid API key, so a funded account can spend through MCP.
+        expect(headers?.get("Authorization")).toBe("Bearer wl_live_key");
         // The edge IP keeps free-tier rate limiting per-caller rather than
         // lumping every MCP call into one "unknown" bucket.
         expect(headers?.get("cf-connecting-ip")).toBe("203.0.113.7");

@@ -56,7 +56,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { Buffer } from "node:buffer";
 import process from "node:process";
 import { NETWORKS } from "../src/config";
-import { endpointForPath, EVM_ONLY_PAID_PATHS, PAID_ENDPOINTS } from "../src/endpoints";
+import { endpointForPath, PAID_ENDPOINTS } from "../src/endpoints";
 
 const CDP_VALIDATE = "https://api.cdp.coinbase.com/platform/v2/x402/validate";
 
@@ -308,10 +308,7 @@ async function run(): Promise<void> {
     const caip2 = CAIP2[network];
     const payer = await loadPayer(network);
 
-    // Never self-pay a billing action (credits move money into our own ledger),
-    // and EVM-only paths cannot be paid on Solana at all.
-    const candidates = (explicit ?? PAID_ENDPOINTS).filter((p) => endpointForPath(p)?.group !== "Credits"
-        && !(network === "solana" && EVM_ONLY_PAID_PATHS.includes(p)));
+    const candidates = explicit ?? PAID_ENDPOINTS;
 
     console.log("━".repeat(64));
     console.log("  WebLens canary payments");

@@ -1,6 +1,6 @@
 # WebLens
 
-Premium web intelligence API for AI agents, with x402 micropayments. No accounts, no API keys — pay per request in USDC on Base.
+Premium web intelligence API for AI agents, with x402 micropayments. No account needed — pay per request in USDC on Base or Solana.
 
 🌐 **Live API:** https://api.weblens.dev
 📖 **Interactive docs:** https://api.weblens.dev/docs
@@ -137,13 +137,7 @@ seconds**; `deep` (5 sub-questions, 12 sources, $0.35) takes longer. Set a gener
 | Endpoint | Description | Price |
 |----------|-------------|-------|
 
-### Utility
-
-| Endpoint | Description | Price |
-|----------|-------------|-------|
-| `/credits/buy` | Prepay credits (bonus 20–40% at $10/$50/$100) | $2–$1000 |
-
-Free and unauthenticated: `/`, `/health`, `/docs`, `/openapi.json`, `/llms.txt`, `/discovery`, `/.well-known/x402`, `/mcp`, `/r/{url}`, `/s/{query}`, `/free/fetch`, `/free/search`, `/preview`, `/.well-known/agent-registration.json`, `/receipts/{requestId}`, `/feedback`, `/feedback/{id}`.
+Free and unauthenticated: `/`, `/health`, `/docs`, `/openapi.json`, `/llms.txt`, `/discovery`, `/.well-known/x402`, `/mcp`, `/r/{url}`, `/free/fetch`, `/preview`, `/.well-known/agent-registration.json`, `/receipts/{requestId}`, `/feedback`, `/feedback/{id}`.
 
 Dynamically-priced endpoints (`/fetch/pro`, `/extract`) apply a complexity multiplier — up to 3× for bot-protected domains. Cached responses on the fetch family are **70% cheaper**. The exact price is always in the `402` challenge.
 
@@ -197,9 +191,9 @@ WebLens implements [x402](https://x402.org) v2:
 4. Retry the same request with a `Payment-Signature` header.
 5. The payment is verified on-chain and you get your data.
 
-Settlement runs through the [PayAI facilitator](https://facilitator.payai.network) on Base mainnet. Any x402 v2 client works — `@x402/axios`, `@x402/fetch`, or the bundled MCP server, which handles the whole flow for you.
+On Base, payments settle through Coinbase's CDP facilitator, with [PayAI](https://facilitator.payai.network) taking over any payment CDP fails on; on Solana, through PayAI. Any x402 v2 client works — `@x402/axios`, `@x402/fetch`, or the bundled MCP server, which handles the whole flow for you.
 
-**Prepaid credits** are an alternative to per-request payment: buy credits with `/credits/buy`, then send `X-CREDIT-WALLET` / `X-CREDIT-SIGNATURE` / `X-CREDIT-TIMESTAMP` headers. Failed requests are refunded automatically.
+**Prepaid API keys** are the alternative for developers who pay by card, where card sales are switched on: `POST /billing/checkout {"pack": "10"}` returns a Stripe Checkout link for a $10, $50 or $100 pack, and the page after payment shows an API key once. Send it as `Authorization: Bearer <key>` on any paid endpoint; each call is debited at its list price, and failed calls are refunded. `GET /account` shows the balance.
 
 ## Development
 
@@ -227,6 +221,8 @@ wrangler secret put CDP_API_KEY_SECRET
 | `NETWORK` | `base` (production) or `base-sepolia` (testnet) |
 | `SERP_API_KEY` | SerpAPI key — search, verticals, YouTube transcripts |
 | `ANTHROPIC_API_KEY` | Claude — extraction, research, answers, intel |
+| `API_KEY_PREFIX` | Prefix of the API keys this environment sells (`wl_live_` / `wl_test_`, `wrangler.toml` var) |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Optional: card sales of prepaid API keys (Stripe Managed Payments); without both, `/billing/*` answers 503 |
 | `PAYAI_FACILITATOR_URL` | Optional: override the facilitator endpoint |
 
 ### Testing against testnet

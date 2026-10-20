@@ -273,7 +273,6 @@ export interface PaymentRoute {
     path: string;
     description: string;
     catalogTags: readonly string[];
-    evmOnly: boolean;
     inputExample: Record<string, unknown>;
     /** JSON Schema of the request body. */
     inputSchema: Record<string, unknown>;
@@ -380,7 +379,7 @@ export function createLazyPaymentMiddleware(
 ): MiddlewareHandler<AppEnv> {
     const { path } = route;
     return async (c, next) => {
-        // If already paid with credits, skip x402 entirely.
+        // Already paid with a prepaid API key (middleware/api-key.ts): skip x402 entirely.
         if (c.get("paidWithCredits")) {
             await next();
             return;
@@ -389,7 +388,7 @@ export function createLazyPaymentMiddleware(
         const env = c.env;
         const recipientAddress = env.PAY_TO_ADDRESS;
         const networkCaip2 = evmNetwork(env);
-        const svmCaip2 = route.evmOnly ? undefined : svmNetwork(env);
+        const svmCaip2 = svmNetwork(env);
         const svmTarget = svmCaip2 && env.PAY_TO_ADDRESS_SVM
             ? { network: svmCaip2, payTo: env.PAY_TO_ADDRESS_SVM }
             : undefined;

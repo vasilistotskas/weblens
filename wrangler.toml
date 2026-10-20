@@ -52,6 +52,9 @@ PAY_TO_ADDRESS_SVM = "34sd6wPrmoR9UG9rUgYAFtcWYSVzqDNsvH9VkCkycUeb"
 # Solana: PayAI only, since its fee payer is part of the quote.
 FACILITATORS_EVM = "cdp,payai"
 FACILITATORS_SVM = "payai"
+# Prepaid API keys sold here start with this, so a key works only in the
+# environment that sold it (src/middleware/api-key.ts).
+API_KEY_PREFIX = "wl_live_"
 # Secrets are set via Cloudflare dashboard or `wrangler secret put`
 # Do NOT add API keys here — they will be committed to version control
 
@@ -69,8 +72,9 @@ id = "4b22a633ea824b80a3ec8003add92d0c"
 # Durable Objects
 # ============================================
 
+# One prepaid account per object: balance, API key hashes and ledger (SQLite).
 [[durable_objects.bindings]]
-name = "CREDIT_MANAGER"
+name = "ACCOUNTS"
 class_name = "CreditAccountDO"
 
 [[migrations]]
@@ -89,6 +93,18 @@ new_sqlite_classes = ["CreditAccountDO"]
 [[migrations]]
 tag = "v3"
 deleted_classes = ["MonitorScheduler"]
+
+# Billing routes: Workers Rate Limiting (per Cloudflare location), separate
+# from the free tier's KV counter so trying the free reader never blocks a
+# purchase. period must be 10 or 60 seconds. The namespace id is account-wide:
+# keep it distinct from testnet's.
+[[ratelimits]]
+name = "BILLING_LIMITER"
+namespace_id = "2001"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 60
 
 # ============================================
 # Browser Rendering
@@ -115,10 +131,11 @@ dataset = "weblens_payment_events"
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler secret put SERP_API_KEY
 #
-# Optional — Stripe fiat onramp (POST /credits/deposit/fiat):
-# Lets agent devs without crypto wallets buy credits with a card.
-# Configure at https://dashboard.stripe.com/apikeys + /webhooks (add
-# `checkout.session.completed` event pointing to /credits/webhook/stripe).
+# Card sales of prepaid packs (POST /billing/checkout, Stripe Managed Payments).
+# Without both, /billing/* answers 503. Use sk_test_ keys on testnet and
+# sk_live_ in production. The webhook endpoint is <origin>/billing/webhook with
+# the events checkout.session.completed and
+# checkout.session.async_payment_succeeded.
 #
 #   wrangler secret put STRIPE_SECRET_KEY
 #   wrangler secret put STRIPE_WEBHOOK_SECRET
@@ -166,8 +183,16 @@ binding = "CACHE"
 id = "598325d952f84f77ba1bf5ebcf3ebfba"
 
 [[env.testnet.durable_objects.bindings]]
-name = "CREDIT_MANAGER"
+name = "ACCOUNTS"
 class_name = "CreditAccountDO"
+
+[[env.testnet.ratelimits]]
+name = "BILLING_LIMITER"
+namespace_id = "2002"
+
+  [env.testnet.ratelimits.simple]
+  limit = 10
+  period = 60
 
 # Note: migrations are worker-global and live at the top level — do NOT
 # duplicate them here. The testnet worker (weblens-testnet) tracks its own
@@ -185,6 +210,7 @@ FACILITATORS_SVM = "payai"
 # USDC account, and a destination without one cannot receive a settlement
 # (see PAY_TO_ADDRESS_SVM in the top-level [vars]).
 PAY_TO_ADDRESS_SVM = ""
+API_KEY_PREFIX = "wl_test_"
 
 [env.testnet.browser]
 binding = "BROWSER"

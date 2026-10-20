@@ -44,7 +44,7 @@ export function registerSystemRoutes(app: Hono<AppEnv>) {
     // SEO: robots.txt + sitemap.xml
     app.get("/robots.txt", (c) => {
         const baseUrl = new URL(c.req.url).origin;
-        return c.text(`User-agent: *\nAllow: /\nAllow: /docs\nAllow: /r/\nAllow: /s/\nAllow: /llms.txt\nAllow: /openapi.json\nAllow: /discovery\nDisallow: /mcp\nDisallow: /free/\nDisallow: /fetch/\nDisallow: /credits/\n\nSitemap: ${baseUrl}/sitemap.xml\n`);
+        return c.text(`User-agent: *\nAllow: /\nAllow: /docs\nAllow: /r/\nAllow: /llms.txt\nAllow: /openapi.json\nAllow: /discovery\nDisallow: /mcp\nDisallow: /free/\nDisallow: /fetch/\nDisallow: /billing/\nDisallow: /account\n\nSitemap: ${baseUrl}/sitemap.xml\n`);
     });
 
     app.get("/sitemap.xml", (c) => {

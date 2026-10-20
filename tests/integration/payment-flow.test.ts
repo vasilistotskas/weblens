@@ -62,7 +62,8 @@ describe('Payment Flow Integration', () => {
             CDP_API_KEY_ID: "test",
             CDP_API_KEY_SECRET: "test",
             PAY_TO_ADDRESS: "0x123",
-            CREDIT_MANAGER: {}, // Mock DO namespace
+            ACCOUNTS: {}, // Mock DO namespace
+            API_KEY_PREFIX: "wl_test_",
             PAYMENT_EVENTS: { writeDataPoint: () => undefined },
         });
 
@@ -88,7 +89,8 @@ describe('Payment Flow Integration', () => {
             CDP_API_KEY_ID: "test",
             CDP_API_KEY_SECRET: "test",
             PAY_TO_ADDRESS: "0x123",
-            CREDIT_MANAGER: {}, // Mock DO namespace
+            ACCOUNTS: {}, // Mock DO namespace
+            API_KEY_PREFIX: "wl_test_",
             PAYMENT_EVENTS: { writeDataPoint: () => undefined },
         });
 

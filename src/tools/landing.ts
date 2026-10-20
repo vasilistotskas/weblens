@@ -5,25 +5,26 @@
  * Agents/API clients get JSON (via Accept header detection).
  */
 
-import { PRICING, supportedNetworkNames } from "../config";
-import type { NetworkEnv } from "../config";
+import { cardPaymentsEnabled, CREDIT_PACKS, packPrice, PRICING, supportedNetworkNames } from "../config";
+import type { SurfaceEnv } from "../config";
 
-export function getLandingPageHTML(baseUrl: string, env: NetworkEnv): string {
+export function getLandingPageHTML(baseUrl: string, env: SurfaceEnv): string {
     const networks = supportedNetworkNames(env);
+    const cards = cardPaymentsEnabled(env);
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WebLens — Web Intelligence API for AI Agents</title>
-<meta name="description" content="Premium web scraping, search, and data extraction API with x402 micropayments. No accounts, no API keys. Pay per request with USDC.">
+<meta name="description" content="Premium web scraping, search, and data extraction API with x402 micropayments. No account needed: pay per request with USDC.">
 <meta property="og:title" content="WebLens — Web Intelligence API for AI Agents">
 <meta property="og:description" content="Give your AI agents web superpowers. Pay-per-request with USDC on ${networks} via x402.">
 <meta property="og:url" content="${baseUrl}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="WebLens — Web Intelligence API for AI Agents">
-<meta name="twitter:description" content="Web scraping, search, and extraction API. No accounts, just pay per request with USDC.">
+<meta name="twitter:description" content="Web scraping, search, and extraction API. No account needed, just pay per request with USDC.">
 <link rel="canonical" href="${baseUrl}">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico">
@@ -143,9 +144,16 @@ code{background:#1a1a1a;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.85e
 <section>
 <h2>How Payment Works</h2>
 <p style="color:#9ca3af;font-size:0.9rem">
-POST to any paid endpoint &rarr; get <code>402 Payment Required</code> with price &rarr; sign a USDC transfer on ${networks} &rarr; retry with payment header &rarr; get data. ~2 seconds. No accounts. No API keys. Your wallet is your identity.
+POST to any paid endpoint &rarr; get <code>402 Payment Required</code> with price &rarr; sign a USDC transfer on ${networks} &rarr; retry with payment header &rarr; get data. ~2 seconds. No account needed: your wallet is your identity.
 </p>
 </section>
+${cards ? `
+<section>
+<h2>Prefer a Card?</h2>
+<p style="color:#9ca3af;font-size:0.9rem">Buy a prepaid pack at face value and get an API key, shown once after payment. Send it as <code>Authorization: Bearer &lt;key&gt;</code> on any paid endpoint.</p>
+<div class="links">${CREDIT_PACKS.map((pack) => `<button class="link-btn" onclick="buyPack('${pack}')">Buy ${packPrice(pack)}</button>`).join("")}</div>
+<p id="buy-status" style="color:#9ca3af;font-size:0.85rem;text-align:center"></p>
+</section>` : ""}
 
 <div class="links">
 <a class="link-btn" href="${baseUrl}/docs">API Docs</a>
@@ -176,6 +184,16 @@ r.textContent=d.content||JSON.stringify(d,null,2);
 }catch(e){r.textContent="Error: "+e.message}
 }
 document.getElementById("url-input").addEventListener("keydown",function(e){if(e.key==="Enter")tryFetch()});
+async function buyPack(pack){
+var s=document.getElementById("buy-status");
+s.textContent="Opening Stripe Checkout...";
+try{
+var res=await fetch("/billing/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pack:pack})});
+var d=await res.json();
+if(d.checkoutUrl){location.href=d.checkoutUrl;return}
+s.textContent="Error: "+(d.message||d.error);
+}catch(e){s.textContent="Error: "+e.message}
+}
 </script>
 </body>
 </html>`;

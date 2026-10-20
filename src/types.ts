@@ -3,6 +3,7 @@
  * All request/response interfaces for the API
  */
 
+import type { CreditAccountDO } from "./durable_objects/CreditAccountDO";
 import type { FacilitatorLabel } from "./services/payment-telemetry";
 import type { Logger } from "./utils/logger";
 
@@ -26,7 +27,8 @@ export interface Env {
   // Cloudflare services
   BROWSER?: Fetcher; // Cloudflare Browser Rendering
   CACHE?: KVNamespace; // Cloudflare KV for caching
-  CREDIT_MANAGER?: DurableObjectNamespace;
+  ACCOUNTS: DurableObjectNamespace<CreditAccountDO>; // Prepaid accounts, one Durable Object each
+  BILLING_LIMITER: RateLimit; // Workers Rate Limiting for /billing/checkout and key rotation
   PAYMENT_EVENTS: AnalyticsEngineDataset; // Payment funnel events (services/payment-telemetry.ts)
   // Optional API keys
   SERP_API_KEY?: string;
@@ -48,8 +50,12 @@ export interface Env {
   // holds exactly one (see services/facilitator-chain.ts).
   FACILITATORS_EVM?: string;
   FACILITATORS_SVM?: string;
-  // Stripe fiat onramp — agents/devs without on-chain wallets can buy
-  // credits via card. Webhook credits the wallet on `checkout.session.completed`.
+  // API key prefix of this environment ("wl_live_" in production, "wl_test_"
+  // on testnet), so a key only ever works where it was sold.
+  API_KEY_PREFIX: string;
+  // Stripe Checkout with Managed Payments for prepaid packs (services/stripe.ts).
+  // Without both, /billing/* answers 503. The secret key's mode (sk_test_ /
+  // sk_live_) must match API_KEY_PREFIX.
   // Set via: wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
@@ -59,8 +65,6 @@ export interface Env {
    * If set, webhooks signed with either primary or secondary secret verify.
    */
   STRIPE_WEBHOOK_SECRET_2?: string;
-  STRIPE_SUCCESS_URL?: string;
-  STRIPE_CANCEL_URL?: string;
 }
 
 /** The Hono environment every route and middleware runs in. */
@@ -82,7 +86,6 @@ declare module "hono" {
     requestId: string;
     validatedBody: unknown;
     paidWithCredits: boolean;
-    creditWallet: string;
     startTime: number;
     // Response caching (set by cacheLookupMiddleware, read by the credit/x402
     // price functions and cacheServeMiddleware). See src/middleware/cache.ts.
@@ -202,16 +205,9 @@ export type ErrorCode =
   | "INVALID_CONTENT_TYPE" // Non-JSON Content-Type on POST/PUT (400)
   | "INVALID_JSON" // Body was not parseable JSON (400)
   | "PAYLOAD_TOO_LARGE" // Body exceeds 256KB cap (413)
-  // --- Credit auth + wallet signature (credit-middleware.ts, utils/security.ts) ---
-  | "AUTH_FAILED" // Generic credit auth failure (401)
-  | "REPLAY_DETECTED" // Reused wallet signature within replay window (401)
-  | "MISSING_AUTH" // Required auth headers absent (401)
-  | "INVALID_TIMESTAMP" // Malformed / future auth timestamp (401)
-  | "EXPIRED_TIMESTAMP" // Auth timestamp outside the 5-min window (401)
-  | "INVALID_WALLET" // Malformed wallet address (401)
-  | "INVALID_SIGNATURE" // Signature did not verify (401)
-  | "VERIFICATION_FAILED" // Signature verification threw (401)
-  | "UNAUTHORIZED" // No valid payment/credit wallet for the operation (401)
+  // --- Prepaid API keys (middleware/api-key.ts, routes/billing.ts) ---
+  | "INVALID_API_KEY" // Authorization is not an active key of this environment (401)
+  | "INSUFFICIENT_CREDITS" // The key's account holds less than the call costs (402)
   // --- Routing (src/middleware/routing.ts) ---
   | "METHOD_NOT_ALLOWED" // Path exists, but not under this method (405)
   | "UNSUBSTITUTED_PATH_TEMPLATE" // Path still contains a documented {placeholder} (400)

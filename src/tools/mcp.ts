@@ -21,10 +21,10 @@ const MCP_VERSION = "2025-06-18";
 /**
  * Request headers a `tools/call` carries through onto the tool's own endpoint.
  *
- * The x402 payload, the three credit-account headers, and the caller's edge IP.
+ * The x402 payload, a prepaid API key (Authorization), and the caller's edge IP.
  * Only `Payment-Signature` used to be forwarded, so a buyer holding prepaid
- * credits could not spend them through MCP even though the identical call
- * worked over plain HTTP.
+ * credit could not spend it through MCP even though the identical call worked
+ * over plain HTTP.
  *
  * Forwarding `cf-connecting-ip` is not a trust hole: the rate limiter reads
  * only that header *because* Cloudflare's edge overwrites it on the way in, so
@@ -34,9 +34,7 @@ const MCP_VERSION = "2025-06-18";
  */
 const FORWARDED_REQUEST_HEADERS = [
   "Payment-Signature",
-  "X-CREDIT-WALLET",
-  "X-CREDIT-SIGNATURE",
-  "X-CREDIT-TIMESTAMP",
+  "Authorization",
   "cf-connecting-ip",
 ] as const;
 
@@ -140,8 +138,8 @@ export function paymentRequiredError(
       howToPay:
         "Decode the base64 paymentRequiredHeader (or read the decoded paymentRequired), sign one " +
         "of its `accepts` entries with your wallet, then retry this tools/call with the signed " +
-        "payload in the Payment-Signature header. Prepaid credits work too — send X-CREDIT-WALLET, " +
-        "X-CREDIT-SIGNATURE and X-CREDIT-TIMESTAMP instead.",
+        "payload in the Payment-Signature header. A prepaid WebLens API key works too: send it as " +
+        "Authorization: Bearer <key> instead.",
     },
   };
 }
@@ -450,7 +448,7 @@ export function mcpInfoHandler(c: Context<AppEnv>) {
     name: "WebLens MCP Server",
     version: MCP_SERVER_VERSION,
     tagline: "Scrape, crawl, map and extract the web — pay per call",
-    description: `Web Intelligence API for AI agents with x402 micropayments. No API keys, no accounts, no monthly minimum - just pay per request with USDC on ${supportedNetworkNames(c.env)}.`,
+    description: `Web Intelligence API for AI agents with x402 micropayments. No account or monthly minimum needed - just pay per request with USDC on ${supportedNetworkNames(c.env)}.`,
     protocolVersion: MCP_VERSION,
     transport: "streamable-http",
     capabilities: [

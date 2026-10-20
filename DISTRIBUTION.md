@@ -95,9 +95,9 @@ API, which maps cleanly onto what WebLens already is, and with pay-per-event
 pricing in Standby we are not liable for users' platform usage costs.
 
 This one is **not ready to ship** and needs a decision first, because an Apify
-actor has to reach WebLens's paid endpoints and WebLens currently has exactly
-two ways to pay — an x402 signature or a wallet-signed credit account. Neither
-fits a server-side actor. The options:
+actor has to reach WebLens's paid endpoints and WebLens has exactly two ways to
+pay — an x402 signature or a prepaid API key bought by card. Neither fits a
+server-side actor billed by Apify. The options:
 
 - **(a) Self-contained actor.** The actor does the scraping itself, reusing
   `src/services/crawler.ts` logic as a small Node package. No dependency on the

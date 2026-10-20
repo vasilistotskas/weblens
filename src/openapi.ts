@@ -5,15 +5,16 @@
 
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
-import { FREE_TIER, PRICING, SERVICE_NAME, SERVICE_VERSION, supportedNetworkNames, supportedNetworks } from "./config";
-import type { NetworkEnv } from "./config";
+import { cardPaymentsEnabled, CREDIT_PACKS, FREE_TIER, packPrice, PRICING, SERVICE_NAME, SERVICE_VERSION, supportedNetworkNames, supportedNetworks } from "./config";
+import type { SurfaceEnv } from "./config";
 import { ENDPOINT_GROUPS } from "./endpoints/define";
 import { llmsEndpointSections, llmsMcpToolLines, openApiPaidPaths } from "./endpoints/docs";
 import type { AppEnv } from "./types";
 
 // OpenAPI Document (exported for the discovery-contract tests)
-export function getOpenAPIDocument(env: NetworkEnv, baseUrl: string = "https://api.weblens.dev") {
+export function getOpenAPIDocument(env: SurfaceEnv, baseUrl: string = "https://api.weblens.dev") {
   const networks = supportedNetworkNames(env);
+  const cards = cardPaymentsEnabled(env);
   return {
     openapi: "3.1.0",
     info: {
@@ -21,8 +22,8 @@ export function getOpenAPIDocument(env: NetworkEnv, baseUrl: string = "https://a
       version: SERVICE_VERSION,
       description: `# WebLens - Web Intelligence API, pay per call
 
-Scrape, crawl, map and extract the web. No account, no API key, no monthly
-minimum — you pay for the calls you make and nothing else.
+Scrape, crawl, map and extract the web. No monthly minimum: you pay for the
+calls you make and nothing else, over x402 with no account needed${cards ? ", or from a prepaid balance bought by card" : ""}.
 
 ## Pricing
 Page fetching starts at **${PRICING.fetch.basic}**, whole-site crawling at
@@ -33,13 +34,21 @@ rate only on a $99/month commitment. WebLens has no commitment to reach.
 ## Payment Protocol
 All paid endpoints use the [x402 protocol](https://x402.org) for HTTP-native
 micropayments (USDC on ${networks}).
-
+${cards ? `
+## Prepaid API keys
+Prefer a card? \`POST /billing/checkout {"pack": "10"}\` returns a Stripe Checkout
+link for a ${CREDIT_PACKS.map(packPrice).join(", ")} pack, and the page you return to
+shows an API key once. Send it as \`Authorization: Bearer <key>\` on any paid
+endpoint: each call is debited at its list price, and a failed call is refunded.
+\`GET /account\` shows the balance.
+` : ""}
 ## Cache Discount
 Cached responses are **70% cheaper** than fresh fetches.`,
       "x-guidance":
-        "WebLens is a pay-per-call web intelligence API for AI agents — no accounts, API keys, or monthly minimum. " +
+        "WebLens is a pay-per-call web intelligence API for AI agents — no account or monthly minimum needed. " +
         `Every paid operation is a POST with a JSON body, paid via x402 (USDC on ${networks}): call it, read the ` +
         "PAYMENT-REQUIRED response header from the 402, sign, and retry with Payment-Signature. " +
+        (cards ? "Holders of a prepaid WebLens API key send it as Authorization: Bearer <key> instead of paying per call. " : "") +
         `Cheapest and most capable at getting pages: POST /fetch/basic {"url": "..."} scrapes to markdown for ${PRICING.fetch.basic}, ` +
         `POST /crawl {"url": "..."} crawls a whole site for ${PRICING.crawl.perPage}/page, and POST /map {"url": "..."} ` +
         `lists a site's URLs from its sitemap for ${PRICING.map}. ` +
@@ -60,6 +69,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
       ...Object.entries(ENDPOINT_GROUPS).map(([name, description]) => ({ name, description })),
       { name: "System", description: "Health and documentation endpoints" },
       { name: "Discovery", description: "Free evaluation and ERC-8004 off-chain surfaces — previews, receipts, feedback" },
+      ...(cards ? [{ name: "Account", description: "Prepaid API keys bought by card, and the account they open" }] : []),
     ],
     paths: {
       "/": { get: { tags: ["System"], summary: "API Info", operationId: "getApiInfo", security: [], responses: { "200": { description: "API info" } } } },
@@ -103,32 +113,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           },
         },
       },
-      "/credits/balance": {
-        get: {
-          tags: ["Credits"], summary: "Get Balance", operationId: "getCreditsBalance",
-          description: "Get current credit balance. Requires X-CREDIT-WALLET and X-CREDIT-SIGNATURE headers.",
-          security: [],
-          parameters: [
-            { name: "X-CREDIT-WALLET", in: "header", required: true, schema: { type: "string" } },
-            { name: "X-CREDIT-SIGNATURE", in: "header", required: true, schema: { type: "string" } },
-            { name: "X-CREDIT-TIMESTAMP", in: "header", required: true, schema: { type: "string" } },
-          ],
-          responses: { "200": { description: "Balance info" }, "401": { description: "Invalid signature" } },
-        },
-      },
-      "/credits/history": {
-        get: {
-          tags: ["Credits"], summary: "Get History", operationId: "getCreditsHistory",
-          description: "Get credit transaction history. Requires X-CREDIT-WALLET and X-CREDIT-SIGNATURE headers.",
-          security: [],
-          parameters: [
-            { name: "X-CREDIT-WALLET", in: "header", required: true, schema: { type: "string" } },
-            { name: "X-CREDIT-SIGNATURE", in: "header", required: true, schema: { type: "string" } },
-            { name: "X-CREDIT-TIMESTAMP", in: "header", required: true, schema: { type: "string" } },
-          ],
-          responses: { "200": { description: "Transaction history" }, "401": { description: "Invalid signature" } },
-        },
-      },
+      ...(cards ? accountPaths() : {}),
       "/free/fetch": {
         post: {
           tags: ["Free"], summary: "Free Fetch", operationId: "freeFetch",
@@ -357,9 +342,59 @@ Cached responses are **70% cheaper** than fresh fetches.`,
           name: "Payment-Signature",
           description: "x402 v2 payment payload (base64-encoded signed payment)",
         },
+        ...(cards ? {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            description: "Prepaid WebLens API key from POST /billing/checkout, debited per call at list price",
+          },
+        } : {}),
       },
     },
-    security: [{ x402Payment: [] }],
+    // Alternatives: a paid call carries an x402 payment or, where cards are sold, an API key.
+    security: cards ? [{ x402Payment: [] }, { bearerAuth: [] }] : [{ x402Payment: [] }],
+  };
+}
+
+/** Buying and using prepaid API keys; listed only where card sales are on. */
+function accountPaths() {
+  const error = { content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } };
+  return {
+    "/billing/checkout": {
+      post: {
+        tags: ["Account"],
+        summary: "Buy a prepaid pack by card",
+        operationId: "createCheckout",
+        security: [],
+        description: `Returns a Stripe Checkout URL for a ${CREDIT_PACKS.map(packPrice).join(" / ")} pack at face value (Link is the merchant of record and adds any sales tax). Without Authorization it opens a new account, whose API key the page after payment shows once; with your key it tops that account up. Rate limited.`,
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["pack"], properties: { pack: { type: "string", enum: [...CREDIT_PACKS] } } }, example: { pack: "10" } } } },
+        responses: {
+          "200": { description: "checkoutUrl to open in a browser, and the sessionId" },
+          "400": { description: "Unknown pack", ...error },
+          "401": { description: "Authorization is not an active key", ...error },
+          "429": { description: "Rate limited", ...error },
+        },
+      },
+    },
+    "/account": {
+      get: {
+        tags: ["Account"],
+        summary: "Balance and recent usage",
+        operationId: "getAccount",
+        security: [{ bearerAuth: [] }],
+        responses: { "200": { description: "balance, createdAt, keyCreatedAt, and the 50 most recent ledger entries" }, "401": { description: "Not an active key", ...error } },
+      },
+    },
+    "/account/key/rotate": {
+      post: {
+        tags: ["Account"],
+        summary: "Replace your API key",
+        operationId: "rotateApiKey",
+        security: [{ bearerAuth: [] }],
+        description: "Returns a new key, shown once; the key you sent stops working immediately.",
+        responses: { "200": { description: "apiKey" }, "401": { description: "Not an active key", ...error } },
+      },
+    },
   };
 }
 
@@ -392,7 +427,7 @@ export function registerOpenAPIRoutes(app: Hono<AppEnv>) {
 
 WebLens gets pages for AI agents: a single URL as markdown, a whole site crawled,
 a site's URL list from its sitemap, or structured JSON pulled out of any page.
-Paid endpoints settle over the x402 protocol (USDC on ${supportedNetworkNames(c.env)}) — no accounts, no API keys.
+Paid endpoints settle over the x402 protocol (USDC on ${supportedNetworkNames(c.env)}) — no account needed.${cardPaymentsEnabled(c.env) ? " Prefer a card? Buy a prepaid API key (see Prepaid API Keys below)." : ""}
 
 ## What It Costs
 
@@ -416,7 +451,7 @@ cached responses are another 70% off.
 
 ## Why Choose WebLens?
 
-- **Zero friction**: No accounts, API keys, or subscriptions - just pay per request
+- **Zero friction**: No account or subscription needed - just pay per request
 - **Cheapest per page**: fetching and crawling run on Cloudflare's edge, and the price reflects it
 - **AI-optimized**: Designed for autonomous agents with structured outputs
 - **Instant settlement**: Payments settle on-chain in seconds (${supportedNetworkNames(c.env)})
@@ -566,15 +601,18 @@ For AI agents using Model Context Protocol:
 - \`preview_endpoint\` - Price + real response sample for any paid endpoint, before paying — free
 ${llmsMcpToolLines()}
 
-### Agent Credits (Prepaid)
+${cardPaymentsEnabled(c.env) ? `
+## Prepaid API Keys
 
-Bypass per-request x402 signatures by pre-funding an account with POST /credits/buy (see Credits above).
+Pay by card instead of per-call x402:
 
-#### GET /credits/balance
-Check current credit balance.
-- Header: \`X-CREDIT-WALLET\`: Your wallet address
-- Header: \`X-CREDIT-SIGNATURE\`: Signature of "WebLens Auth..." message
-
+1. POST /billing/checkout {"pack": "10"} (packs: ${CREDIT_PACKS.map(packPrice).join(", ")}, at face value) returns a Stripe \`checkoutUrl\`.
+2. Pay in a browser. The page you return to shows your API key once: store it.
+3. Send \`Authorization: Bearer <key>\` on any paid endpoint. Each call is debited at its list price
+   (\`Credit-Cost\` and \`Credit-Balance\` response headers); a failed call is refunded (\`Credit-Refunded\`).
+4. Too little balance → 402 INSUFFICIENT_CREDITS (not an x402 challenge). Top up with POST /billing/checkout and your key.
+5. GET /account shows the balance and recent usage; POST /account/key/rotate replaces the key.
+` : ""}
 ## Response Headers
 
 All responses include:

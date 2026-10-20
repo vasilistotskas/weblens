@@ -90,6 +90,33 @@ export function parsePrice(price: string): number {
 }
 
 /**
+ * Decimal places of a micro-USD amount: the unit of USDC atomic amounts (6
+ * decimals on Base and Solana) and of the prepaid account ledger.
+ */
+const MICRO_USD_DECIMALS = 6;
+
+/**
+ * A "$0.015" price as whole micro-USD (15000), parsed from the decimal string
+ * itself rather than through a float, so a ledger never drifts by a rounding.
+ */
+export function usdToMicros(price: string): number {
+    const match = /^\$?(\d+)(?:\.(\d{1,6}))?$/u.exec(price);
+    if (!match) {
+        throw new RangeError(`not a USD amount with at most ${String(MICRO_USD_DECIMALS)} decimals: ${price}`);
+    }
+    const [, whole = "0", fraction = ""] = match;
+    return Number(whole) * 10 ** MICRO_USD_DECIMALS + Number(fraction.padEnd(MICRO_USD_DECIMALS, "0"));
+}
+
+/** Whole micro-USD (or USDC atomic units) as "$0.015", without trailing zeros. */
+export function formatMicros(micros: number | bigint | string): string {
+    const units = BigInt(micros);
+    const scale = 10n ** BigInt(MICRO_USD_DECIMALS);
+    const fraction = (units % scale).toString().padStart(MICRO_USD_DECIMALS, "0").replace(/0+$/u, "");
+    return `$${(units / scale).toString()}${fraction ? `.${fraction}` : ""}`;
+}
+
+/**
  * Format a numeric price amount as a string with $ prefix.
  * @param decimals Number of decimal places (default 4 for USDC micro-payments)
  */

@@ -16,7 +16,7 @@
 
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { evmNetwork, supportedNetworks } from "../../src/config";
+import { supportedNetworks } from "../../src/config";
 
 interface Accept {
     scheme: string;
@@ -85,13 +85,5 @@ describe("advertised payment networks", () => {
         } else {
             expect(solana).toHaveLength(0);
         }
-    });
-
-    it("offers credit purchases on the EVM network only", async () => {
-        // Credit accounts are EVM wallets; a Solana payment carries no
-        // EIP-3009 `authorization.from` for /credits/buy to credit.
-        const { accepts } = await challenge("/credits/buy", { amount: 10 });
-
-        expect(accepts.map((a) => a.network)).toEqual([evmNetwork(env)]);
     });
 });

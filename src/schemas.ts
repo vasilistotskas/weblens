@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
     CACHE_TTL_SECONDS,
-    CREDIT_PURCHASE_USD,
+    CREDIT_PACKS,
     DEEP_RESEARCH_DEFAULT_DEPTH,
     DEEP_RESEARCH_DEPTHS,
     describeDeepResearchTiers,
@@ -225,13 +225,7 @@ export const PdfRequestSchema = z.object({
 // System & Utility Endpoints
 // ============================================
 
-export const CreditsBuyRequestSchema = z.object({
-    amount: z.number().min(CREDIT_PURCHASE_USD.min).max(CREDIT_PURCHASE_USD.max).describe("Amount in USD to buy"),
-});
-
-// Fiat deposit via Stripe Checkout. `wallet` keys the credit account so a
-// dev can buy credits with a card and then sign requests from that wallet.
-export const FiatDepositRequestSchema = z.object({
-    amount: z.number().min(CREDIT_PURCHASE_USD.min).max(CREDIT_PURCHASE_USD.max),
-    wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/u, "Must be a 0x-prefixed 40-hex address"),
+// A prepaid pack bought by card (POST /billing/checkout).
+export const CheckoutRequestSchema = z.object({
+    pack: z.enum(CREDIT_PACKS).describe(`Pack to buy, in USD at face value: ${CREDIT_PACKS.map((pack) => `$${pack}`).join(", ")}`),
 });

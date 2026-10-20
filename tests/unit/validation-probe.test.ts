@@ -6,8 +6,8 @@
  * so probing agents concluded the resource was not payable. x402scan
  * documents this exact failure as "Expected 402, got 400".
  *
- * Paying/credit requests keep strict validation — money must never move on
- * an invalid body.
+ * Requests that pay (x402 or an API key) keep strict validation — money must
+ * never move on an invalid body.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -94,11 +94,11 @@ describe("validateRequest — unpaid probe fallthrough", () => {
         expect(json.mock.calls[0]?.[1]).toBe(400);
     });
 
-    it("still rejects an invalid body when the request carries credit auth", async () => {
+    it("still rejects an invalid body when the request carries an API key", async () => {
         const { ctx, json } = mockContext({
             path: "/contents",
             body: "{}",
-            headers: { "X-CREDIT-WALLET": "0xabc" },
+            headers: { Authorization: "Bearer wl_live_key" },
         });
         const next = vi.fn(async () => { /* handler */ });
 

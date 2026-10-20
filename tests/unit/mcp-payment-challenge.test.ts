@@ -91,6 +91,6 @@ describe("MCP payment-required error", () => {
         const howToPay = String(paymentRequiredError(response402(), TOOL).data.howToPay);
 
         expect(howToPay).toContain("Payment-Signature");
-        expect(howToPay).toContain("X-CREDIT-WALLET");
+        expect(howToPay).toContain("Authorization: Bearer");
     });
 });

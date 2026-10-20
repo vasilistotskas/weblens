@@ -59,8 +59,6 @@ export const PAGE_ENDPOINTS = [
         },
         price: fixedPrice(PRICING.fetch.basic),
         cacheKey: "fetch-basic",
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/fetch/pro",
@@ -105,8 +103,6 @@ export const PAGE_ENDPOINTS = [
         },
         price: complexityPricing("fetch-pro"),
         cacheKey: "fetch-pro",
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/fetch/resilient",
@@ -153,8 +149,6 @@ export const PAGE_ENDPOINTS = [
         },
         price: fixedPrice(PRICING.fetch.resilient),
         cacheKey: "fetch-resilient",
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/screenshot",
@@ -185,8 +179,6 @@ export const PAGE_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.screenshot),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/contents",
@@ -241,8 +233,6 @@ export const PAGE_ENDPOINTS = [
             { min: PRICING.contents.minUrls, max: PRICING.contents.maxUrls, unit: "URL" },
             (body) => body?.urls.length ?? PRICING.contents.minUrls,
         ),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/map",
@@ -285,8 +275,6 @@ export const PAGE_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.map),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/crawl",
@@ -362,8 +350,6 @@ export const PAGE_ENDPOINTS = [
             { min: PRICING.crawl.minPages, max: PRICING.crawl.maxPages, unit: "requested page" },
             (body) => body?.limit ?? PRICING.crawl.defaultPages,
         ),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/pdf",
@@ -396,8 +382,6 @@ export const PAGE_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.pdf),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/extract",
@@ -430,7 +414,5 @@ export const PAGE_ENDPOINTS = [
             },
         },
         price: complexityPricing("extract"),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
 ] as const;

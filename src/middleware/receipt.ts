@@ -15,18 +15,8 @@ import type { MiddlewareHandler } from "hono";
 import { PAID_ENDPOINTS } from "../endpoints";
 import { recordReceipt } from "../services/erc8004";
 import type { CallReceipt } from "../services/erc8004";
+import { formatMicros } from "../services/pricing";
 import type { AppEnv } from "../types";
-
-/** USDC uses 6 decimals on every chain WebLens accepts (Base and Solana). */
-const USDC_DECIMALS = 6;
-
-/** Atomic USDC units -> "$0.015". */
-function formatUsdc(atomic: string): string {
-    const units = BigInt(atomic);
-    const scale = 10n ** BigInt(USDC_DECIMALS);
-    const fraction = (units % scale).toString().padStart(USDC_DECIMALS, "0").replace(/0+$/u, "");
-    return `$${(units / scale).toString()}${fraction ? `.${fraction}` : ""}`;
-}
 
 /**
  * Describe what an x402 call actually settled, for the receipt.
@@ -48,7 +38,7 @@ function settledX402Payment(
         if (!settled.success) { return null; }
         const { accepted } = decodePaymentSignatureHeader(signatureHeader);
         return {
-            price: formatUsdc(accepted.amount),
+            price: formatMicros(accepted.amount),
             network: settled.network,
             payTo: accepted.payTo,
             transaction: settled.transaction,

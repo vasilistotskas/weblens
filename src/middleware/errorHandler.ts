@@ -101,17 +101,10 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "INVALID_PDF":
     case "PDF_TOO_LARGE":
       return 400;
-    case "AUTH_FAILED":
-    case "REPLAY_DETECTED":
-    case "MISSING_AUTH":
-    case "INVALID_TIMESTAMP":
-    case "EXPIRED_TIMESTAMP":
-    case "INVALID_WALLET":
-    case "INVALID_SIGNATURE":
-    case "VERIFICATION_FAILED":
-    case "UNAUTHORIZED":
+    case "INVALID_API_KEY":
       return 401;
     case "PAYMENT_FAILED":
+    case "INSUFFICIENT_CREDITS":
       return 402;
     case "FORBIDDEN":
       return 403;

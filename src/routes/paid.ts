@@ -2,13 +2,13 @@
  * Registers every paid endpoint in the registry (src/endpoints) with one
  * middleware stack:
  *
- *   [cache lookup] → validation → credit debit → x402 payment → [cache serve] → handler
+ *   [cache lookup] → validation → API key debit → x402 payment → [cache serve] → handler
  *
- * Invalid bodies are rejected before any money moves, and the credit debit and
- * the x402 challenge share one price resolver. The only difference is the
+ * Invalid bodies are rejected before any money moves, and the API key debit
+ * and the x402 challenge share one price resolver. The only difference is the
  * x402 floor (PRICING.x402Minimum): an x402 sale pays the facilitator a settle
- * fee, so it never charges less than that, while a credit debit settles
- * nothing and pays the list price.
+ * fee, so it never charges less than that, while a key debit settles nothing
+ * and pays the list price.
  */
 
 import type { Context, Handler, Hono, MiddlewareHandler } from "hono";
@@ -16,15 +16,14 @@ import { ENDPOINTS } from "../endpoints";
 import type { PaidPath } from "../endpoints";
 import { endpointBodySchema, x402Charge } from "../endpoints/define";
 import type { EndpointDefinition } from "../endpoints/define";
+import { createApiKeyMiddleware } from "../middleware/api-key";
 import { cacheAwarePrice, cacheLookupMiddleware, cacheServeMiddleware } from "../middleware/cache";
-import { createCreditMiddleware } from "../middleware/credit-middleware";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
 import { answerHandler } from "../tools/answer";
 import { companyHandler } from "../tools/company";
 import { contentsHandler } from "../tools/contents";
 import { crawlHandler } from "../tools/crawl";
-import { buyCreditsHandler } from "../tools/credits";
 import { deepResearchHandler } from "../tools/deep-research";
 import { discussionsHandler } from "../tools/discussions";
 import { domainHandler } from "../tools/domain";
@@ -79,7 +78,6 @@ const HANDLERS: Record<PaidPath, Handler<AppEnv>> = {
     "/tech": techHandler,
     "/company": companyHandler,
     "/intel/project": projectAuditHandler,
-    "/credits/buy": buyCreditsHandler,
 };
 
 /**
@@ -110,15 +108,12 @@ export function registerPaidRoutes(app: Hono<AppEnv>): void {
             stack.push(cacheLookupMiddleware(definition.cacheKey));
         }
         stack.push(validateRequest(definition.input));
-        if (definition.acceptsCredits) {
-            stack.push(createCreditMiddleware(price, definition.title));
-        }
+        stack.push(createApiKeyMiddleware(price, definition.title));
         stack.push(createLazyPaymentMiddleware(
             {
                 path: definition.path,
                 description: definition.description,
                 catalogTags: definition.catalogTags,
-                evmOnly: definition.evmOnly,
                 inputExample: definition.inputExample,
                 inputSchema: endpointBodySchema(definition),
                 outputExample: definition.outputExample,

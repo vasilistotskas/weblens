@@ -22,7 +22,7 @@ export const MAX_BODY_BYTES = 256 * 1024; // 256 KB
 
 /**
  * True when the request targets a paid endpoint but carries neither an x402
- * payment nor credit auth. Such a request receives a 402 challenge from the
+ * payment nor an API key (Authorization). Such a request receives a 402 challenge from the
  * payment middleware no matter what its body contains — so rejecting it with
  * a 400 here would only hide the payment challenge from probing agents
  * (observed in production: thousands of bare POSTs bouncing as 400 and
@@ -33,7 +33,7 @@ export const MAX_BODY_BYTES = 256 * 1024; // 256 KB
 function isUnpaidProbe(c: Context<AppEnv>): boolean {
     return PAID_ENDPOINTS.includes(c.req.path)
         && c.req.header("Payment-Signature") === undefined
-        && c.req.header("X-CREDIT-WALLET") === undefined;
+        && c.req.header("Authorization") === undefined;
 }
 
 /**

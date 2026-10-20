@@ -117,8 +117,6 @@ export const INTEL_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.domain),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/package",
@@ -196,8 +194,6 @@ export const INTEL_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.package),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/tech",
@@ -255,8 +251,6 @@ export const INTEL_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.tech),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/company",
@@ -351,8 +345,6 @@ export const INTEL_ENDPOINTS = [
         },
         price: fixedPrice(PRICING.company),
         cacheKey: "company",
-        acceptsCredits: true,
-        evmOnly: false,
     }),
     defineEndpoint({
         path: "/intel/project",
@@ -428,7 +420,5 @@ export const INTEL_ENDPOINTS = [
             },
         },
         price: fixedPrice(PRICING.intel.project),
-        acceptsCredits: true,
-        evmOnly: false,
     }),
 ] as const;

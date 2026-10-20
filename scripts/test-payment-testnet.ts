@@ -16,7 +16,7 @@
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import axios from "axios";
-import type { Hex, LocalAccount } from "viem";
+import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { Buffer } from "node:buffer";
 
@@ -92,31 +92,7 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     // Use a PDF hosted somewhere that doesn't block Cloudflare IPs.
     // mozilla/pdf.js ships a tracemonkey sample that's CORS-open and CDN-served.
     "/pdf":         { url: "https://raw.githubusercontent.com/mozilla/pdf.js-sample-files/master/tracemonkey.pdf" },
-
-    // Credits — amount must be a number (USD), matches CreditsBuyRequestSchema
-    "/credits/buy": { amount: 5 },
 };
-
-// ============================================
-// Wallet Auth (EIP-191 signature for credits endpoints)
-// ============================================
-
-/**
- * Build the three headers required by /credits/balance and /credits/history.
- * Message format: "WebLens Authentication\nWallet: <addr>\nTimestamp: <ts>"
- */
-async function buildCreditAuthHeaders(
-    account: LocalAccount
-): Promise<Record<string, string>> {
-    const timestamp = String(Date.now());
-    const message = `WebLens Authentication\nWallet: ${account.address}\nTimestamp: ${timestamp}`;
-    const signature = await account.signMessage({ message });
-    return {
-        "X-CREDIT-WALLET": account.address,
-        "X-CREDIT-SIGNATURE": signature,
-        "X-CREDIT-TIMESTAMP": timestamp,
-    };
-}
 
 // ============================================
 // Test Runner
@@ -220,9 +196,6 @@ async function run(): Promise<void> {
     // ============================================
     // 1. Free & System Endpoints (no payment)
     // ============================================
-    // Note: /credits/balance and /credits/history are NOT in this list — they
-    // require wallet auth and are tested in the chained section below using
-    // buildCreditAuthHeaders().
     const freeEndpoints: ITestEndpoint[] = [
         { name: "Health Check",       method: "GET",  path: "/health",                         price: "FREE", free: true },
         { name: "Root Info",          method: "GET",  path: "/",                               price: "FREE", free: true },
@@ -270,7 +243,6 @@ async function run(): Promise<void> {
             "/fetch/basic", "/fetch/pro", "/fetch/resilient",
             "/screenshot", "/search", "/extract",
             "/research/deep", "/pdf", "/contents",
-            "/credits/buy",
         ];
 
         discoveredEndpoints = fallbackPaths.map((path) => ({
@@ -322,138 +294,42 @@ async function run(): Promise<void> {
     console.log("🔗 CHAINED / STATEFUL TESTS");
     console.log("=".repeat(50));
 
-    // Credits: balance + history — require EIP-191 wallet signature
-    // Note: These require CREDIT_MANAGER Durable Object which may not be available in local dev.
-    // A 503 SERVICE_UNAVAILABLE is expected locally and counts as a "skip", not a failure.
-    for (const creditEp of [
-        { name: "Credits Balance", path: "/credits/balance" },
-        { name: "Credits History", path: "/credits/history" },
-    ]) {
-        console.log(`\n--- Testing ${creditEp.name} (signed) (FREE) ---`);
-        console.log(`GET ${creditEp.path} [FREE]`);
-        try {
-            const authHeaders = await buildCreditAuthHeaders(account);
-            const resp = await baseAxios.get<IWebLensResponseData>(creditEp.path, { headers: authHeaders });
-            console.log("✅ Success! Status:", resp.status);
-            if (resp.data.balance !== undefined) { console.log("  Balance:", resp.data.balance); }
-            if (resp.data.tier) { console.log("  Tier:", resp.data.tier); }
-            const history = resp.data.history;
-            if (Array.isArray(history)) { console.log("  Transactions:", history.length); }
-            results.push({ name: creditEp.name, success: true, path: creditEp.path });
-        } catch (err) {
-            if (axios.isAxiosError(err) && err.response) {
-                const status = err.response.status;
-                const body = JSON.stringify(err.response.data).slice(0, 200);
-                if (status === 503) {
-                    console.log("⏩ Skipped (503 — Durable Object not available in local dev)");
-                    // Don't count as failure — it's an environment limitation
-                } else {
-                    console.log("❌ Error:", status, body);
-                    results.push({ name: creditEp.name, success: false, path: creditEp.path });
-                }
-            } else {
-                console.error("❌ Error:", err instanceof Error ? err.message : String(err));
-                results.push({ name: creditEp.name, success: false, path: creditEp.path });
-            }
-        }
-        await sleep(300);
-    }
-
     // ============================================
-    // Fiat Onramp health check — new endpoints shipped with the Stripe
-    // integration. Without STRIPE_SECRET_KEY these should return 503
-    // gracefully (never crash, never leak stack traces). With Stripe
-    // configured, /credits/deposit/fiat returns 200 + checkoutUrl.
+    // Prepaid API keys by card. Without both Stripe secrets /billing answers 503
+    // gracefully; with them a checkout returns a Stripe URL. Paying needs a
+    // browser, so this checks the surfaces that must never misbehave.
     // ============================================
     console.log("\n" + "=".repeat(50));
-    console.log("💳 FIAT ONRAMP (expect 503 when Stripe unset, 200 when set)");
+    console.log("💳 PREPAID API KEYS (expect 503 when Stripe unset, 200 when set)");
     console.log("=".repeat(50));
 
-    const fiatWallet = account.address;
-    const fiatTests = [
-        {
-            name: "Fiat Deposit (POST)",
-            method: "POST" as const,
-            path: "/credits/deposit/fiat",
-            body: { amount: 2, wallet: fiatWallet },
-        },
-    ];
-    for (const ep of fiatTests) {
-        console.log(`\n--- Testing ${ep.name} ---`);
-        console.log(`${ep.method} ${ep.path}`);
+    const expectStatus = async (name: string, path: string, call: () => Promise<{ status: number }>, accepted: number[]): Promise<void> => {
+        console.log(`\n--- Testing ${name} ---`);
+        let status: number;
         try {
-            const resp = await baseAxios.post<IWebLensResponseData & { checkoutUrl?: string }>(
-                ep.path,
-                ep.body
-            );
-            console.log("✅ Success! Status:", resp.status);
-            if (resp.data.checkoutUrl) {
-                console.log("  checkoutUrl:", resp.data.checkoutUrl.slice(0, 80) + "...");
-            }
-            results.push({ name: ep.name, success: true, path: ep.path });
+            status = (await call()).status;
         } catch (err) {
-            if (axios.isAxiosError(err) && err.response) {
-                if (err.response.status === 503) {
-                    console.log("⏩ 503 (Stripe not configured — expected without STRIPE_SECRET_KEY)");
-                    results.push({ name: ep.name, success: true, path: ep.path });
-                } else {
-                    console.log("❌ Error:", err.response.status, JSON.stringify(err.response.data).slice(0, 200));
-                    results.push({ name: ep.name, success: false, path: ep.path });
-                }
-            } else {
+            if (!axios.isAxiosError(err) || !err.response) {
                 console.error("❌ Error:", err instanceof Error ? err.message : String(err));
-                results.push({ name: ep.name, success: false, path: ep.path });
+                results.push({ name, success: false, path });
+                return;
             }
+            status = err.response.status;
         }
+        const ok = accepted.includes(status);
+        console.log(`${ok ? "✅" : "❌"} Status ${String(status)} (expected ${accepted.join(" or ")})`);
+        results.push({ name, success: ok, path });
         await sleep(300);
-    }
+    };
 
-    // Webhook endpoint: must reject unsigned requests with 400 or 503. Any
-    // other status (especially 200) would indicate the signature check
-    // was bypassed — a critical security regression.
-    console.log(`\n--- Testing Stripe Webhook (unsigned, expect 400 or 503) ---`);
-    try {
-        const resp = await baseAxios.post<IWebLensResponseData>(
-            "/credits/webhook/stripe",
-            { id: "evt_unsigned", type: "checkout.session.completed", data: { object: {} } }
-        );
-        console.log("❌ Unexpected 2xx — signature verification is not enforced:", resp.status);
-        results.push({ name: "Stripe Webhook", success: false, path: "/credits/webhook/stripe" });
-    } catch (err) {
-        if (axios.isAxiosError(err) && err.response) {
-            const status = err.response.status;
-            if (status === 400 || status === 503) {
-                console.log(`⏩ ${String(status)} (expected — webhook correctly rejects unsigned requests)`);
-                results.push({ name: "Stripe Webhook", success: true, path: "/credits/webhook/stripe" });
-            } else {
-                console.log("❌ Unexpected status:", status, JSON.stringify(err.response.data).slice(0, 200));
-                results.push({ name: "Stripe Webhook", success: false, path: "/credits/webhook/stripe" });
-            }
-        }
-    }
-    await sleep(300);
-
-    // Fiat landing pages (HTML) — must return 200 with text/html content type.
-    for (const landing of [
-        { name: "Fiat Success Landing", path: "/credits/fiat/success?session_id=cs_test_abc" },
-        { name: "Fiat Cancel Landing",  path: "/credits/fiat/cancel" },
-    ]) {
-        console.log(`\n--- Testing ${landing.name} ---`);
-        console.log(`GET ${landing.path}`);
-        try {
-            const resp = await baseAxios.get<string>(landing.path, { responseType: "text" });
-            const ct = resp.headers["content-type"] as string | undefined;
-            console.log("✅ Success! Status:", resp.status, "| Content-Type:", ct);
-            const ok = resp.status === 200 && ct?.includes("text/html") === true;
-            results.push({ name: landing.name, success: ok, path: landing.path });
-        } catch (err) {
-            if (axios.isAxiosError(err) && err.response) {
-                console.log("❌ Error:", err.response.status);
-                results.push({ name: landing.name, success: false, path: landing.path });
-            }
-        }
-        await sleep(200);
-    }
+    await expectStatus("Billing Checkout", "/billing/checkout", () => baseAxios.post("/billing/checkout", { pack: "10" }), [200, 503]);
+    // An unsigned webhook must never be accepted: 2xx would mean the signature check is bypassed.
+    await expectStatus("Stripe Webhook (unsigned)", "/billing/webhook",
+        () => baseAxios.post("/billing/webhook", { id: "evt_unsigned", type: "checkout.session.completed", data: { object: { id: "cs_test_x" } } }), [400, 503]);
+    await expectStatus("Billing Cancel Page", "/billing/cancel", () => baseAxios.get("/billing/cancel", { responseType: "text" }), [200]);
+    await expectStatus("Account Without Key", "/account", () => baseAxios.get("/account"), [401]);
+    await expectStatus("Paid Call With Unknown Key", "/fetch/basic",
+        () => baseAxios.post("/fetch/basic", { url: "https://example.com" }, { headers: { Authorization: "Bearer wl_test_00000000000000000000000000000000_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } }), [401]);
 
     // ============================================
     // SSRF defense — free endpoints must reject internal IPs + userinfo

@@ -135,3 +135,41 @@ describe("openapi.json x402scan discovery contract", () => {
 });
 
 type SchemaObject = Record<string, unknown>;
+
+describe("prepaid API keys in the discovery document", () => {
+    type Doc = {
+        info: { description: string; "x-guidance": string };
+        paths: Record<string, Record<string, Operation>>;
+        components: { securitySchemes: Record<string, unknown> };
+        security: unknown[];
+    };
+    const cardsOn = getOpenAPIDocument({ NETWORK: "base", STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" }) as unknown as Doc;
+    const cardsOff = getOpenAPIDocument({ NETWORK: "base" }) as unknown as Doc;
+
+    it("lists nothing about keys where card sales are off", () => {
+        expect(Object.keys(cardsOff.paths).filter((path) => path.startsWith("/billing") || path.startsWith("/account"))).toEqual([]);
+        expect(cardsOff.components.securitySchemes).not.toHaveProperty("bearerAuth");
+        expect(cardsOff.security).toEqual([{ x402Payment: [] }]);
+        expect(cardsOff.info["x-guidance"]).not.toContain("Bearer");
+    });
+
+    it("offers a key as an alternative to x402 where card sales are on", () => {
+        expect(cardsOn.components.securitySchemes).toHaveProperty("bearerAuth", expect.objectContaining({ type: "http", scheme: "bearer" }));
+        expect(cardsOn.security).toEqual([{ x402Payment: [] }, { bearerAuth: [] }]);
+        expect(cardsOn.info["x-guidance"]).toContain("Authorization: Bearer");
+        expect(cardsOn.paths["/billing/checkout"]?.post?.security).toEqual([]);
+        expect(cardsOn.paths["/account"]?.get?.security).toEqual([{ bearerAuth: [] }]);
+        expect(cardsOn.paths["/account/key/rotate"]?.post?.security).toEqual([{ bearerAuth: [] }]);
+    });
+
+    it("keeps every paid operation x402scan-payable with card sales on", () => {
+        const paidOff = Object.entries(cardsOff.paths).filter(([, methods]) => methods.post?.["x-payment-info"]);
+        const paidOn = Object.entries(cardsOn.paths).filter(([, methods]) => methods.post?.["x-payment-info"]);
+        expect(paidOn.map(([path]) => path)).toEqual(paidOff.map(([path]) => path));
+        for (const [path, methods] of paidOn) {
+            expect(methods.post?.responses, path).toHaveProperty("402");
+            // x402scan classifies by x-payment-info; an operation-level security list would override the document's.
+            expect(methods.post?.security, path).toBeUndefined();
+        }
+    });
+});

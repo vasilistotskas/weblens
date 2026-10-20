@@ -51,7 +51,7 @@ export function buildRegistration(baseUrl: string, env: NetworkEnv) {
         type: ERC8004_REGISTRATION_TYPE,
         name: "WebLens",
         description:
-            `Premium web intelligence API for AI agents: scraping, search verticals, crawling, extraction, and cited research. Pay per request in USDC on ${supportedNetworkNames(env)} via x402 — no accounts, no API keys.`,
+            `Premium web intelligence API for AI agents: scraping, search verticals, crawling, extraction, and cited research. Pay per request in USDC on ${supportedNetworkNames(env)} via x402 — no account needed.`,
         image: `${baseUrl}/favicon.png`,
         active: true,
         x402Support: true,
