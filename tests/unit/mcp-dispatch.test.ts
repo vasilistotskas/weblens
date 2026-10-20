@@ -18,7 +18,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { setMcpDispatcher, TOOL_ENDPOINTS } from "../../src/tools/mcp";
 import { mcpPostHandler } from "../../src/tools/mcp";
 
-function callTool(name: string, args: Record<string, unknown> = {}) {
+function callTool(name: string, args: Record<string, unknown> = {}, authorization = "Bearer wl_live_key") {
     const app = new Hono();
     app.post("/mcp", mcpPostHandler);
 
@@ -27,7 +27,7 @@ function callTool(name: string, args: Record<string, unknown> = {}) {
         headers: {
             "Content-Type": "application/json",
             "Payment-Signature": "sig-payload",
-            Authorization: "Bearer wl_live_key",
+            Authorization: authorization,
             "cf-connecting-ip": "203.0.113.7",
             "X-Not-Forwarded": "nope",
         },
@@ -37,7 +37,7 @@ function callTool(name: string, args: Record<string, unknown> = {}) {
             method: "tools/call",
             params: { name, arguments: args },
         }),
-    });
+    }, { API_KEY_PREFIX: "wl_live_" });
 }
 
 type RpcBody = {
@@ -93,6 +93,19 @@ describe("MCP tool dispatch", () => {
         expect(headers?.get("cf-connecting-ip")).toBe("203.0.113.7");
         // Nothing else rides along.
         expect(headers?.get("X-Not-Forwarded")).toBeNull();
+    });
+
+    it("never passes through the MCP client's own login token", async () => {
+        let headers: Headers | undefined;
+        setMcpDispatcher((request) => {
+            headers = request.headers;
+            return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+        });
+
+        await callTool("fetch_webpage", { url: "https://example.com" }, "Bearer eyJhbGciOiJIUzI1NiIs.payload.sig");
+
+        expect(headers?.get("Authorization")).toBeNull();
+        expect(headers?.get("Payment-Signature")).toBe("sig-payload");
     });
 
     it("passes the tool arguments through as the request body", async () => {

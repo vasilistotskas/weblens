@@ -90,7 +90,7 @@ describe("paying with an API key", () => {
     });
 
     it.each([
-        ["a non-bearer header", "Basic dXNlcjpwYXNz"],
+        ["a key sent without Bearer", `wl_live_${"0".repeat(32)}_${"A".repeat(43)}`],
         ["a malformed key", "Bearer wl_live_short"],
         ["a testnet key in production", `Bearer wl_test_${"0".repeat(32)}_${"A".repeat(43)}`],
         ["a key of no account", `Bearer wl_live_${"0".repeat(32)}_${"A".repeat(43)}`],
@@ -98,6 +98,21 @@ describe("paying with an API key", () => {
         const res = await fetchBasic({ Authorization: authorization });
         expect(res.status).toBe(401);
         expect(await res.json<Record<string, unknown>>()).toMatchObject({ code: "INVALID_API_KEY" });
+    });
+});
+
+describe("someone else's Authorization header", () => {
+    // MCP clients send their own server login as a Bearer token on every request, and WebLens's MCP
+    // forwards Authorization to the paid call. That must still get the x402 challenge, not a 401.
+    it.each([
+        ["an MCP client's login token", "Bearer eyJhbGciOiJIUzI1NiIs.payload.sig"],
+        ["a proxy's basic credential", "Basic dXNlcjpwYXNz"],
+    ])("leaves %s on the x402 path", async (_label, authorization) => {
+        // The real 402 needs the real facilitator /supported answer, as tests/workers/paid-routes.test.ts gets it.
+        vi.restoreAllMocks();
+        const res = await fetchBasic({ Authorization: authorization });
+        expect(res.status).toBe(402);
+        expect(res.headers.get("PAYMENT-REQUIRED")).not.toBeNull();
     });
 });
 

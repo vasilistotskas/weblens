@@ -36,6 +36,7 @@ function mockContext({ path, body = "{}", contentType = "application/json", head
                 header: (name: string) => all[name],
                 json: () => JSON.parse(body) as unknown,
             },
+            env: { API_KEY_PREFIX: "wl_live_" },
             get: (k: string) => vars.get(k),
             set: (k: string, v: unknown) => vars.set(k, v),
             json,
@@ -92,6 +93,16 @@ describe("validateRequest — unpaid probe fallthrough", () => {
         expect(next).not.toHaveBeenCalled();
         expect(json).toHaveBeenCalledOnce();
         expect(json.mock.calls[0]?.[1]).toBe(400);
+    });
+
+    it("lets a probe carrying someone else's Authorization (an MCP client login) reach the 402", async () => {
+        const { ctx, json } = mockContext({ path: "/domain", body: "{}", headers: { Authorization: "Bearer eyJhbGciOiJIUzI1NiIs.payload.sig" } });
+        const next = vi.fn(async () => { /* payment middleware */ });
+
+        await run(ctx, next);
+
+        expect(next).toHaveBeenCalledOnce();
+        expect(json).not.toHaveBeenCalled();
     });
 
     it("still rejects an invalid body when the request carries an API key", async () => {

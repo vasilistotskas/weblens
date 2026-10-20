@@ -57,12 +57,19 @@ describe("parseApiKey", () => {
         expect(parseApiKey(`bearer   ${key}`, "wl_live_")).toEqual({ accountId, secret: SECRET });
     });
 
-    it("tells a missing header from a wrong one", () => {
-        expect(parseApiKey(undefined, "wl_live_")).toBe("absent");
-        expect(parseApiKey("", "wl_live_")).toBe("invalid");
+    it("ignores credentials that are not WebLens keys, so those calls keep the x402 path", () => {
+        expect(parseApiKey(undefined, "wl_live_")).toBe("none");
+        expect(parseApiKey("", "wl_live_")).toBe("none");
+        // An MCP client's own login token, a proxy's credential.
+        expect(parseApiKey("Bearer eyJhbGciOiJIUzI1NiIs.payload.sig", "wl_live_")).toBe("none");
+        expect(parseApiKey("Basic dXNlcjpwYXNz", "wl_live_")).toBe("none");
+        expect(parseApiKey(`Basic ${key}`, "wl_live_")).toBe("none");
+    });
+
+    it("refuses a WebLens key in the wrong shape", () => {
         expect(parseApiKey(key, "wl_live_")).toBe("invalid");
-        expect(parseApiKey(`Basic ${key}`, "wl_live_")).toBe("invalid");
         expect(parseApiKey(`Bearer ${key}x`, "wl_live_")).toBe("invalid");
+        expect(parseApiKey("Bearer wl_live_short", "wl_live_")).toBe("invalid");
     });
 
     it("accepts a key only in the environment that sold it", () => {

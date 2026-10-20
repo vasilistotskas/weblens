@@ -61,10 +61,10 @@ export async function checkoutHandler(c: Context<AppEnv>) {
     // A key tops up its own account; it has to be a live key, so a typo never opens a second account.
     const key = parseApiKey(c.req.header("Authorization"), c.env.API_KEY_PREFIX);
     let accountId: string;
-    if (key === "absent") {
+    if (key === "none") {
         accountId = newAccountId();
     } else if (key === "invalid" || !(await accountStub(c.env, key.accountId).summary(key.secret))) {
-        return c.json(createErrorResponse("INVALID_API_KEY", "To top up, send an active API key; omit Authorization to open a new account.", requestId), 401);
+        return c.json(createErrorResponse("INVALID_API_KEY", "To top up, send an active WebLens API key; without one, the checkout opens a new account.", requestId), 401);
     } else {
         accountId = key.accountId;
     }
@@ -78,12 +78,12 @@ export async function checkoutHandler(c: Context<AppEnv>) {
             successUrl: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}/billing/cancel`,
         });
-        c.get("log").info("billing.checkout_created", { account: accountId, pack, topUp: key !== "absent" });
+        c.get("log").info("billing.checkout_created", { account: accountId, pack, topUp: key !== "none" });
         return c.json({
             checkoutUrl: session.url,
             sessionId: session.id,
             pack: packPrice(pack),
-            message: key === "absent"
+            message: key === "none"
                 ? "Open checkoutUrl in a browser and pay. The page you return to shows your API key once: store it."
                 : "Open checkoutUrl in a browser and pay. The credit is added to the account of the key you sent.",
             requestId,

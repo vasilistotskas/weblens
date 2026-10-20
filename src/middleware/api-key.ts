@@ -1,9 +1,10 @@
 /**
  * Pay for a paid route with a prepaid API key (`Authorization: Bearer <key>`).
  *
- * - No Authorization header: not a key call, the x402 payment wall handles it.
- * - A header that is not an active key of this environment: 401 INVALID_API_KEY.
- *   The caller meant to use a key, so it is never silently asked for x402.
+ * - No WebLens key (no Authorization, or someone else's credential such as an MCP
+ *   client's own login token): not a key call, the x402 payment wall handles it.
+ * - A `wl_` key that is malformed, from another environment, or not active: 401
+ *   INVALID_API_KEY. The caller meant to use a key, so it is never asked for x402.
  * - Too little balance: 402 INSUFFICIENT_CREDITS with the balance and where to
  *   top up. It carries no x402 challenge, so an x402 client will not try to pay it.
  *
@@ -28,7 +29,7 @@ export function createApiKeyMiddleware(
 ): MiddlewareHandler<AppEnv> {
     return async (c, next) => {
         const key = parseApiKey(c.req.header("Authorization"), c.env.API_KEY_PREFIX);
-        if (key === "absent") {
+        if (key === "none") {
             await next();
             return;
         }
@@ -37,7 +38,7 @@ export function createApiKeyMiddleware(
         if (key === "invalid") {
             return c.json(createErrorResponse(
                 "INVALID_API_KEY",
-                "Authorization must be \"Bearer <your WebLens API key>\"; this key is malformed, revoked or from another environment.",
+                `This WebLens API key is malformed or belongs to another environment (keys here start with ${c.env.API_KEY_PREFIX}).`,
                 requestId,
             ), 401);
         }

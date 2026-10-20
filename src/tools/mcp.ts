@@ -13,6 +13,7 @@ import { ENDPOINTS, productPriceRange } from "../endpoints";
 import { describePrice, endpointBodySchema, requestBodySchema } from "../endpoints/define";
 import { facilitatorNames } from "../middleware/payment";
 import { PreviewRequestSchema } from "../schemas";
+import { parseApiKey } from "../services/accounts";
 import type { AppEnv, Env } from "../types";
 
 // MCP Protocol version
@@ -312,7 +313,10 @@ async function handleToolCall(params: ToolCallParams, id: string | number | unde
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   for (const header of FORWARDED_REQUEST_HEADERS) {
     const value = c.req.header(header);
-    if (value !== undefined) {
+    // Authorization travels only when it carries a WebLens key: an MCP client's own login token is meant
+    // for this MCP server alone, and the MCP authorization spec forbids passing it through.
+    const foreignCredential = header === "Authorization" && parseApiKey(value, c.env.API_KEY_PREFIX) === "none";
+    if (value !== undefined && !foreignCredential) {
       headers[header] = value;
     }
   }

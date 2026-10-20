@@ -22,14 +22,18 @@ export interface ApiKey {
 }
 
 /**
- * The API key in an `Authorization: Bearer` header. `absent` when the request carries no Authorization
- * header at all (it may still pay with x402); `invalid` for any other header that is not a key of this
- * environment, which is answered with a 401 rather than falling through to x402.
+ * The WebLens API key in an `Authorization: Bearer wl_…` header.
+ *
+ * - `none`: no WebLens key. That includes someone else's credential: MCP clients send their own server
+ *   login as `Authorization: Bearer <token>` on every request, and gateways add theirs, so a foreign
+ *   Authorization header must leave the x402 path (the 402 challenge) exactly as it was.
+ * - `invalid`: a `wl_` key that is malformed, from another environment, or sent without `Bearer`. The
+ *   caller meant to pay with a key, so it gets a 401 rather than a payment challenge.
  */
-export function parseApiKey(authorization: string | undefined, prefix: string): ApiKey | "absent" | "invalid" {
-    if (authorization === undefined) { return "absent"; }
-    const match = /^Bearer\s+(\S+)$/iu.exec(authorization.trim());
-    const parsed = match?.[1] ? API_KEY_PATTERN.exec(match[1]) : null;
+export function parseApiKey(authorization: string | undefined, prefix: string): ApiKey | "none" | "invalid" {
+    const match = authorization === undefined ? null : /^(Bearer\s+)?(wl_\S*)$/iu.exec(authorization.trim());
+    if (!match?.[2]) { return "none"; }
+    const parsed = match[1] ? API_KEY_PATTERN.exec(match[2]) : null;
     if (parsed?.[1] !== prefix || !parsed[2] || !parsed[3]) { return "invalid"; }
     return { accountId: parsed[2], secret: parsed[3] };
 }
