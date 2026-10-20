@@ -140,9 +140,57 @@ describe("profile parsing", () => {
     });
 
     it("reads Contact lines from security.txt", () => {
-        expect(securityContacts("# comment\nContact: mailto:a@acme.com\ncontact:https://acme.com/sec\nPolicy: x")).toEqual([
-            "mailto:a@acme.com",
+        expect(securityContacts("# comment\nContact: mailto:security@acme.com\ncontact:https://acme.com/sec\nPolicy: x", "acme.com")).toEqual([
+            "mailto:security@acme.com",
             "https://acme.com/sec",
         ]);
+    });
+
+    // Contact lines as published by real security.txt files (fetched 2026-10-20).
+    it.each([
+        ["vercel.com", "mailto:responsible.disclosure@vercel.com"],
+        ["redhat.com", "mailto:secalert@redhat.com"],
+        ["adobe.com", "mailto:psirt@adobe.com"],
+        ["hp.com", "mailto:hp-security-alert@hp.com"],
+        ["zoom.us", "mailto:security-reports@zoom.us"],
+        ["debian.org", "mailto:team@security.debian.org"],
+        ["ibm.com", "mailto:psirt@us.ibm.com"],
+        ["github.com", "https://hackerone.com/github"],
+        ["amazon.com", "https://hackerone.com/amazonvrp/reports/new"],
+        ["adobe.com", "https://app.intigriti.com/programs/adobe/adobepublic/detail"],
+        ["apple.com", "https://security.apple.com/"],
+        ["redhat.com", "https://access.redhat.com/security/team/contact/"],
+    ])("keeps the company-level contact of %s: %s", (domain, contact) => {
+        expect(securityContacts(`Contact: ${contact}`, domain)).toEqual([contact]);
+    });
+
+    it("writes a bare address (no mailto:) as a mailto: URI", () => {
+        expect(securityContacts("Contact: security@npmjs.com", "npmjs.com")).toEqual(["mailto:security@npmjs.com"]);
+    });
+
+    it("drops anything that can name a person, and phone numbers", () => {
+        const text = [
+            "Contact: mailto:jane.doe@acme.com",
+            "Contact: mailto:jdoe@acme.com",
+            "Contact: mailto:security.jane@acme.com",
+            "Contact: mailto:jane%2Bsecurity@acme.com",
+            "Contact: tel:+1-201-555-0123",
+            // securitytxt.org lists its author's HackerOne profile.
+            "Contact: https://hackerone.com/ed",
+            "Contact: http://acme.com/security",
+            "Contact: ftp://acme.com/security",
+        ].join("\n");
+        expect(securityContacts(text, "acme.com")).toEqual([]);
+        expect(securityContacts("Contact: https://hackerone.com/ed", "securitytxt.org")).toEqual([]);
+    });
+
+    it("decodes a percent-encoded mailbox before judging it", () => {
+        expect(securityContacts("Contact: mailto:security%2Breports@acme.com", "acme.com")).toEqual(["mailto:security%2Breports@acme.com"]);
+    });
+
+    it("keeps at most five contacts, counted after filtering", () => {
+        const text = ["jane@acme.com", ...["security", "abuse", "psirt", "cert", "noc", "soc"].map((box) => `${box}@acme.com`)]
+            .map((address) => `Contact: mailto:${address}`).join("\n");
+        expect(securityContacts(text, "acme.com")).toEqual(["security", "abuse", "psirt", "cert", "noc"].map((box) => `mailto:${box}@acme.com`));
     });
 });

@@ -79,7 +79,7 @@ export interface CompanyProfile {
         saas: string[];
         signals: string[];
     };
-    /** Contact lines from the site's security.txt (RFC 9116). */
+    /** Company-level contact channels from the site's security.txt (RFC 9116): role mailboxes and company pages. */
     securityContacts: string[];
     /** The page each AI-read field came from. */
     sources: { field: AiField; url: string }[];
@@ -105,22 +105,77 @@ export function classifyPages(links: readonly string[]): Partial<Record<PageRole
     return pages;
 }
 
-/** Contact lines of a security.txt file (RFC 9116 section 2.5.3), at most five. */
-export function securityContacts(text: string): string[] {
-    return text.split(/\r?\n/u)
-        .map((line) => /^\s*contact\s*:\s*(\S+)/iu.exec(line)?.[1])
-        .filter((value): value is string => value !== undefined)
-        .slice(0, 5);
+/**
+ * Words a role mailbox is made of: the RFC 2142 mailbox names (which RFC 9116
+ * section 2.5.3 points security.txt at) plus the security-team names real
+ * security.txt files use (secalert@redhat.com, psirt@adobe.com,
+ * productcert@siemens.com, responsible.disclosure@vercel.com).
+ */
+const ROLE_MAILBOX_WORDS: ReadonlySet<string> = new Set([
+    "info", "marketing", "sales", "support", "abuse", "noc", "security", "postmaster", "hostmaster", "usenet",
+    "news", "webmaster", "www", "uucp", "ftp",
+    "secalert", "secure", "infosec", "cybersecurity", "psirt", "sirt", "csirt", "cert", "productcert", "soc",
+    "product", "disclosure", "responsible", "vulnerability", "vulnerabilities", "vuln", "vulns", "bugbounty",
+    "bug", "bugs", "bounty", "report", "reports", "reporting", "alert", "alerts", "notifications", "incident",
+    "incidents", "response", "team", "trust", "privacy", "contact", "help",
+]);
+
+/** The domain's labels without its TLD: the names a company contact may carry (hp-security-alert@hp.com). */
+function companyLabels(domain: string): string[] {
+    return domain.split(".").slice(0, -1);
 }
 
-async function fetchSecurityContacts(origin: string): Promise<string[]> {
+/** A mailbox kept only when every word of it is a role word or the company's own name: never a person's. */
+function isRoleMailbox(address: string, labels: readonly string[]): boolean {
+    const at = address.lastIndexOf("@");
+    if (at <= 0) { return false; }
+    let local: string;
+    try { local = decodeURIComponent(address.slice(0, at)).toLowerCase(); } catch { return false; }
+    return local.split(/[.+_-]/u).every((word) => ROLE_MAILBOX_WORDS.has(word) || labels.includes(word));
+}
+
+/**
+ * A web contact kept only when it is on the company's own site, or names the company in its path
+ * (hackerone.com/stripe). A bug-bounty handle can be a person's (securitytxt.org lists hackerone.com/ed).
+ */
+function isCompanyPage(url: URL, domain: string, labels: readonly string[]): boolean {
+    if (url.hostname === domain || url.hostname.endsWith(`.${domain}`)) { return true; }
+    const segments = url.pathname.toLowerCase().split("/").filter(Boolean);
+    return segments.some((segment) => labels.some((label) => label.length >= 3 ? segment.includes(label) : segment === label));
+}
+
+/**
+ * Contact lines of a security.txt file (RFC 9116 section 2.5.3), at most five, reduced to company-level
+ * channels: role mailboxes and the company's own https pages. Phone numbers and anything that could name a
+ * person are dropped, so a personal address published in security.txt never reaches the buyer.
+ */
+export function securityContacts(text: string, domain: string): string[] {
+    const labels = companyLabels(domain);
+    const contacts: string[] = [];
+    for (const line of text.split(/\r?\n/u)) {
+        const value = /^\s*contact\s*:\s*(\S+)/iu.exec(line)?.[1];
+        if (value === undefined) { continue; }
+        // RFC 9116 requires mailto:, but real files also list a bare address (security@npmjs.com).
+        const address = /^mailto:/iu.test(value) ? value.slice("mailto:".length) : value;
+        if (!address.includes(":") && address.includes("@")) {
+            if (isRoleMailbox(address, labels)) { contacts.push(`mailto:${address}`); }
+            continue;
+        }
+        let url: URL;
+        try { url = new URL(value); } catch { continue; }
+        if (url.protocol === "https:" && isCompanyPage(url, domain, labels)) { contacts.push(url.href); }
+    }
+    return contacts.slice(0, 5);
+}
+
+async function fetchSecurityContacts(origin: string, domain: string): Promise<string[]> {
     try {
         const response = await safeFetch(`${origin}/.well-known/security.txt`, {
             headers: { "User-Agent": BOT_USER_AGENT, Accept: "text/plain" },
             signal: AbortSignal.timeout(COMPANY_PROFILE.timeoutMs),
         });
         const isText = (response.headers.get("content-type") ?? "").includes("text/plain");
-        return response.ok && isText ? securityContacts(await readTextCapped(response, 64 * 1024)) : [];
+        return response.ok && isText ? securityContacts(await readTextCapped(response, 64 * 1024), domain) : [];
     } catch {
         return [];
     }
@@ -242,7 +297,7 @@ export async function profileCompany(domain: string, env: Env, anthropicKey: str
     const limits: { timeoutMs: number; maxHtmlBytes: number } = { timeoutMs: COMPANY_PROFILE.timeoutMs, maxHtmlBytes: COMPANY_PROFILE.maxHtmlBytes };
     // DNS/RDAP and security.txt do not depend on the pages: start them now.
     const domainReport = inspectDomain(domain, env);
-    const contacts = fetchSecurityContacts(origin);
+    const contacts = fetchSecurityContacts(origin, domain);
 
     // robots.txt per origin: a redirect to www. is a different origin with its own rules.
     const robotsByOrigin = new Map<string, Promise<RobotsRules>>();
