@@ -9,7 +9,6 @@
  * settle, and is down only when a network family has none left.
  */
 
-import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { distinctFacilitators, facilitatorNames, facilitatorPlans } from "../../src/middleware/payment";
@@ -24,11 +23,12 @@ const KEY_ID = "00000000-0000-4000-8000-000000000001";
 async function payaiKey(): Promise<{ secret: string; publicKey: CryptoKey }> {
     const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as CryptoKeyPair;
     const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
-    return { secret: `payai_sk_${Buffer.from(pkcs8).toString("base64")}`, publicKey: pair.publicKey };
+    if (!(pkcs8 instanceof ArrayBuffer)) { throw new TypeError("pkcs8 export did not return bytes"); }
+    return { secret: `payai_sk_${new Uint8Array(pkcs8).toBase64()}`, publicKey: pair.publicKey };
 }
 
 const decodePart = (part: string): Record<string, unknown> =>
-    JSON.parse(Buffer.from(part, "base64url").toString("utf8")) as Record<string, unknown>;
+    JSON.parse(new TextDecoder().decode(Uint8Array.fromBase64(part, { alphabet: "base64url" }))) as Record<string, unknown>;
 
 function bearer(headers: Record<string, string> | undefined): string {
     const auth = headers?.Authorization ?? "";
@@ -38,7 +38,7 @@ function bearer(headers: Record<string, string> | undefined): string {
 
 async function signatureValid(token: string, publicKey: CryptoKey): Promise<boolean> {
     const [header = "", payload = "", signature = ""] = token.split(".");
-    return crypto.subtle.verify("Ed25519", publicKey, Buffer.from(signature, "base64url"), new TextEncoder().encode(`${header}.${payload}`));
+    return crypto.subtle.verify("Ed25519", publicKey, Uint8Array.fromBase64(signature, { alphabet: "base64url" }), new TextEncoder().encode(`${header}.${payload}`));
 }
 
 const envWith = (fields: Partial<Env>): Env => fields as Env;

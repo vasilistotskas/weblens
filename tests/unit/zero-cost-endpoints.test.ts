@@ -11,9 +11,10 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildSignals, normalizePackageName, type PackageReport } from "../../src/services/package-intel";
-import { fingerprint } from "../../src/services/tech-detect";
 import { searchDiscussions } from "../../src/services/discussions";
+import { buildSignals, normalizePackageName  } from "../../src/services/package-intel";
+import type {PackageReport} from "../../src/services/package-intel";
+import { fingerprint } from "../../src/services/tech-detect";
 
 // ============================================
 // /package

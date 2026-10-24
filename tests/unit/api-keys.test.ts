@@ -40,11 +40,11 @@ describe("usdToMicros / formatMicros", () => {
 
 describe("assertMicros (every ledger amount)", () => {
     it.each([0, -5, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])("refuses %s", (micros) => {
-        expect(() => assertMicros(micros)).toThrow(/positive whole number/u);
+        expect(() => { assertMicros(micros); }).toThrow(/positive whole number/u);
     });
 
     it("accepts a positive whole number", () => {
-        expect(() => assertMicros(1)).not.toThrow();
+        expect(() => { assertMicros(1); }).not.toThrow();
     });
 });
 

@@ -49,8 +49,8 @@ describe("MCP payment-required error", () => {
             scheme: "exact",
             network: "eip155:8453",
             amount: "2000",
-            asset: CHALLENGE.accepts[0].asset,
-            payTo: CHALLENGE.accepts[0].payTo,
+            asset: CHALLENGE.accepts[0]?.asset,
+            payTo: CHALLENGE.accepts[0]?.payTo,
         });
     });
 

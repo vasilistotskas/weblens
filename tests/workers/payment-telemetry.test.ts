@@ -3,8 +3,7 @@
  * PAYMENT_EVENTS Analytics Engine dataset, driven through the real Worker.
  */
 
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PAYMENT_EVENT_BLOBS } from "../../src/services/payment-telemetry";
 
@@ -18,7 +17,7 @@ describe("payment funnel events", () => {
     it("records exactly one 'unpaid' event for a 402 probe", async () => {
         const write = vi.spyOn(env.PAYMENT_EVENTS, "writeDataPoint");
 
-        const res = await SELF.fetch(`${ORIGIN}/fetch/basic`, {
+        const res = await exports.default.fetch(`${ORIGIN}/fetch/basic`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url: "https://example.com" }),

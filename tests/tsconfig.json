@@ -1,0 +1,8 @@
+{
+  // Node-project tests (unit, property, integration). They import Worker code,
+  // so they type against the Workers runtime like src/; vitest APIs are imported
+  // explicitly. typescript-eslint's projectService picks this file up.
+  "extends": "../tsconfig.json",
+  "include": ["./**/*.ts"],
+  "exclude": ["./workers/**"]
+}

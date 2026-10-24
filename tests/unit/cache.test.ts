@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { cacheAwarePrice, cacheLookupMiddleware } from "../../src/middleware/cache";
-import { buildCacheKey, clampCacheTtl, getCached, setCached } from "../../src/services/cache";
 import { MAX_BODY_BYTES } from "../../src/middleware/validation";
+import { buildCacheKey, clampCacheTtl, getCached, setCached } from "../../src/services/cache";
 
 // Minimal in-memory KVNamespace stub (only get("json") + put are exercised).
 function createMockKV() {

@@ -20,15 +20,15 @@
   "license": "MIT",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "tsc --noEmit && tsc --noEmit -p scripts",
+    "build": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p tests && tsc --noEmit -p tests/workers",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "lint": "eslint src scripts",
-    "lint:fix": "eslint src scripts --fix",
+    "lint": "eslint src scripts tests",
+    "lint:fix": "eslint src scripts tests --fix",
     "verify-bazaar": "npx tsx scripts/verify-bazaar.ts",
     "canary": "npx tsx scripts/canary-payment.ts",
     "funnel": "npx tsx scripts/payment-funnel.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p tests && tsc --noEmit -p tests/workers"
   },
   "dependencies": {
     "@cloudflare/puppeteer": "^1.4.0",

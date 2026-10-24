@@ -1,4 +1,3 @@
-/// <reference types="@cloudflare/vitest-plugin/types" />
 /**
  * The prepaid account ledger, in a real CreditAccountDO running in workerd.
  * Storage is isolated per test file; each test uses its own account name.
@@ -7,9 +6,8 @@ import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { CreditAccountDO } from "../../src/durable_objects/CreditAccountDO";
-import type { Env } from "../../src/types";
 
-const accounts = (env as unknown as Env).ACCOUNTS;
+const accounts = env.ACCOUNTS;
 const stub = (name: string) => accounts.getByName(name);
 
 /** An account with `micros` deposited and its first key issued. */
@@ -60,7 +58,8 @@ describe("CreditAccountDO ledger", () => {
     it("debits an active key and refuses a wrong one", async () => {
         const { account, secret } = await funded("spend", 1_000_000);
         expect(await account.spend(secret, 15_000, "req-1", "Search")).toEqual({ ok: true, balanceMicros: 985_000 });
-        expect(await account.spend(`${secret.slice(0, -1)}A`, 15_000, "req-2", "Search")).toEqual({ ok: false, reason: "invalid_key" });
+        const wrong = `${secret.slice(0, -1)}${secret.endsWith("A") ? "B" : "A"}`;
+        expect(await account.spend(wrong, 15_000, "req-2", "Search")).toEqual({ ok: false, reason: "invalid_key" });
     });
 
     it("never charges a request id twice", async () => {

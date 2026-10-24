@@ -13,7 +13,7 @@
  * are pinned rather than left to manual probing.
  */
 
-import { SELF } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { version as MCP_SERVER_VERSION } from "../../server.json";
 import { TOOL_ENDPOINTS } from "../../src/tools/mcp";
@@ -21,7 +21,7 @@ import { TOOL_ENDPOINTS } from "../../src/tools/mcp";
 const MCP_URL = "https://api.weblens.dev/mcp";
 
 function rpc(body: unknown) {
-    return SELF.fetch(MCP_URL, {
+    return exports.default.fetch(MCP_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -115,7 +115,7 @@ describe("MCP tool calls", () => {
         }>();
 
         expect(body.error).toBeUndefined();
-        const text = body.result?.content?.[0]?.text ?? "";
+        const text = body.result?.content[0]?.text ?? "";
         expect(JSON.parse(text)).toMatchObject({ endpoint: "/fetch/basic" });
     });
 
@@ -185,7 +185,7 @@ describe("MCP transport", () => {
     // Allowed". WebLens has nothing to push, so it declines — and clients do
     // ask (~1.5k GETs a week), so the shape is pinned.
     it("declines the optional SSE stream with a conformant 405", async () => {
-        const res = await SELF.fetch(MCP_URL, { headers: { Accept: "text/event-stream" } });
+        const res = await exports.default.fetch(MCP_URL, { headers: { Accept: "text/event-stream" } });
 
         expect(res.status).toBe(405);
         expect(res.headers.get("Allow")).toBe("POST");

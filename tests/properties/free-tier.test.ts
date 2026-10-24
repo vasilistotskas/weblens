@@ -4,8 +4,8 @@
  * Validates free tier config constraints and content truncation behavior.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
+import { describe, it, expect } from "vitest";
 import { FREE_TIER } from "../../src/config";
 
 describe("Free Tier: Configuration properties", () => {

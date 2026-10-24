@@ -17,8 +17,8 @@ function anthropicAnswers(status: number, body: unknown): { sent: () => SentBody
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body), { status }));
     const call = () => spy.mock.calls[0] ?? [];
     return {
-        sent: () => JSON.parse(String(call()[1]?.body)) as SentBody,
-        url: () => String(call()[0]),
+        sent: () => JSON.parse(call()[1]?.body as string) as SentBody,
+        url: () => { const input = call()[0]; return input instanceof Request ? input.url : input?.toString() ?? ""; },
     };
 }
 

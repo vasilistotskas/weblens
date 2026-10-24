@@ -9,14 +9,14 @@
  * for pro); the 402 itself charges at least PRICING.x402Minimum.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
+import { describe, it, expect } from "vitest";
 import { PRICING } from "../../src/config";
 import { getCachedPrice, parsePrice } from "../../src/services/pricing";
 
 // PRICING is the single source of truth for endpoint prices — routes wire
 // these constants straight into the credit/x402 middlewares.
-const TIERED_PRICES: Record<string, string> = {
+const TIERED_PRICES = {
   screenshot: PRICING.screenshot,
   "fetch-basic": PRICING.fetch.basic,
   "fetch-pro": PRICING.fetch.pro,
@@ -55,10 +55,10 @@ describe("Property 3: Tier pricing consistency", () => {
   it("cached prices are always lower than base prices for all endpoints", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom(...Object.keys(TIERED_PRICES)),
-        (endpoint) => {
-          const basePrice = parsePrice(TIERED_PRICES[endpoint]);
-          const cachedPrice = parsePrice(getCachedPrice(TIERED_PRICES[endpoint]));
+        fc.constantFrom(...Object.values(TIERED_PRICES)),
+        (price) => {
+          const basePrice = parsePrice(price);
+          const cachedPrice = parsePrice(getCachedPrice(price));
           expect(cachedPrice).toBeLessThan(basePrice);
         }
       ),

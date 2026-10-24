@@ -1,35 +1,31 @@
-/// <reference types="@cloudflare/vitest-plugin/types" />
 /**
  * Paying for a paid route with a prepaid API key, through the real Worker:
  * the debit, the refund on failure, and every way a key is refused.
  */
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRICING } from "../../src/config";
 import { formatApiKey, newAccountId } from "../../src/services/accounts";
-import type { Env } from "../../src/types";
 
 const ORIGIN = "https://api.weblens.dev";
-const workerEnv = env as unknown as Env;
 const PAGE = "<html><head><title>Example</title></head><body><p>Example page</p></body></html>";
 
 /** A funded account and its key, as a buyer would hold it after checkout. */
 async function fundedKey(micros: number): Promise<{ accountId: string; key: string; secret: string }> {
     const accountId = newAccountId();
-    const account = workerEnv.ACCOUNTS.getByName(accountId);
+    const account = env.ACCOUNTS.getByName(accountId);
     await account.deposit(`cs_test_${accountId}`, micros, "seed");
     const secret = await account.issueFirstKey();
     if (secret === null) { throw new Error("no key issued"); }
-    return { accountId, secret, key: formatApiKey(workerEnv.API_KEY_PREFIX, accountId, secret) };
+    return { accountId, secret, key: formatApiKey(env.API_KEY_PREFIX, accountId, secret) };
 }
 
 async function balanceOf(accountId: string, secret: string): Promise<number | undefined> {
-    return (await workerEnv.ACCOUNTS.getByName(accountId).summary(secret))?.balanceMicros;
+    return (await env.ACCOUNTS.getByName(accountId).summary(secret))?.balanceMicros;
 }
 
 function fetchBasic(headers: Record<string, string>, body: unknown = { url: "https://example.com/", cache: false }) {
-    return SELF.fetch(`${ORIGIN}/fetch/basic`, {
+    return exports.default.fetch(`${ORIGIN}/fetch/basic`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify(body),
@@ -121,19 +117,19 @@ describe("the account a key opens", () => {
         const { key } = await fundedKey(10_000_000);
         await fetchBasic({ Authorization: `Bearer ${key}` });
 
-        const res = await SELF.fetch(`${ORIGIN}/account`, { headers: { Authorization: `Bearer ${key}` } });
+        const res = await exports.default.fetch(`${ORIGIN}/account`, { headers: { Authorization: `Bearer ${key}` } });
         const body = await res.json<{ balance: string; recent: { kind: string; amount: string }[] }>();
         expect(res.status).toBe(200);
         expect(res.headers.get("Cache-Control")).toBe("no-store");
         expect(body.balance).toBe("$9.998");
         expect(body.recent.map((entry) => [entry.kind, entry.amount])).toEqual([["spend", "$0.002"], ["deposit", "$10"]]);
 
-        expect((await SELF.fetch(`${ORIGIN}/account`)).status).toBe(401);
+        expect((await exports.default.fetch(`${ORIGIN}/account`)).status).toBe(401);
     });
 
     it("rotates the key: the old one stops working at once", async () => {
         const { key } = await fundedKey(1_000_000);
-        const res = await SELF.fetch(`${ORIGIN}/account/key/rotate`, {
+        const res = await exports.default.fetch(`${ORIGIN}/account/key/rotate`, {
             method: "POST",
             headers: { Authorization: `Bearer ${key}`, "cf-connecting-ip": "203.0.113.70" },
         });

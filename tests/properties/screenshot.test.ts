@@ -12,10 +12,10 @@
  * validation logic and response structure properties.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { normalizeViewport, normalizeTimeout } from "../../src/services/screenshot";
+import { describe, it, expect } from "vitest";
 import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "../../src/config";
+import { normalizeViewport, normalizeTimeout } from "../../src/services/screenshot";
 
 describe("Property 1: Screenshot returns valid PNG data (validation properties)", () => {
   /**

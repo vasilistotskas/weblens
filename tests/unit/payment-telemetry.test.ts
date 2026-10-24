@@ -31,7 +31,7 @@ import {
 import type { PaymentRequestFacts } from "../../src/services/payment-telemetry";
 import type { Logger } from "../../src/utils/logger";
 
-const BASE = "eip155:8453";
+const BASE = "eip155:8453" as const;
 
 const requirements: PaymentRequirements = {
     scheme: "exact",
@@ -48,13 +48,13 @@ const challenge = encodePaymentRequiredHeader({
     error: "Payment required",
     resource: { url: "https://api.weblens.dev/fetch/basic", description: "", mimeType: "application/json" },
     accepts: [requirements],
-} as Parameters<typeof encodePaymentRequiredHeader>[0]);
+});
 
 const signature = encodePaymentSignatureHeader({
     x402Version: 2,
     accepted: requirements,
     payload: {},
-} as Parameters<typeof encodePaymentSignatureHeader>[0]);
+});
 
 function facts(overrides: Partial<PaymentRequestFacts>): PaymentRequestFacts {
     return {
@@ -111,7 +111,7 @@ describe("classifyPaymentRequest", () => {
     it("a settlement header without a hook outcome is still 'settled'", () => {
         const paymentResponse = encodePaymentResponseHeader({
             success: true, network: BASE, transaction: "0xtx", payer: "0xbuyer",
-        } as Parameters<typeof encodePaymentResponseHeader>[0]);
+        });
         const event = classifyPaymentRequest(facts({ status: 200, paymentSignature: signature, paymentResponse, paymentRequired: null }), {});
         expect(event).toMatchObject({ outcome: "settled", transaction: "0xtx", payer: "0xbuyer", amount: "2000" });
     });
@@ -179,9 +179,10 @@ describe("hook recorders", () => {
 
 describe("TrackedFacilitatorClient", () => {
     it("records which facilitator handled the request and delegates", async () => {
+        const settle = vi.fn(() => Promise.resolve({ success: true, network: BASE, transaction: "0xtx" }));
         const inner: FacilitatorClient = {
             verify: vi.fn(() => Promise.resolve({ isValid: true })),
-            settle: vi.fn(() => Promise.resolve({ success: true, network: BASE, transaction: "0xtx" })),
+            settle,
             getSupported: vi.fn(() => Promise.resolve({ kinds: [], extensions: [], signers: {} })),
         };
         const client = new TrackedFacilitatorClient("cdp", inner);
@@ -190,7 +191,7 @@ describe("TrackedFacilitatorClient", () => {
         const { attempt } = await runPaymentAttempt(() => client.settle(payload, requirements));
 
         expect(attempt.facilitator).toBe("cdp");
-        expect(inner.settle).toHaveBeenCalledOnce();
+        expect(settle).toHaveBeenCalledOnce();
     });
 });
 
@@ -232,7 +233,7 @@ describe("claimedPayer", () => {
     });
 
     it("names no payer for an undecodable Solana transaction, and never throws", () => {
-        const solana = { ...requirements, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" };
+        const solana: PaymentRequirements = { ...requirements, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" };
         expect(claimedPayer({ x402Version: 2, accepted: solana, payload: { transaction: "not-a-transaction" } })).toBeUndefined();
         expect(claimedPayer({ x402Version: 2, accepted: solana, payload: {} })).toBeUndefined();
     });

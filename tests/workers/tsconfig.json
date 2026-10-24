@@ -1,0 +1,9 @@
+{
+  // Tests that run inside workerd through @cloudflare/vitest-plugin
+  // (developers.cloudflare.com/workers/testing/vitest-integration/write-your-first-test/#define-types).
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
+  },
+  "include": ["./**/*.ts", "../../src/**/*.ts"]
+}

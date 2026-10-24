@@ -12,17 +12,17 @@
 import { describe, expect, it } from "vitest";
 import { getOpenAPIDocument } from "../../src/openapi";
 
-type Operation = {
+interface Operation {
     security?: unknown[];
     responses?: Record<string, unknown>;
     requestBody?: {
-        content?: Record<string, { example?: unknown }>;
+        content?: Record<string, { example?: unknown; schema?: unknown }>;
     };
     "x-payment-info"?: {
         price: { mode: string; currency: string; amount?: string; min?: string; max?: string };
         protocols: { x402: object }[];
     };
-};
+}
 
 const HTTP_METHODS = ["get", "post", "put", "delete", "patch"] as const;
 
@@ -107,7 +107,7 @@ describe("openapi.json x402scan discovery contract", () => {
             if (!op["x-payment-info"] || !op.requestBody) { continue; }
             let schema = op.requestBody.content?.["application/json"]?.schema as SchemaObject | undefined;
             const ref = (schema as { $ref?: string } | undefined)?.$ref;
-            if (ref) { schema = components[ref.split("/").pop() as string]; }
+            if (ref) { schema = components[ref.slice(ref.lastIndexOf("/") + 1)]; }
             expect(schema, `${name} has no request schema`).toBeDefined();
 
             const required: string[] = (schema as { required?: string[] }).required ?? [];
@@ -137,12 +137,12 @@ describe("openapi.json x402scan discovery contract", () => {
 type SchemaObject = Record<string, unknown>;
 
 describe("prepaid API keys in the discovery document", () => {
-    type Doc = {
+    interface Doc {
         info: { description: string; "x-guidance": string };
         paths: Record<string, Record<string, Operation>>;
         components: { securitySchemes: Record<string, unknown> };
         security: unknown[];
-    };
+    }
     const cardsOn = getOpenAPIDocument({ NETWORK: "base", STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" }) as unknown as Doc;
     const cardsOff = getOpenAPIDocument({ NETWORK: "base" }) as unknown as Doc;
 

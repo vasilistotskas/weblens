@@ -9,14 +9,14 @@
  * than the standard price.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
+import { describe, it, expect } from "vitest";
 import { PRICING } from "../../src/config";
 import { getCachedPrice, parsePrice } from "../../src/services/pricing";
 
 // Base prices for the cacheable/priced endpoints, straight from PRICING —
 // the single source of truth (getBasePrice/getEndpointPrice were removed).
-const ENDPOINT_PRICES: Record<string, string> = {
+const ENDPOINT_PRICES = {
   screenshot: PRICING.screenshot,
   "fetch-basic": PRICING.fetch.basic,
   "fetch-pro": PRICING.fetch.pro,
@@ -32,10 +32,10 @@ describe("Property 6: Cache hit returns reduced price", () => {
   it("cached price is exactly 70% lower than base price for all endpoints", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom(...Object.keys(ENDPOINT_PRICES)),
-        (endpoint) => {
-          const basePrice = parsePrice(ENDPOINT_PRICES[endpoint]);
-          const cachedPrice = parsePrice(getCachedPrice(ENDPOINT_PRICES[endpoint]));
+        fc.constantFrom(...Object.values(ENDPOINT_PRICES)),
+        (price) => {
+          const basePrice = parsePrice(price);
+          const cachedPrice = parsePrice(getCachedPrice(price));
 
           // Cached price should be 30% of base (70% discount)
           const expectedCachedPrice = basePrice * (1 - PRICING.cacheDiscount);
@@ -127,7 +127,7 @@ describe("Property 6: Cache hit returns reduced price", () => {
   it("specific tier cached prices match expected values", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("fetch-basic", "fetch-pro"),
+        fc.constantFrom("fetch-basic" as const, "fetch-pro" as const),
         (endpoint) => {
           const cachedPrice = parsePrice(getCachedPrice(ENDPOINT_PRICES[endpoint]));
 

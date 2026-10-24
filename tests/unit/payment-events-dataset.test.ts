@@ -5,12 +5,13 @@
  * report silently reads an empty dataset and shows "no buyers".
  */
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PAYMENT_EVENTS_DATASETS } from "../../src/config";
 
-const toml = readFileSync(fileURLToPath(new URL("../../wrangler.toml", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
+const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../wrangler.toml"), "utf8").replace(/\r\n/g, "\n");
 
 /** The dataset bound to PAYMENT_EVENTS in a `[[<table>]]` block. */
 function boundDataset(table: string): string | undefined {

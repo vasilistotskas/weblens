@@ -10,160 +10,89 @@
  * never move on an invalid body.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { Hono } from "hono";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { validateRequest } from "../../src/middleware/validation";
+import type { AppEnv } from "../../src/types";
+import { createLogger } from "../../src/utils/logger";
 
 const schema = z.object({ url: z.url() });
 
-interface MockOptions {
-    path: string;
+interface CallOptions {
     body?: string;
-    contentType?: string | undefined;
+    /** null sets none, so fetch labels a string body text/plain. */
+    contentType?: string | null;
     headers?: Record<string, string>;
+    /** What runs after validation: the payment middleware for a probe, the handler otherwise. */
+    next?: () => never;
 }
 
-function mockContext({ path, body = "{}", contentType = "application/json", headers = {} }: MockOptions) {
-    const all: Record<string, string | undefined> = { ...headers };
-    if (contentType !== undefined) { all["Content-Type"] = contentType; }
-    const vars = new Map<string, unknown>([["log", { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }]]);
-    const json = vi.fn((payload: unknown, status: number) => ({ payload, status }));
-    return {
-        ctx: {
-            req: {
-                path,
-                method: "POST",
-                header: (name: string) => all[name],
-                json: () => JSON.parse(body) as unknown,
-            },
-            env: { API_KEY_PREFIX: "wl_live_" },
-            get: (k: string) => vars.get(k),
-            set: (k: string, v: unknown) => vars.set(k, v),
-            json,
-        },
-        json,
-        vars,
-    };
-}
+/** POST `path` through the real middleware; `reached` says whether it let the request on. */
+async function post(path: string, { body = "{}", contentType = "application/json", headers = {}, next }: CallOptions = {}) {
+    const app = new Hono<AppEnv>();
+    app.use("*", async (c, nextMiddleware) => {
+        c.set("log", createLogger("silent"));
+        await nextMiddleware();
+    });
+    app.post("*", validateRequest(schema), (c) => {
+        if (next) { next(); }
+        return c.json({ reached: true, validatedBody: c.get("validatedBody") ?? null });
+    });
+    app.onError((err, c) => c.json({ thrown: err.message }, 500));
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (c: any, next: () => Promise<void>) => validateRequest(schema)(c, next) as Promise<unknown>;
+    const all: Record<string, string> = { ...headers };
+    if (contentType !== null) { all["Content-Type"] = contentType; }
+    const res = await app.request(`https://api.weblens.dev${path}`, { method: "POST", body, headers: all }, { API_KEY_PREFIX: "wl_live_" });
+    const json = await res.json<{ reached?: boolean; validatedBody?: unknown; thrown?: string }>();
+    return { status: res.status, reached: json.reached === true, json };
+}
 
 describe("validateRequest — unpaid probe fallthrough", () => {
     it("lets an unpaid probe with an invalid body reach the payment middleware", async () => {
-        const { ctx, json } = mockContext({ path: "/domain", body: "{}" });
-        const next = vi.fn(async () => { /* payment middleware */ });
-
-        await run(ctx, next);
-
-        expect(next).toHaveBeenCalledOnce();
-        expect(json).not.toHaveBeenCalled();
+        expect(await post("/domain")).toMatchObject({ status: 200, reached: true });
     });
 
-    it("lets an unpaid probe with no content-type through", async () => {
-        const { ctx, json } = mockContext({ path: "/search/news", contentType: undefined });
-        const next = vi.fn(async () => { /* payment middleware */ });
-
-        await run(ctx, next);
-
-        expect(next).toHaveBeenCalledOnce();
-        expect(json).not.toHaveBeenCalled();
+    it("lets an unpaid probe without a JSON content type through", async () => {
+        expect(await post("/search/news", { contentType: null })).toMatchObject({ status: 200, reached: true });
     });
 
     it("lets an unpaid probe with malformed JSON through", async () => {
-        const { ctx, json } = mockContext({ path: "/answer", body: "not json{" });
-        const next = vi.fn(async () => { /* payment middleware */ });
-
-        await run(ctx, next);
-
-        expect(next).toHaveBeenCalledOnce();
-        expect(json).not.toHaveBeenCalled();
+        expect(await post("/answer", { body: "not json{" })).toMatchObject({ status: 200, reached: true });
     });
 
     it("still rejects an invalid body when the request carries an x402 payment", async () => {
-        const { ctx, json } = mockContext({
-            path: "/domain",
-            body: "{}",
-            headers: { "Payment-Signature": "0xdeadbeef" },
-        });
-        const next = vi.fn(async () => { /* handler */ });
-
-        await run(ctx, next);
-
-        expect(next).not.toHaveBeenCalled();
-        expect(json).toHaveBeenCalledOnce();
-        expect(json.mock.calls[0]?.[1]).toBe(400);
+        expect(await post("/domain", { headers: { "Payment-Signature": "0xdeadbeef" } })).toMatchObject({ status: 400, reached: false });
     });
 
     it("lets a probe carrying someone else's Authorization (an MCP client login) reach the 402", async () => {
-        const { ctx, json } = mockContext({ path: "/domain", body: "{}", headers: { Authorization: "Bearer eyJhbGciOiJIUzI1NiIs.payload.sig" } });
-        const next = vi.fn(async () => { /* payment middleware */ });
-
-        await run(ctx, next);
-
-        expect(next).toHaveBeenCalledOnce();
-        expect(json).not.toHaveBeenCalled();
+        const result = await post("/domain", { headers: { Authorization: "Bearer eyJhbGciOiJIUzI1NiIs.payload.sig" } });
+        expect(result).toMatchObject({ status: 200, reached: true });
     });
 
     it("still rejects an invalid body when the request carries an API key", async () => {
-        const { ctx, json } = mockContext({
-            path: "/contents",
-            body: "{}",
-            headers: { Authorization: "Bearer wl_live_key" },
-        });
-        const next = vi.fn(async () => { /* handler */ });
-
-        await run(ctx, next);
-
-        expect(next).not.toHaveBeenCalled();
-        expect(json.mock.calls[0]?.[1]).toBe(400);
+        expect(await post("/contents", { headers: { Authorization: "Bearer wl_live_key" } })).toMatchObject({ status: 400, reached: false });
     });
 
     it("still rejects invalid bodies on non-paid routes", async () => {
-        const { ctx, json } = mockContext({ path: "/free/fetch", body: "{}" });
-        const next = vi.fn(async () => { /* handler */ });
-
-        await run(ctx, next);
-
-        expect(next).not.toHaveBeenCalled();
-        expect(json.mock.calls[0]?.[1]).toBe(400);
+        expect(await post("/free/fetch")).toMatchObject({ status: 400, reached: false });
     });
 
     it("enforces the body-size cap even for probes", async () => {
-        const { ctx, json } = mockContext({
-            path: "/contents",
-            headers: { "Content-Length": String(300 * 1024) },
-        });
-        const next = vi.fn(async () => { /* handler */ });
-
-        await run(ctx, next);
-
-        expect(next).not.toHaveBeenCalled();
-        expect(json.mock.calls[0]?.[1]).toBe(413);
+        const result = await post("/contents", { headers: { "Content-Length": String(300 * 1024) } });
+        expect(result).toMatchObject({ status: 413, reached: false });
     });
 
     it("passes a valid body through with validatedBody set", async () => {
-        const { ctx, vars, json } = mockContext({
-            path: "/domain",
-            body: JSON.stringify({ url: "https://example.com" }),
-        });
-        const next = vi.fn(async () => { /* handler */ });
-
-        await run(ctx, next);
-
-        expect(next).toHaveBeenCalledOnce();
-        expect(json).not.toHaveBeenCalled();
-        expect(vars.get("validatedBody")).toEqual({ url: "https://example.com" });
+        const result = await post("/domain", { body: JSON.stringify({ url: "https://example.com" }) });
+        expect(result).toMatchObject({ status: 200, reached: true, json: { validatedBody: { url: "https://example.com" } } });
     });
 
     it("does not swallow downstream errors as INVALID_JSON", async () => {
-        const { ctx } = mockContext({
-            path: "/domain",
+        const result = await post("/domain", {
             body: JSON.stringify({ url: "https://example.com" }),
+            next: () => { throw new Error("handler exploded"); },
         });
-        const boom = new Error("handler exploded");
-        const next = vi.fn(() => Promise.reject(boom));
-
-        await expect(run(ctx, next)).rejects.toThrow("handler exploded");
+        expect(result).toMatchObject({ status: 500, json: { thrown: "handler exploded" } });
     });
 });

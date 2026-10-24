@@ -10,8 +10,8 @@
  *      that fails integrity checks.
  */
 
-import { describe, expect, it } from "vitest";
 import { keccak256, stringToHex } from "viem";
+import { describe, expect, it } from "vitest";
 import { PAID_ENDPOINTS } from "../../src/endpoints";
 import { FeedbackDocumentSchema } from "../../src/schemas";
 import {
@@ -21,13 +21,13 @@ import {
     feedbackHash,
     missingFeedbackFields,
 } from "../../src/services/erc8004";
-import { MAX_DOCUMENT_DEPTH, canonicalJson, exceedsDepth } from "../../src/utils/json-document";
 import {
     LIVE_PREVIEW_ENDPOINTS,
     PREVIEW_SAMPLES,
     describePrice,
     isPaidEndpoint,
 } from "../../src/services/previews";
+import { MAX_DOCUMENT_DEPTH, canonicalJson, exceedsDepth } from "../../src/utils/json-document";
 
 /** Endpoints that call a metered third-party API on every request. */
 const PAID_UPSTREAM = [
@@ -238,7 +238,7 @@ describe("feedback document validation", () => {
 
     it("names each missing required field", () => {
         const { agentId, value, ...rest } = valid;
-        void agentId; void value;
+        agentId; value;
         expect(missingFeedbackFields(rest).sort()).toEqual(["agentId", "value"]);
     });
 

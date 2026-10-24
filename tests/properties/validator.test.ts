@@ -11,8 +11,8 @@
  * that can be used to construct proper error responses.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
+import { describe, it, expect } from "vitest";
 import { validateURL } from "../../src/services/validator";
 
 describe("Property 11: Error response format consistency (URL Validation)", () => {
@@ -46,7 +46,7 @@ describe("Property 11: Error response format consistency (URL Validation)", () =
           expect(result.valid).toBe(false);
           expect(result.error).toBeDefined();
           expect(typeof result.error).toBe("string");
-          expect(result.error!.length).toBeGreaterThan(0);
+          expect(result.error?.length).toBeGreaterThan(0);
         }
       ),
       { numRuns: 100 }

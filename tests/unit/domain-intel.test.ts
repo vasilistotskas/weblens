@@ -11,7 +11,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { derive, normalizeDomain, type Registration } from "../../src/services/domain-intel";
+import { derive, normalizeDomain  } from "../../src/services/domain-intel";
+import type {Registration} from "../../src/services/domain-intel";
 
 const FOUND: Registration = {
     found: true,

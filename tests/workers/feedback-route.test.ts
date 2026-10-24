@@ -11,9 +11,9 @@
  * that header, so distinct IPs keep these cases independent.
  */
 
-import { SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { exports } from "cloudflare:workers";
 import { keccak256, stringToHex } from "viem";
+import { describe, expect, it } from "vitest";
 
 const VALID = {
     agentRegistry: "eip155:8453:0x0000000000000000000000000000000000000000",
@@ -27,7 +27,7 @@ const VALID = {
 let ipCounter = 0;
 function post(body: string, headers: Record<string, string> = {}) {
     ipCounter++;
-    return SELF.fetch("https://api.weblens.dev/feedback", {
+    return exports.default.fetch("https://api.weblens.dev/feedback", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -47,7 +47,7 @@ describe("POST /feedback", () => {
         expect(hosted.feedbackHash).toMatch(/^0x[0-9a-f]{64}$/u);
 
         // The buyer's check: hash the bytes the feedbackURI serves.
-        const served = await SELF.fetch(hosted.feedbackURI, {
+        const served = await exports.default.fetch(hosted.feedbackURI, {
             headers: { "cf-connecting-ip": "10.9.1.1" },
         });
         expect(served.status).toBe(200);
@@ -105,7 +105,7 @@ describe("POST /feedback", () => {
         const res = await post(JSON.stringify(custom));
         const hosted = await res.json<{ feedbackURI: string }>();
 
-        const served = await SELF.fetch(hosted.feedbackURI, {
+        const served = await exports.default.fetch(hosted.feedbackURI, {
             headers: { "cf-connecting-ip": "10.9.1.2" },
         });
         const doc = await served.json<Record<string, unknown>>();

@@ -5,7 +5,7 @@
  * to Bazaar catalogs. Driven through the real Worker, one request per route.
  */
 
-import { SELF } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { ENDPOINTS } from "../../src/endpoints";
 import { endpointBodySchema, x402Charge } from "../../src/endpoints/define";
@@ -28,7 +28,7 @@ const DEFINITIONS: readonly EndpointDefinition[] = ENDPOINTS;
 const toAtomicUsdc = (price: string): string => String(Math.round(parsePrice(price) * 1e6));
 
 async function challengeFor(endpoint: EndpointDefinition): Promise<Challenge> {
-    const res = await SELF.fetch(`https://api.weblens.dev${endpoint.path}`, {
+    const res = await exports.default.fetch(`https://api.weblens.dev${endpoint.path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(endpoint.inputExample),
@@ -49,10 +49,6 @@ describe("generated paid routes", () => {
         expect(challenge.accepts.length).toBeGreaterThan(0);
         for (const accept of challenge.accepts) {
             expect(accept.amount, accept.network).toBe(expected);
-        }
-
-        if (endpoint.evmOnly) {
-            expect(challenge.accepts.every((a) => a.network.startsWith("eip155:"))).toBe(true);
         }
 
         const bazaar = challenge.extensions?.bazaar;

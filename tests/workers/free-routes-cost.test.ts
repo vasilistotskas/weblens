@@ -7,7 +7,7 @@
  * and fail if any outbound request reaches a host in PAID_UPSTREAMS.
  */
 
-import { SELF } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PAID_UPSTREAMS } from "../../src/config";
 import { PAID_ENDPOINTS } from "../../src/endpoints";
@@ -46,7 +46,7 @@ function paidHostsReached(): string[] {
 
 describe("free routes reach no paid upstream", () => {
     it("intercepts the Worker's outbound fetches (positive control)", async () => {
-        const res = await SELF.fetch(`${ORIGIN}/free/fetch`, {
+        const res = await exports.default.fetch(`${ORIGIN}/free/fetch`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "cf-connecting-ip": freshIp() },
             body: JSON.stringify({ url: TARGET }),
@@ -57,14 +57,14 @@ describe("free routes reach no paid upstream", () => {
     });
 
     it("GET /r/{url}", async () => {
-        const res = await SELF.fetch(`${ORIGIN}/r/${TARGET}`, { headers: { "cf-connecting-ip": freshIp() } });
+        const res = await exports.default.fetch(`${ORIGIN}/r/${TARGET}`, { headers: { "cf-connecting-ip": freshIp() } });
 
         expect(res.status).toBe(200);
         expect(paidHostsReached()).toEqual([]);
     });
 
     it("POST /free/fetch", async () => {
-        await SELF.fetch(`${ORIGIN}/free/fetch`, {
+        await exports.default.fetch(`${ORIGIN}/free/fetch`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "cf-connecting-ip": freshIp() },
             body: JSON.stringify({ url: TARGET }),
@@ -74,7 +74,7 @@ describe("free routes reach no paid upstream", () => {
     });
 
     it.each(PAID_ENDPOINTS)("POST /preview for %s, with a url", async (endpoint) => {
-        await SELF.fetch(`${ORIGIN}/preview`, {
+        await exports.default.fetch(`${ORIGIN}/preview`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "cf-connecting-ip": freshIp() },
             body: JSON.stringify({ endpoint, url: TARGET }),

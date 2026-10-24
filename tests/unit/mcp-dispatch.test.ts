@@ -15,8 +15,7 @@
 
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it } from "vitest";
-import { setMcpDispatcher, TOOL_ENDPOINTS } from "../../src/tools/mcp";
-import { mcpPostHandler } from "../../src/tools/mcp";
+import { setMcpDispatcher, TOOL_ENDPOINTS, mcpPostHandler  } from "../../src/tools/mcp";
 
 function callTool(name: string, args: Record<string, unknown> = {}, authorization = "Bearer wl_live_key") {
     const app = new Hono();
@@ -40,10 +39,10 @@ function callTool(name: string, args: Record<string, unknown> = {}, authorizatio
     }, { API_KEY_PREFIX: "wl_live_" });
 }
 
-type RpcBody = {
+interface RpcBody {
     result?: { content: { text: string }[] };
     error?: { code: number; message: string; data?: Record<string, unknown> };
-};
+}
 
 describe("MCP tool dispatch", () => {
     beforeEach(() => {
@@ -51,7 +50,7 @@ describe("MCP tool dispatch", () => {
     });
 
     it("fails loudly with no dispatcher instead of falling back to fetch", async () => {
-        const body = await (await callTool("preview_endpoint", { endpoint: "/fetch/basic" })).json() as RpcBody;
+        const body = await (await callTool("preview_endpoint", { endpoint: "/fetch/basic" })).json<RpcBody>();
 
         // A `fetch` fallback would surface a connection/522 error instead.
         expect(body.error?.code).toBe(-32603);
@@ -70,9 +69,7 @@ describe("MCP tool dispatch", () => {
 
         await callTool("search_web", { query: "x402" });
 
-        expect(seen).toHaveLength(1);
-        expect(seen[0].url).toBe("https://api.weblens.dev/search");
-        expect(seen[0].method).toBe("POST");
+        expect(seen).toEqual([{ url: "https://api.weblens.dev/search", method: "POST" }]);
     });
 
     it("forwards every credential a paid endpoint can authenticate", async () => {
@@ -128,7 +125,7 @@ describe("MCP tool dispatch", () => {
             )
         );
 
-        const body = await (await callTool("fetch_webpage", {})).json() as RpcBody;
+        const body = await (await callTool("fetch_webpage", {})).json<RpcBody>();
 
         expect(body.error?.code).toBe(400);
         expect(body.error?.message).toBe("INVALID_REQUEST: url is required");

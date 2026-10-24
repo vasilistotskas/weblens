@@ -46,7 +46,7 @@ function serve(site: Site = {}): string[] {
         const careers = site.careersAt ?? "/careers";
         const routes: Record<string, () => Response> = {
             [`${ORIGIN}/robots.txt`]: () => text(site.robots ?? "User-agent: *\nDisallow:"),
-            [`${ORIGIN}`]: () => site.homepage ?? html(site.links ?? `<a href="/about">About</a><a href="/pricing">Pricing</a><a href="${careers}">Careers</a><a href="https://x.com/acme">X</a>`),
+            [ORIGIN]: () => site.homepage ?? html(site.links ?? `<a href="/about">About</a><a href="/pricing">Pricing</a><a href="${careers}">Careers</a><a href="https://x.com/acme">X</a>`),
             [`${ORIGIN}/about`]: () => html("<p>About Acme</p>"),
             [`${ORIGIN}/pricing`]: () => html("<p>Pro $20/month</p>"),
             [`${ORIGIN}${careers}`]: () => html(`<a href="https://job-boards.greenhouse.io/acme/jobs/1">Engineer</a>`),

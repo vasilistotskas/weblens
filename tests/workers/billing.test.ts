@@ -1,12 +1,11 @@
-/// <reference types="@cloudflare/vitest-plugin/types" />
 /**
  * Buying a prepaid pack by card, through the real Worker, with Stripe's REST
  * API answered by a spy on fetch. Checks the Checkout Session we ask Stripe
  * for, fulfilment from both the success page and the webhook (once only),
  * the one-time key reveal, and every way a fulfilment is refused.
  */
-import { createExecutionContext, SELF, waitOnExecutionContext } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STRIPE } from "../../src/config";
 import { app } from "../../src/index";
@@ -15,7 +14,7 @@ import type { Env } from "../../src/types";
 
 const ORIGIN = "https://api.weblens.dev";
 const WEBHOOK_SECRET = "whsec_test_secret";
-const stripeEnv: Env = { ...(env as unknown as Env), STRIPE_SECRET_KEY: "sk_test_123", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET };
+const stripeEnv: Env = { ...(env), STRIPE_SECRET_KEY: "sk_test_123", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET };
 
 let ipCounter = 100;
 async function call(path: string, init: RequestInit = {}, withStripe = true): Promise<Response> {
@@ -23,7 +22,7 @@ async function call(path: string, init: RequestInit = {}, withStripe = true): Pr
     const headers = new Headers(init.headers);
     headers.set("cf-connecting-ip", `203.0.113.${String(ipCounter % 250)}`);
     const ctx = createExecutionContext();
-    const res = await app.fetch(new Request(`${ORIGIN}${path}`, { ...init, headers }), withStripe ? stripeEnv : (env as unknown as Env), ctx);
+    const res = await app.fetch(new Request(`${ORIGIN}${path}`, { ...init, headers }), withStripe ? stripeEnv : (env), ctx);
     await waitOnExecutionContext(ctx);
     return res;
 }
@@ -177,7 +176,7 @@ describe("fulfilment", () => {
         expect(await again.text()).not.toMatch(/wl_live_[0-9a-f]{32}_/u);
         expect((await webhook("checkout.session.completed", String(session.id))).status).toBe(200);
 
-        const account = await SELF.fetch(`${ORIGIN}/account`, { headers: { Authorization: `Bearer ${key ?? ""}` } });
+        const account = await exports.default.fetch(`${ORIGIN}/account`, { headers: { Authorization: `Bearer ${key ?? ""}` } });
         expect(await account.json()).toMatchObject({ balance: "$10" });
     });
 

@@ -8,7 +8,7 @@
  * the caller simply goes away — so it gets tests rather than manual probing.
  */
 
-import { SELF } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { PARAMETERIZED_ROUTES } from "../../src/config";
 import { PAID_ENDPOINTS } from "../../src/endpoints";
@@ -20,7 +20,7 @@ const GET_ONLY_PATHS = ["/", "/discovery", "/mcp/info", "/account"];
 
 describe("method not allowed", () => {
     it.each(GET_ONLY_PATHS)("POST %s answers 405 with an Allow header, not 404", async (path) => {
-        const res = await SELF.fetch(`${ORIGIN}${path}`, {
+        const res = await exports.default.fetch(`${ORIGIN}${path}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: "{}",
@@ -29,7 +29,7 @@ describe("method not allowed", () => {
         expect(res.status).toBe(405);
         expect(res.headers.get("Allow")).toContain("GET");
 
-        const body = await res.json() as Record<string, unknown>;
+        const body = await res.json<Record<string, unknown>>();
         expect(body.code).toBe("METHOD_NOT_ALLOWED");
         // The envelope contract: `error` always mirrors `code`.
         expect(body.error).toBe(body.code);
@@ -41,23 +41,23 @@ describe("method not allowed", () => {
         // This path is guarded separately: the payment middleware is registered
         // with app.use() and matches every method, so without the POST-only
         // policy a GET here would be answered with a 402 challenge.
-        const res = await SELF.fetch(`${ORIGIN}/research/deep`);
+        const res = await exports.default.fetch(`${ORIGIN}/research/deep`);
 
         expect(res.status).toBe(405);
         expect(res.headers.get("Allow")).toBe("POST");
-        expect((await res.json() as Record<string, unknown>).allowedMethods).toEqual(["POST"]);
+        expect((await res.json<Record<string, unknown>>()).allowedMethods).toEqual(["POST"]);
     });
 
     it("leaves a genuinely unknown path as 404", async () => {
-        const res = await SELF.fetch(`${ORIGIN}/no/such/route`, { method: "POST" });
+        const res = await exports.default.fetch(`${ORIGIN}/no/such/route`, { method: "POST" });
 
         expect(res.status).toBe(404);
-        expect((await res.json() as Record<string, unknown>).code).toBe("NOT_FOUND");
+        expect((await res.json<Record<string, unknown>>()).code).toBe("NOT_FOUND");
     });
 
     it("does not divert a correctly-methoded paid request into a 405", async () => {
         // POST on a paid endpoint must still reach the payment wall.
-        const res = await SELF.fetch(`${ORIGIN}/research/deep`, {
+        const res = await exports.default.fetch(`${ORIGIN}/research/deep`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query: "test" }),
@@ -71,11 +71,11 @@ describe("unsubstituted path templates", () => {
     it.each(PARAMETERIZED_ROUTES.map((r) => [r.template, r] as const))(
         "%s answers 400 with a callable example",
         async (template, route) => {
-            const res = await SELF.fetch(`${ORIGIN}${template}`);
+            const res = await exports.default.fetch(`${ORIGIN}${template}`);
 
             expect(res.status).toBe(400);
 
-            const body = await res.json() as Record<string, unknown>;
+            const body = await res.json<Record<string, unknown>>();
             expect(body.code).toBe("UNSUBSTITUTED_PATH_TEMPLATE");
             expect(body.error).toBe(body.code);
             expect(body.template).toBe(template);
@@ -88,18 +88,18 @@ describe("unsubstituted path templates", () => {
 
     it("matches the percent-encoded form agents actually send", async () => {
         // Real traffic arrives as %7Burl%7D; Hono decodes it before routing.
-        const res = await SELF.fetch(`${ORIGIN}/r/%7Burl%7D`);
+        const res = await exports.default.fetch(`${ORIGIN}/r/%7Burl%7D`);
 
         expect(res.status).toBe(400);
-        expect((await res.json() as Record<string, unknown>).code).toBe("UNSUBSTITUTED_PATH_TEMPLATE");
+        expect((await res.json<Record<string, unknown>>()).code).toBe("UNSUBSTITUTED_PATH_TEMPLATE");
     });
 
     it("does not intercept a real URL that happens to contain braces", async () => {
-        const res = await SELF.fetch(`${ORIGIN}/r/https://example.com/a%7Bb%7D`);
+        const res = await exports.default.fetch(`${ORIGIN}/r/https://example.com/a%7Bb%7D`);
 
         // Whatever the reader does with it, it must not be mistaken for an
         // unsubstituted template.
-        expect((await res.json() as Record<string, unknown>).code)
+        expect((await res.json<Record<string, unknown>>()).code)
             .not.toBe("UNSUBSTITUTED_PATH_TEMPLATE");
     });
 
@@ -107,7 +107,7 @@ describe("unsubstituted path templates", () => {
         // Well past the 10/hour free-tier allowance; a malformed path must not
         // consume it, so none of these may come back 429.
         for (let i = 0; i < 12; i++) {
-            const res = await SELF.fetch(`${ORIGIN}/r/%7Burl%7D`);
+            const res = await exports.default.fetch(`${ORIGIN}/r/%7Burl%7D`);
             expect(res.status).toBe(400);
         }
     });

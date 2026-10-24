@@ -8,6 +8,7 @@
 import type { FacilitatorClient } from "@x402/core/server";
 import type { PaymentPayload, PaymentRequirements, SettleResponse, SupportedResponse, VerifyResponse } from "@x402/core/types";
 import { describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
 import { FacilitatorChain, parseFacilitatorOrder } from "../../src/services/facilitator-chain";
 import { runPaymentAttempt, TrackedFacilitatorClient } from "../../src/services/payment-telemetry";
 import type { FacilitatorLabel } from "../../src/services/payment-telemetry";
@@ -46,7 +47,7 @@ function facilitator(answers: {
     supported?: SupportedResponse | Error;
     verify?: VerifyResponse | Error;
     settle?: SettleResponse | Error;
-}): FacilitatorClient & { verify: ReturnType<typeof vi.fn>; settle: ReturnType<typeof vi.fn> } {
+}): Omit<FacilitatorClient, "verify" | "settle"> & { verify: Mock<FacilitatorClient["verify"]>; settle: Mock<FacilitatorClient["settle"]> } {
     const answer = <T>(value: T | Error | undefined): Promise<T> =>
         value instanceof Error ? Promise.reject(value) : value === undefined ? Promise.reject(new Error("unscripted")) : Promise.resolve(value);
     return {
@@ -56,7 +57,7 @@ function facilitator(answers: {
     };
 }
 
-function silentLog(): Logger & { warn: ReturnType<typeof vi.fn> } {
+function silentLog(): Omit<Logger, "warn"> & { warn: Mock<Logger["warn"]> } {
     const log = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() };
     log.child.mockReturnValue(log);
     return log;

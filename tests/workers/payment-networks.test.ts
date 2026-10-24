@@ -14,7 +14,7 @@
  * 402 challenge rather than a reconstruction of it.
  */
 
-import { env, SELF } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { supportedNetworks } from "../../src/config";
 
@@ -28,7 +28,7 @@ interface Accept {
 
 /** Fetch a real 402 and decode the base64 PAYMENT-REQUIRED challenge. */
 async function challenge(path: string, body: unknown = { url: "https://example.com" }): Promise<{ accepts: Accept[] }> {
-    const res = await SELF.fetch(`https://api.weblens.dev${path}`, {
+    const res = await exports.default.fetch(`https://api.weblens.dev${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -80,8 +80,7 @@ describe("advertised payment networks", () => {
         const solana = accepts.filter((a) => a.network.startsWith("solana:"));
 
         if (env.PAY_TO_ADDRESS_SVM?.trim()) {
-            expect(solana).toHaveLength(1);
-            expect(solana[0].payTo).toBe(env.PAY_TO_ADDRESS_SVM);
+            expect(solana.map((a) => a.payTo)).toEqual([env.PAY_TO_ADDRESS_SVM]);
         } else {
             expect(solana).toHaveLength(0);
         }

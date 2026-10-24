@@ -9,10 +9,10 @@
  * match the specified viewport dimensions.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { normalizeViewport } from "../../src/services/screenshot";
+import { describe, it, expect } from "vitest";
 import { VIEWPORT_BOUNDS } from "../../src/config";
+import { normalizeViewport } from "../../src/services/screenshot";
 
 describe("Property 2: Viewport dimensions are respected", () => {
   /**

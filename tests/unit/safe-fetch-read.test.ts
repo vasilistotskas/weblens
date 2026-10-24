@@ -28,8 +28,8 @@ function streamed(chunks: Uint8Array[], contentType?: string) {
     const body = new ReadableStream<Uint8Array>({
         pull(controller) {
             const next = chunks[pulled++];
-            if (next) controller.enqueue(next);
-            else controller.close();
+            if (next) {controller.enqueue(next);}
+            else {controller.close();}
         },
         cancel() { cancelled = true; },
     });

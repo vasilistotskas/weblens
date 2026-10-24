@@ -8,15 +8,15 @@
  * X-Request-Id and X-Processing-Time headers.
  */
 
-import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { generateRequestId } from "../../src/utils/requestId";
+import { describe, it, expect } from "vitest";
 import {
   getErrorCode,
   getHttpStatus,
   createErrorResponse,
 } from "../../src/middleware/errorHandler";
 import type { ErrorCode } from "../../src/types";
+import { generateRequestId } from "../../src/utils/requestId";
 
 describe("Property 10: Response header consistency", () => {
   /**
@@ -39,12 +39,12 @@ describe("Property 10: Response header consistency", () => {
         expect(parts[0]).toBe("wl");
 
         // Second part is timestamp (base36)
-        expect(parts[1].length).toBeGreaterThan(0);
+        expect(parts[1]?.length).toBeGreaterThan(0);
 
         // Third part is random hex string (now 8 chars from crypto.randomUUID,
         // widened bound to 12 in case length ever needs to grow).
-        expect(parts[2].length).toBeGreaterThanOrEqual(1);
-        expect(parts[2].length).toBeLessThanOrEqual(12);
+        expect(parts[2]?.length).toBeGreaterThanOrEqual(1);
+        expect(parts[2]?.length).toBeLessThanOrEqual(12);
       }),
       { numRuns: 100 }
     );

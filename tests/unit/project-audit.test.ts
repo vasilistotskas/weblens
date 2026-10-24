@@ -24,10 +24,7 @@ describe("advertised service catalogue", () => {
     const advertised = new Set(SERVICE_CATALOG.services.map((s) => s.endpoint));
 
     it("advertises every paid endpoint", () => {
-        // Billing actions (group "Credits") are sold but deliberately not
-        // listed as capabilities.
-        const sellable = ENDPOINTS.filter((e) => e.group !== "Credits").map((e) => e.path);
-        const missing = sellable.filter((e) => !advertised.has(e));
+        const missing = ENDPOINTS.map((e) => e.path).filter((e) => !advertised.has(e));
         expect(missing, `paid but not advertised: ${missing.join(", ")}`).toEqual([]);
     });
 

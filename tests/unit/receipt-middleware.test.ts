@@ -10,80 +10,75 @@
  * real USDC payment, so the conditions are pinned here instead.
  */
 
-import { describe, expect, it, vi } from "vitest";
 import { encodePaymentResponseHeader, encodePaymentSignatureHeader } from "@x402/core/http";
+import type { Network } from "@x402/core/types";
+import { Hono } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { describe, expect, it, vi } from "vitest";
 import { receiptMiddleware } from "../../src/middleware/receipt";
+import type { AppEnv } from "../../src/types";
+import { createLogger } from "../../src/utils/logger";
 
-interface CtxOptions {
+interface CallOptions {
     path?: string;
-    status?: number;
+    status?: ContentfulStatusCode;
     headers?: Record<string, string>;
     paidWithCredits?: boolean;
-    requestId?: string;
     responseHeaders?: Record<string, string>;
 }
 
-function makeCtx(o: CtxOptions = {}) {
-    const put = vi.fn(() => Promise.resolve());
-    const resHeaders = new Map<string, string>(Object.entries(o.responseHeaders ?? {}));
-    const vars = new Map<string, unknown>([
-        ["requestId", o.requestId ?? "wl_test_123"],
-        ["paidWithCredits", o.paidWithCredits ?? false],
-        ["log", { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }],
-    ]);
-    const ctx = {
-        env: { CACHE: { put }, NETWORK: "base", PAY_TO_ADDRESS: "0xPayTo" },
-        req: {
-            path: o.path ?? "/search",
-            method: "POST",
-            url: `https://api.weblens.dev${o.path ?? "/search"}`,
-            header: (name: string) => (o.headers ?? {})[name],
-        },
-        res: {
-            status: o.status ?? 200,
-            headers: {
-                get: (k: string) => resHeaders.get(k) ?? null,
-                set: (k: string, v: string) => resHeaders.set(k, v),
-            },
-        },
-        get: (k: string) => vars.get(k),
-        set: (k: string, v: unknown) => vars.set(k, v),
-    };
-    return { ctx, put, resHeaders };
+const REQUEST_ID = "wl_test_123";
+
+/** One call through the real middleware, answered by a handler that sets the given status and headers. */
+async function call(o: CallOptions = {}, put = vi.fn<KVNamespace["put"]>(() => Promise.resolve())) {
+    const app = new Hono<AppEnv>();
+    app.use("*", async (c, next) => {
+        c.set("requestId", REQUEST_ID);
+        c.set("paidWithCredits", o.paidWithCredits ?? false);
+        c.set("log", createLogger("silent"));
+        await next();
+    });
+    app.use("*", receiptMiddleware());
+    app.all("*", (c) => c.body("{}", o.status ?? 200, o.responseHeaders ?? {}));
+
+    const res = await app.request(
+        `https://api.weblens.dev${o.path ?? "/search"}`,
+        { method: "POST", headers: o.headers ?? {} },
+        { CACHE: { put }, NETWORK: "base", PAY_TO_ADDRESS: "0xPayTo" },
+    );
+    return { res, put };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const run = (ctx: any) => receiptMiddleware()(ctx, () => Promise.resolve()) as Promise<void>;
+/** The receipt a call wrote, parsed. */
+function written(put: ReturnType<typeof vi.fn<KVNamespace["put"]>>): Record<string, unknown> {
+    const [key, body] = put.mock.calls[0] ?? [];
+    expect(key).toBe(`receipt:${REQUEST_ID}`);
+    if (typeof body !== "string") { throw new TypeError("the receipt was not written as JSON text"); }
+    return JSON.parse(body) as Record<string, unknown>;
+}
 
-const BASE = "eip155:8453";
-const SOLANA = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const BASE: Network = "eip155:8453";
+const SOLANA: Network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
 
 /** The headers of a real settled x402 call on `network`, encoded by @x402/core itself. */
-function settled(network: string, payTo: string, amount: string, transaction: string) {
+function settled(network: Network, payTo: string, amount: string, transaction: string) {
     const signature = encodePaymentSignatureHeader({
         x402Version: 2,
         accepted: { scheme: "exact", network, amount, asset: "usdc", payTo, maxTimeoutSeconds: 300, extra: {} },
         payload: {},
-    } as unknown as Parameters<typeof encodePaymentSignatureHeader>[0]);
-    const response = encodePaymentResponseHeader({
-        success: true, network, transaction, payer: "buyer",
-    } as unknown as Parameters<typeof encodePaymentResponseHeader>[0]);
+    });
+    const response = encodePaymentResponseHeader({ success: true, network, transaction, payer: "buyer" });
     return { headers: { "Payment-Signature": signature }, responseHeaders: { "PAYMENT-RESPONSE": response } };
 }
 
 describe("receiptMiddleware", () => {
     it("writes a receipt for a paid x402 call that succeeded", async () => {
-        const { ctx, put, resHeaders } = makeCtx(settled(BASE, "0xPayTo", "15000", "0xtxhash"));
-
-        await run(ctx);
+        const { res, put } = await call(settled(BASE, "0xPayTo", "15000", "0xtxhash"));
 
         expect(put).toHaveBeenCalledOnce();
-        const [key, body] = put.mock.calls[0] as unknown as [string, string];
-        expect(key).toBe("receipt:wl_test_123");
-        const receipt = JSON.parse(body) as Record<string, unknown>;
-        expect(receipt).toMatchObject({
+        expect(written(put)).toMatchObject({
             type: "weblens-call-receipt-v1",
-            requestId: "wl_test_123",
+            requestId: REQUEST_ID,
             endpoint: "/search",
             outcome: "success",
             paymentMethod: "x402",
@@ -93,16 +88,13 @@ describe("receiptMiddleware", () => {
             transaction: "0xtxhash",
             payer: "buyer",
         });
-        expect(resHeaders.get("X-Receipt-Url")).toBe("https://api.weblens.dev/receipts/wl_test_123");
+        expect(res.headers.get("X-Receipt-Url")).toBe(`https://api.weblens.dev/receipts/${REQUEST_ID}`);
     });
 
     it("records the network actually paid on — a Solana payment is not stamped as Base", async () => {
-        const { ctx, put } = makeCtx(settled(SOLANA, "34sd6wSolanaPayTo", "200000", "5solanaSignature"));
+        const { put } = await call(settled(SOLANA, "34sd6wSolanaPayTo", "200000", "5solanaSignature"));
 
-        await run(ctx);
-
-        const receipt = JSON.parse((put.mock.calls[0] as unknown as [string, string])[1]) as Record<string, unknown>;
-        expect(receipt).toMatchObject({
+        expect(written(put)).toMatchObject({
             network: SOLANA,
             payTo: "34sd6wSolanaPayTo",
             price: "$0.2",
@@ -112,55 +104,41 @@ describe("receiptMiddleware", () => {
 
     it("issues no receipt for an x402 call that carries no settlement", async () => {
         const { headers } = settled(BASE, "0xPayTo", "15000", "0xtx");
-        const { ctx, put } = makeCtx({ headers }); // no PAYMENT-RESPONSE: nothing settled
-
-        await run(ctx);
+        const { put } = await call({ headers }); // no PAYMENT-RESPONSE: nothing settled
 
         expect(put).not.toHaveBeenCalled();
     });
 
-    it("records the credit price and method for a credit-paid call", async () => {
-        const { ctx, put } = makeCtx({
-            paidWithCredits: true,
-            responseHeaders: { "Credit-Cost": "$0.015" },
-        });
+    it("records the credit price and method for a call paid with an API key", async () => {
+        const { put } = await call({ paidWithCredits: true, responseHeaders: { "Credit-Cost": "$0.015" } });
 
-        await run(ctx);
-
-        const receipt = JSON.parse((put.mock.calls[0] as unknown as [string, string])[1]) as Record<string, unknown>;
-        expect(receipt.paymentMethod).toBe("credits");
-        expect(receipt.price).toBe("$0.015");
+        expect(written(put)).toMatchObject({ paymentMethod: "credits", price: "$0.015" });
     });
 
     it("issues no receipt for an unpaid probe", async () => {
-        const { ctx, put } = makeCtx(); // no payment headers at all
-
-        await run(ctx);
+        const { put } = await call(); // no payment headers at all
 
         expect(put).not.toHaveBeenCalled();
     });
 
     it("issues no receipt when the call failed or was refunded", async () => {
-        for (const status of [400, 402, 404, 500, 502]) {
-            const { ctx, put } = makeCtx({ status, ...settled(BASE, "0xPayTo", "15000", "0xtx") });
-            await run(ctx);
+        for (const status of [400, 402, 404, 500, 502] as const) {
+            const { put } = await call({ status, ...settled(BASE, "0xPayTo", "15000", "0xtx") });
             expect(put, `status ${String(status)} must not produce a receipt`).not.toHaveBeenCalled();
         }
     });
 
     it("ignores endpoints that are not sold", async () => {
-        const { ctx, put } = makeCtx({ path: "/health", ...settled(BASE, "0xPayTo", "15000", "0xtx") });
-
-        await run(ctx);
+        const { put } = await call({ path: "/health", ...settled(BASE, "0xPayTo", "15000", "0xtx") });
 
         expect(put).not.toHaveBeenCalled();
     });
 
     it("never fails the request when the receipt write throws", async () => {
-        const { ctx } = makeCtx(settled(BASE, "0xPayTo", "15000", "0xtx"));
-        (ctx.env.CACHE.put as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("KV down"));
+        const put = vi.fn<KVNamespace["put"]>(() => Promise.reject(new Error("KV down")));
 
         // The buyer already paid — a bookkeeping failure must not surface.
-        await expect(run(ctx)).resolves.toBeUndefined();
+        const { res } = await call(settled(BASE, "0xPayTo", "15000", "0xtx"), put);
+        expect(res.status).toBe(200);
     });
 });
