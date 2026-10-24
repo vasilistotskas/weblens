@@ -122,7 +122,6 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "FETCH_TIMEOUT":
     case "RENDER_FAILED":
     case "FETCH_FAILED":
-    case "FETCH_ALL_PROVIDERS_FAILED":
     case "RESEARCH_FAILED":
     case "PROVIDER_ERROR":
       return 502;

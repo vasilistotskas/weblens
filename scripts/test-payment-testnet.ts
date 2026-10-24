@@ -78,7 +78,6 @@ const TEST_PAYLOADS: Record<string, Record<string, unknown>> = {
     // Core endpoints
     "/fetch/basic":    { url: "https://example.com" },
     "/fetch/pro":      { url: "https://example.com" },
-    "/fetch/resilient":{ url: "https://example.com" },
     "/screenshot":     { url: "https://example.com" },
     "/search":         { query: "x402 protocol", limit: 3 },
     "/extract": {
@@ -240,7 +239,7 @@ async function run(): Promise<void> {
 
         // Hardcoded fallback — mirrors all route registrations
         const fallbackPaths = [
-            "/fetch/basic", "/fetch/pro", "/fetch/resilient",
+            "/fetch/basic", "/fetch/pro",
             "/screenshot", "/search", "/extract",
             "/research/deep", "/pdf", "/contents",
         ];

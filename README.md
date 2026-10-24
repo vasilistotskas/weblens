@@ -87,7 +87,6 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 |----------|-------------|-------|
 | `/fetch/basic` | Fetch a webpage as clean markdown | $0.002 |
 | `/fetch/pro` | Fetch with full JavaScript rendering (SPAs) | $0.006 |
-| `/fetch/resilient` | Auto-fallback: native scraper → headless Chromium | $0.008 |
 | `/contents` | Bulk page text for 1–20 URLs | $0.0015/URL |
 | `/screenshot` | Capture a webpage screenshot (PNG) | $0.008 |
 | `/map` | Discover a site's URLs (sitemaps + links, no page fetches) | $0.004 |

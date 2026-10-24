@@ -219,8 +219,6 @@ export type ErrorCode =
   | "REDIRECT_BLOCKED" // Reader hit a blocked redirect target (400)
   // --- Tech detection (tools/tech.ts) ---
   | "FETCH_FAILED" // The target page could not be fetched (502)
-  // --- Resilient fetch (tools/resilient-fetch.ts) ---
-  | "FETCH_ALL_PROVIDERS_FAILED" // Every fetch provider failed (502)
   // --- Project due diligence (tools/project-audit.ts) ---
   | "INTEL_FAILED" // Due-diligence workflow failed (500)
   // --- Discussions endpoint (tools/discussions.ts) ---

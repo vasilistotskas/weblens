@@ -34,7 +34,6 @@ import { mapHandler } from "../tools/map";
 import { packageHandler } from "../tools/package-intel";
 import { pdfHandler } from "../tools/pdf";
 import { projectAuditHandler } from "../tools/project-audit";
-import { resilientFetchHandler } from "../tools/resilient-fetch";
 import { screenshot } from "../tools/screenshot";
 import {
     searchAutocompleteHandler,
@@ -54,7 +53,6 @@ import type { AppEnv } from "../types";
 const HANDLERS: Record<PaidPath, Handler<AppEnv>> = {
     "/fetch/basic": fetchBasic,
     "/fetch/pro": fetchPro,
-    "/fetch/resilient": resilientFetchHandler,
     "/screenshot": screenshot,
     "/contents": contentsHandler,
     "/map": mapHandler,

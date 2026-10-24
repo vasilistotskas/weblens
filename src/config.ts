@@ -35,7 +35,6 @@ export const PRICING = {
   fetch: {
     basic: "$0.002",
     pro: "$0.006",
-    resilient: "$0.008", // native first, Browser Rendering fallback
   },
   // Search pricing floor: every SerpAPI-backed call costs $0.009-$0.015
   // upstream depending on plan tier — prices below $0.015 would sell at a

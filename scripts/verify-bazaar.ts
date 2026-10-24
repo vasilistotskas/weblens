@@ -83,7 +83,6 @@ const SKIP_BAZAAR = process.env.SKIP_BAZAAR === "true";
 const PAID_ENDPOINTS: { path: string; body: Record<string, unknown> }[] = [
   { path: "/fetch/basic",     body: { url: "https://example.com" } },
   { path: "/fetch/pro",       body: { url: "https://example.com" } },
-  { path: "/fetch/resilient", body: { url: "https://example.com" } },
   { path: "/screenshot",      body: { url: "https://example.com" } },
   { path: "/search",          body: { query: "test" } },
   { path: "/extract",         body: { url: "https://example.com", schema: { title: "string" } } },
