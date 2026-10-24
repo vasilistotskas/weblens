@@ -42,3 +42,26 @@ jobs:
 
       - name: Test
         run: pnpm run test
+
+  # The Apify Actor (apify/company-profile) is its own npm package, built by
+  # Apify from this folder; type-check it here so a broken Actor never reaches
+  # an Apify build.
+  apify-actor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apify/company-profile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # the Actor's apify/actor-node:24 base image
+          cache: npm
+          cache-dependency-path: apify/company-profile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check and build
+        run: npm run build

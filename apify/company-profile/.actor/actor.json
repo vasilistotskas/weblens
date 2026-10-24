@@ -1,0 +1,17 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "company-profile",
+  "title": "Company Profile from Domain",
+  "description": "Turn a list of company domains into sourced company profiles read live from each company's own website: what it sells and to whom, pricing, industry, head count, hiring, tech stack, socials and domain facts.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "./Dockerfile",
+  "readme": "../README.md",
+  "defaultMemoryMbytes": 256,
+  "maxMemoryMbytes": 512
+}

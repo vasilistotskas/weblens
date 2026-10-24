@@ -1,0 +1,16 @@
+{
+  "title": "Company Profile from Domain",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "domains": {
+      "title": "Company domains",
+      "type": "array",
+      "description": "Website domains of the companies to profile, one per line, e.g. gitlab.com. A full URL is accepted and reduced to its hostname. Duplicates are profiled once.",
+      "editor": "stringList",
+      "prefill": ["gitlab.com", "vercel.com"],
+      "example": ["gitlab.com", "vercel.com", "stripe.com"]
+    }
+  },
+  "required": ["domains"]
+}

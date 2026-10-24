@@ -1,0 +1,26 @@
+{
+  "actorSpecification": 1,
+  "views": {
+    "overview": {
+      "title": "Overview",
+      "transformation": {
+        "fields": ["input", "name", "description", "industry", "size", "pricing", "hiring", "socials", "url", "coverage"]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "input": { "label": "Domain", "format": "text" },
+          "name": { "label": "Company", "format": "text" },
+          "description": { "label": "What it does", "format": "text" },
+          "industry": { "label": "Industry (NAICS sector)", "format": "object" },
+          "size": { "label": "Head count (self-reported)", "format": "object" },
+          "pricing": { "label": "Pricing", "format": "object" },
+          "hiring": { "label": "Hiring", "format": "object" },
+          "socials": { "label": "Socials", "format": "object" },
+          "url": { "label": "Website", "format": "link" },
+          "coverage": { "label": "Fields found", "format": "object" }
+        }
+      }
+    }
+  }
+}
