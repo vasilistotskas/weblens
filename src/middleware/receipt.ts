@@ -57,7 +57,10 @@ export function receiptMiddleware(): MiddlewareHandler<AppEnv> {
         if (!PAID_ENDPOINTS.includes(path)) { return; }
 
         // Only a call that carried payment gets a receipt.
-        const paidWithCredits = c.get("paidWithCredits") === true;
+        // A partner's user paid the marketplace, not WebLens: there is no payment of ours to cite.
+        const paymentMethod = c.get("paymentMethod");
+        if (paymentMethod === "partner") { return; }
+        const paidWithCredits = paymentMethod === "credits";
         const paidWithX402 = c.req.header("Payment-Signature") !== undefined;
         if (!paidWithCredits && !paidWithX402) { return; }
 

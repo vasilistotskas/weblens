@@ -18,6 +18,7 @@ import { endpointBodySchema, x402Charge } from "../endpoints/define";
 import type { EndpointDefinition } from "../endpoints/define";
 import { createApiKeyMiddleware } from "../middleware/api-key";
 import { cacheAwarePrice, cacheLookupMiddleware, cacheServeMiddleware } from "../middleware/cache";
+import { createPartnerMiddleware } from "../middleware/partner";
 import { createLazyPaymentMiddleware } from "../middleware/payment";
 import { validateRequest } from "../middleware/validation";
 import { answerHandler } from "../tools/answer";
@@ -106,6 +107,7 @@ export function registerPaidRoutes(app: Hono<AppEnv>): void {
             stack.push(cacheLookupMiddleware(definition.cacheKey));
         }
         stack.push(validateRequest(definition.input));
+        stack.push(createPartnerMiddleware(price, definition.path));
         stack.push(createApiKeyMiddleware(price, definition.title));
         stack.push(createLazyPaymentMiddleware(
             {

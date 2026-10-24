@@ -45,6 +45,8 @@ import { isRecord } from "../utils/narrow";
  * - `canceled`: verified, but the handler failed so settlement was cancelled (nothing charged).
  * - `wall_unavailable`: the facilitator did not advertise our scheme/network; no challenge could be built.
  * - `unclassified`: none of the above matched — investigate.
+ * - `partner`: a call a marketplace partner made for its own user, who paid the marketplace
+ *   (middleware/partner.ts); `payer` names the partner and `amount` is the list price.
  */
 export type PaymentOutcome =
     | "unpaid"
@@ -56,7 +58,8 @@ export type PaymentOutcome =
     | "settle_failed"
     | "canceled"
     | "wall_unavailable"
-    | "unclassified";
+    | "unclassified"
+    | "partner";
 
 /** What the x402 hooks learned about the payment on this request. */
 export interface PaymentAttempt {
@@ -355,6 +358,7 @@ const LOG_LEVEL_BY_OUTCOME: Record<PaymentOutcome, keyof Pick<Logger, "debug" | 
     canceled: "warn",
     wall_unavailable: "error",
     unclassified: "warn",
+    partner: "info",
 };
 
 /**

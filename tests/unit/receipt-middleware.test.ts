@@ -16,14 +16,14 @@ import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { describe, expect, it, vi } from "vitest";
 import { receiptMiddleware } from "../../src/middleware/receipt";
-import type { AppEnv } from "../../src/types";
+import type { AppEnv, PaymentMethod } from "../../src/types";
 import { createLogger } from "../../src/utils/logger";
 
 interface CallOptions {
     path?: string;
     status?: ContentfulStatusCode;
     headers?: Record<string, string>;
-    paidWithCredits?: boolean;
+    paymentMethod?: PaymentMethod;
     responseHeaders?: Record<string, string>;
 }
 
@@ -34,7 +34,7 @@ async function call(o: CallOptions = {}, put = vi.fn<KVNamespace["put"]>(() => P
     const app = new Hono<AppEnv>();
     app.use("*", async (c, next) => {
         c.set("requestId", REQUEST_ID);
-        c.set("paidWithCredits", o.paidWithCredits ?? false);
+        if (o.paymentMethod) { c.set("paymentMethod", o.paymentMethod); }
         c.set("log", createLogger("silent"));
         await next();
     });
@@ -110,7 +110,7 @@ describe("receiptMiddleware", () => {
     });
 
     it("records the credit price and method for a call paid with an API key", async () => {
-        const { put } = await call({ paidWithCredits: true, responseHeaders: { "Credit-Cost": "$0.015" } });
+        const { put } = await call({ paymentMethod: "credits", responseHeaders: { "Credit-Cost": "$0.015" } });
 
         expect(written(put)).toMatchObject({ paymentMethod: "credits", price: "$0.015" });
     });

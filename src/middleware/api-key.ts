@@ -29,7 +29,8 @@ export function createApiKeyMiddleware(
 ): MiddlewareHandler<AppEnv> {
     return async (c, next) => {
         const key = parseApiKey(c.req.header("Authorization"), c.env.API_KEY_PREFIX);
-        if (key === "none") {
+        // A marketplace partner already paid for this call (middleware/partner.ts).
+        if (key === "none" || c.get("paymentMethod") === "partner") {
             await next();
             return;
         }
@@ -67,7 +68,7 @@ export function createApiKeyMiddleware(
             }, 402);
         }
 
-        c.set("paidWithCredits", true);
+        c.set("paymentMethod", "credits");
         log.info("apikey.debit", { account: key.accountId, price, description });
 
         const refund = async (reason: string): Promise<void> => {

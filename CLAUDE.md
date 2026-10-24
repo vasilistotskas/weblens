@@ -74,7 +74,7 @@ The Durable Object class `CreditAccountDO` is re-exported from the entry point f
 Middleware stores state in Hono context (`c.set()`/`c.get()`):
 - `requestId` — UUID generated at ingress
 - `validatedBody` — Zod-parsed request body (set by validation middleware, consumed by handlers)
-- `paidWithCredits` — boolean flag set by the API key middleware; when `true`, the x402 payment middleware is skipped
+- `paymentMethod` — `"credits"` (set by the API key middleware) or `"partner"` (set by the partner middleware) when the call was paid off-chain; when set, the x402 payment middleware is skipped
 - `startTime` — `Date.now()` for `X-Processing-Time` header calculation
 - `log` — request-scoped structured `Logger` bound with `requestId`/method/path; use `c.get("log").info("event.name", {fields})` (set by Request ID middleware, always present)
 - `cacheHit` / `cacheKey` / `cacheTtl` / `cachedBody` — set by the cache middleware (see Caching)
@@ -84,6 +84,7 @@ Add a `defineEndpoint({...})` to the right group in `src/endpoints/` and its han
 ```
 [cacheLookupMiddleware]        // only with cacheKey; runs first so both money paths see the hit
 validateRequest(input)         // Zod validation → sets validatedBody
+createPartnerMiddleware(price) // a marketplace partner's secret header → served, recorded, not debited
 createApiKeyMiddleware(price)  // Authorization: Bearer <key> → debit the prepaid account
 createLazyPaymentMiddleware    // x402 payment wall, advertising the definition's schemas and tags
 [cacheServeMiddleware]         // only with cacheKey
@@ -110,6 +111,9 @@ Developers who pay by card buy a prepaid pack and get an API key; agents keep pa
 5. **Fulfilment** (`fulfillCheckout`): both the webhook (`POST /billing/webhook`, `checkout.session.completed` + `checkout.session.async_payment_succeeded`, signature checked against `STRIPE_WEBHOOK_SECRET`/`_2`) and the success page re-read the session from Stripe with `expand[]=line_items` and credit only a session whose single line item is that pack's USD price (Adaptive Pricing is always on, so the buyer may pay in another currency; the price object stays USD). A session that is not one of ours is acknowledged, never retried. `GET /billing/success` shows the new account's key **once** (`issueFirstKey`), with `Cache-Control: no-store` and `Referrer-Policy: no-referrer` (its URL carries the session id). `GET /account` and `POST /account/key/rotate` serve the key holder. A lost key goes through support in v1.
 6. **Gating**: `cardPaymentsEnabled(env)` (both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` set) decides every surface: `/billing/*` answer 503 without it, and the OpenAPI document (`bearerAuth` as an alternative top-level `security` entry plus the `/billing` and `/account` operations), llms.txt, `/discovery`, the landing page's buy buttons and their prose mention keys only with it. Paid operations keep no operation-level `security`, so x402scan still classifies them as paid (`tests/unit/openapi-discovery.test.ts`).
 7. **Going live** needs the user's Greek registration (Δ211) and Stripe's Managed Payments approval, then `sk_live_` secrets in production (`sk_test_` on testnet), each saved to Bitwarden.
+
+### Marketplace Partners (`middleware/partner.ts`, `PARTNERS` in `config.ts`)
+A marketplace that is the merchant of record for its own users (the WebLens Apify Actor; RapidAPI later) calls paid routes with its shared secret in its own header (`PARTNERS.apify.header` = `X-WebLens-Partner-Key`, compared in constant time against the Worker secret `APIFY_PARTNER_SECRET`). Such a call skips x402 and the prepaid ledger (the marketplace billed its user and pays WebLens), gets no ERC-8004 receipt, answers `Payment-Method: Partner`, and is recorded as an unsampled `partner` payment event (`payer` = the partner, `amount` = the list price) so the marketplace's payouts can be reconciled with `pnpm run funnel`. A partner header with a wrong secret, or for a partner whose secret is not set, is a 401 `INVALID_PARTNER_KEY`, never an x402 challenge; a partner call gets strict body validation like any paying call. Add a partner only when its listing exists (RapidAPI's header is `X-RapidAPI-Proxy-Secret`). The workers tests bind `APIFY_PARTNER_SECRET` through `cloudflareTest({ miniflare: { bindings } })` in `vitest.config.ts`.
 
 ### Error Handling
 - Registered via `app.onError(errorHandler)` (`src/middleware/errorHandler.ts`) — idiomatic Hono; catches throws from any middleware/handler regardless of order, logs the error through the structured logger, and returns the envelope. `ERROR_CODE_MAP` does substring matching on the message → `ErrorCode`.

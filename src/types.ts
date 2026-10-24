@@ -33,6 +33,8 @@ export interface Env {
   // Optional API keys
   SERP_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  // Shared secret the WebLens Apify Actor sends in PARTNERS.apify.header (middleware/partner.ts)
+  APIFY_PARTNER_SECRET?: string;
   // Structured-log verbosity (debug|info|warn|error|silent); default info.
   LOG_LEVEL?: string;
   // Facilitator URL override (PayAI fallback for multi-chain support)
@@ -67,6 +69,9 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET_2?: string;
 }
 
+/** A paid call paid without x402: a prepaid API key, or a marketplace partner that bills the buyer itself. */
+export type PaymentMethod = "credits" | "partner";
+
 /** The Hono environment every route and middleware runs in. */
 export interface AppEnv {
   Bindings: Env;
@@ -76,7 +81,7 @@ export interface AppEnv {
 export interface Variables {
   requestId: string;
   validatedBody?: unknown;
-  paidWithCredits?: boolean;
+  paymentMethod?: PaymentMethod;
   startTime?: number;
 }
 
@@ -85,7 +90,8 @@ declare module "hono" {
   interface ContextVariableMap {
     requestId: string;
     validatedBody: unknown;
-    paidWithCredits: boolean;
+    // How a paid call was paid off-chain; absent for x402 (middleware/api-key.ts, middleware/partner.ts).
+    paymentMethod: PaymentMethod;
     startTime: number;
     // Response caching (set by cacheLookupMiddleware, read by the credit/x402
     // price functions and cacheServeMiddleware). See src/middleware/cache.ts.
@@ -207,6 +213,7 @@ export type ErrorCode =
   | "PAYLOAD_TOO_LARGE" // Body exceeds 256KB cap (413)
   // --- Prepaid API keys (middleware/api-key.ts, routes/billing.ts) ---
   | "INVALID_API_KEY" // Authorization is not an active key of this environment (401)
+  | "INVALID_PARTNER_KEY" // A partner header with the wrong secret (401)
   | "INSUFFICIENT_CREDITS" // The key's account holds less than the call costs (402)
   // --- Routing (src/middleware/routing.ts) ---
   | "METHOD_NOT_ALLOWED" // Path exists, but not under this method (405)

@@ -131,6 +131,11 @@ dataset = "weblens_payment_events"
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler secret put SERP_API_KEY
 #
+# Marketplace partners (middleware/partner.ts): the secret the WebLens Apify
+# Actor sends in X-WebLens-Partner-Key. Unset, partner calls answer 401.
+#
+#   wrangler secret put APIFY_PARTNER_SECRET
+#
 # Card sales of prepaid packs (POST /billing/checkout, Stripe Managed Payments).
 # Without both, /billing/* answers 503. Use sk_test_ keys on testnet and
 # sk_live_ in production. The webhook endpoint is <origin>/billing/webhook with

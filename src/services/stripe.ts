@@ -13,6 +13,7 @@
 import { CREDIT_PACKS, packPrice, STRIPE } from "../config";
 import type { CreditPack } from "../config";
 import { asRecords, isRecord, num, str } from "../utils/narrow";
+import { timingSafeEqualText } from "../utils/timing-safe";
 import { usdToMicros } from "./pricing";
 
 /** A pack's price in cents, the unit Stripe amounts use for USD. */
@@ -165,28 +166,11 @@ export async function verifyStripeSignature(params: {
             .map((b) => b.toString(16).padStart(2, "0"))
             .join("");
 
-        if (signatures.some((sig) => timingSafeEqualHex(sig, expected))) {
+        if (signatures.some((sig) => timingSafeEqualText(sig, expected))) {
             return { valid: true };
         }
     }
     return { valid: false, reason: "Signature mismatch" };
-}
-
-/**
- * Constant-time hex-string comparison. Runs the full loop over the longer
- * input regardless of length mismatch — an early `a.length !== b.length`
- * short-circuit leaks "wrong length" vs "right length wrong value" via
- * observable timing.
- */
-function timingSafeEqualHex(a: string, b: string): boolean {
-    const maxLen = a.length > b.length ? a.length : b.length;
-    let mismatch = a.length ^ b.length;
-    for (let i = 0; i < maxLen; i++) {
-        const ca = i < a.length ? a.charCodeAt(i) : 0;
-        const cb = i < b.length ? b.charCodeAt(i) : 0;
-        mismatch |= ca ^ cb;
-    }
-    return mismatch === 0;
 }
 
 /** The event fields the webhook acts on: its type and the Checkout Session id it concerns. */

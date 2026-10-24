@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { PAID_ENDPOINTS } from "../endpoints";
 import { parseApiKey } from "../services/accounts";
 import type { AppEnv } from "../types";
+import { carriesPartnerKey } from "./partner";
 
 /**
  * Validation Middleware
@@ -23,7 +24,7 @@ export const MAX_BODY_BYTES = 256 * 1024; // 256 KB
 
 /**
  * True when the request targets a paid endpoint but carries neither an x402
- * payment nor a WebLens API key. Someone else's Authorization header (an MCP
+ * payment, a WebLens API key nor a partner key. Someone else's Authorization header (an MCP
  * client's own login) does not pay, so it does not make the request strict. Such a request receives a 402 challenge from the
  * payment middleware no matter what its body contains — so rejecting it with
  * a 400 here would only hide the payment challenge from probing agents
@@ -35,7 +36,8 @@ export const MAX_BODY_BYTES = 256 * 1024; // 256 KB
 function isUnpaidProbe(c: Context<AppEnv>): boolean {
     return PAID_ENDPOINTS.includes(c.req.path)
         && c.req.header("Payment-Signature") === undefined
-        && parseApiKey(c.req.header("Authorization"), c.env.API_KEY_PREFIX) === "none";
+        && parseApiKey(c.req.header("Authorization"), c.env.API_KEY_PREFIX) === "none"
+        && !carriesPartnerKey(c);
 }
 
 /**

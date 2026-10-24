@@ -28,7 +28,11 @@ export default defineConfig({
             // Binding / Durable-Object tests run inside the real workerd runtime via
             // the Workers Vitest pool, with real KV + DO instances from wrangler.toml.
             {
-                plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.toml" } })],
+                plugins: [cloudflareTest({
+                    wrangler: { configPath: "./wrangler.toml" },
+                    // A partner secret, so tests/workers/partner.test.ts can call as the Apify partner.
+                    miniflare: { bindings: { APIFY_PARTNER_SECRET: "test-partner-secret" } },
+                })],
                 test: {
                     name: "workers",
                     include: ["tests/workers/**/*.test.ts"],

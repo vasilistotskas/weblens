@@ -487,6 +487,17 @@ export const PAYMENT_EVENTS_DATASETS = {
  * (tests/workers/free-routes-cost.test.ts derives its forbidden hosts from
  * this map), and every paid route that uses one must clear its cost floor.
  */
+/**
+ * Marketplaces that bill their own users and call WebLens on their behalf, so
+ * their calls skip x402 and the prepaid ledger (middleware/partner.ts). Each
+ * authenticates with a shared secret in its own header; the secret is a Worker
+ * secret named by `secret`, and a partner without it set cannot call.
+ */
+export const PARTNERS = {
+  apify: { header: "X-WebLens-Partner-Key", secret: "APIFY_PARTNER_SECRET" },
+} as const;
+export type PartnerName = keyof typeof PARTNERS;
+
 export const PAID_UPSTREAMS = {
   anthropicMessages: "https://api.anthropic.com/v1/messages",
   serpApiSearch: "https://serpapi.com/search.json",

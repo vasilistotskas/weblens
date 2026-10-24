@@ -371,7 +371,7 @@ function evictPaymentCaches(env: Env): void {
  * Create a lazy-initialized x402 payment middleware for one paid route.
  * `priceOrCalculator` is the route's fixed price or its resolver, shared with
  * the credit debit so the two can never charge different amounts. Skips
- * payment if the request was already paid via a credit account.
+ * payment if the request was already paid off-chain (a key or a partner).
  */
 export function createLazyPaymentMiddleware(
     route: PaymentRoute,
@@ -379,8 +379,8 @@ export function createLazyPaymentMiddleware(
 ): MiddlewareHandler<AppEnv> {
     const { path } = route;
     return async (c, next) => {
-        // Already paid with a prepaid API key (middleware/api-key.ts): skip x402 entirely.
-        if (c.get("paidWithCredits")) {
+        // Already paid with a prepaid API key or by a marketplace partner: skip x402 entirely.
+        if (c.get("paymentMethod")) {
             await next();
             return;
         }

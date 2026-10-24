@@ -102,6 +102,7 @@ export function getHttpStatus(code: ErrorCode): ContentfulStatusCode {
     case "PDF_TOO_LARGE":
       return 400;
     case "INVALID_API_KEY":
+    case "INVALID_PARTNER_KEY":
       return 401;
     case "PAYMENT_FAILED":
     case "INSUFFICIENT_CREDITS":
