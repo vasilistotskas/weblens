@@ -24,11 +24,16 @@ async function payaiKey(): Promise<{ secret: string; publicKey: CryptoKey }> {
     const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as CryptoKeyPair;
     const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
     if (!(pkcs8 instanceof ArrayBuffer)) { throw new TypeError("pkcs8 export did not return bytes"); }
-    return { secret: `payai_sk_${new Uint8Array(pkcs8).toBase64()}`, publicKey: pair.publicKey };
+    return { secret: `payai_sk_${btoa(String.fromCharCode(...new Uint8Array(pkcs8)))}`, publicKey: pair.publicKey };
+}
+
+/** base64url to bytes with atob, which Node 22 (CI) has; Uint8Array.fromBase64 needs Node 25. */
+function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
+    return Uint8Array.from(atob(text.replace(/-/gu, "+").replace(/_/gu, "/")), (char) => char.charCodeAt(0));
 }
 
 const decodePart = (part: string): Record<string, unknown> =>
-    JSON.parse(new TextDecoder().decode(Uint8Array.fromBase64(part, { alphabet: "base64url" }))) as Record<string, unknown>;
+    JSON.parse(new TextDecoder().decode(fromBase64Url(part))) as Record<string, unknown>;
 
 function bearer(headers: Record<string, string> | undefined): string {
     const auth = headers?.Authorization ?? "";
@@ -38,7 +43,7 @@ function bearer(headers: Record<string, string> | undefined): string {
 
 async function signatureValid(token: string, publicKey: CryptoKey): Promise<boolean> {
     const [header = "", payload = "", signature = ""] = token.split(".");
-    return crypto.subtle.verify("Ed25519", publicKey, Uint8Array.fromBase64(signature, { alphabet: "base64url" }), new TextEncoder().encode(`${header}.${payload}`));
+    return crypto.subtle.verify("Ed25519", publicKey, fromBase64Url(signature), new TextEncoder().encode(`${header}.${payload}`));
 }
 
 const envWith = (fields: Partial<Env>): Env => fields as Env;
