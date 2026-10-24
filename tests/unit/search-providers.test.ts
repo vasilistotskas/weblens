@@ -50,14 +50,31 @@ describe("Serper results", () => {
         ]);
     });
 
+    it("fetches a second page, never more, for more than 10 results", async () => {
+        const page = (offset: number) => ({ organic: Array.from({ length: 10 }, (_, i) => ({ title: `r${String(offset + i)}`, link: `https://r${String(offset + i)}.example` })) });
+        const spy = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+            const body = JSON.parse(init?.body as string) as { page?: number };
+            return Promise.resolve(new Response(JSON.stringify(page(body.page === 2 ? 10 : 0))));
+        });
+
+        const results = await searchWeb({ query: "x402", limit: 15, serperApiKey: "key" });
+
+        expect(spy.mock.calls.map(([, init]) => JSON.parse(init?.body as string) as unknown)).toEqual([
+            { q: "x402", num: 10 },
+            { q: "x402", num: 10, page: 2 },
+        ]);
+        expect(results.map((r) => r.title)).toEqual(Array.from({ length: 15 }, (_, i) => `r${String(i)}`));
+        expect(results.at(-1)?.position).toBe(15);
+    });
+
     it("maps Serper's place fields onto the published shape", async () => {
         providerAnswers({ places: [{
             title: "Whole Foods Market", address: "2001 Market St", latitude: 37.76, longitude: -122.42,
-            rating: 4.2, ratingCount: 1500, category: "Grocery store", phoneNumber: "(415) 626-1430",
+            rating: 4.2, ratingCount: 1500, priceLevel: "$$", category: "Grocery store", phoneNumber: "(415) 626-1430",
             website: "https://www.wholefoodsmarket.com", cid: "6353588238324409422",
         }] });
         await expect(searchPlaces("whole foods", 10, "key", "San Francisco")).resolves.toEqual([{
-            position: 1, name: "Whole Foods Market", address: "2001 Market St", rating: 4.2, reviews: 1500,
+            position: 1, name: "Whole Foods Market", address: "2001 Market St", rating: 4.2, reviews: 1500, priceLevel: "$$",
             category: "Grocery store", phone: "(415) 626-1430", website: "https://www.wholefoodsmarket.com",
             cid: "6353588238324409422", coordinates: { latitude: 37.76, longitude: -122.42 },
         }]);

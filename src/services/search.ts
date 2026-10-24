@@ -12,8 +12,8 @@
  * results array per type (`organic`, `news`, `images`, `places`, `shopping`,
  * `suggestions`) and reports errors as `{message, statusCode}` with a non-2xx
  * status — "Not enough credits" is a 400, a bad key a 403. Field names below
- * come from Serper's published example responses for each type. SerpAPI field
- * names (interest_over_time, transcript) were validated against live responses.
+ * were checked against live Serper responses for each type (2026-10-24), and
+ * SerpAPI's (interest_over_time, transcript) against live SerpAPI responses.
  */
 
 import { PAID_UPSTREAMS, SEARCH_PROVIDERS } from "../config";
@@ -78,6 +78,25 @@ async function serperQuery(
   return data;
 }
 
+/**
+ * Up to `limit` results of one Serper type. Serper answers at most
+ * SEARCH_PROVIDERS.serperResultsPerPage results a call (asking for more still
+ * returns 10, measured 2026-10-24), so a larger limit fetches further pages,
+ * one credit each; pages do not overlap.
+ */
+async function serperResults(
+  type: "search" | "places" | "scholar",
+  body: Record<string, string | number>,
+  field: string,
+  limit: number,
+  apiKey: string | undefined,
+): Promise<Record<string, unknown>[]> {
+  const perPage = SEARCH_PROVIDERS.serperResultsPerPage;
+  const pages = Array.from({ length: Math.ceil(limit / perPage) }, (_, i) => i + 1);
+  const answers = await Promise.all(pages.map((page) => serperQuery(type, page === 1 ? body : { ...body, page }, apiKey)));
+  return answers.flatMap((data) => asRecords(data[field])).slice(0, limit);
+}
+
 /** One SerpAPI call, returning the parsed JSON payload. */
 async function serpApiQuery(
   engine: string,
@@ -113,8 +132,8 @@ async function serpApiQuery(
 
 /** Web search: Google organic results. */
 export async function searchWeb({ query, limit, serperApiKey }: SearchOptions): Promise<SearchResult[]> {
-  const data = await serperQuery("search", { q: query, num: limit }, serperApiKey);
-  return asRecords(data.organic).slice(0, limit).map((r, i) => ({
+  const organic = await serperResults("search", { q: query, num: Math.min(limit, SEARCH_PROVIDERS.serperResultsPerPage) }, "organic", limit, serperApiKey);
+  return organic.map((r, i) => ({
     title: str(r.title) ?? "",
     url: str(r.link) ?? "",
     snippet: str(r.snippet) ?? "",
@@ -127,7 +146,8 @@ export interface NewsResult {
 }
 
 export async function searchNews(query: string, limit: number, apiKey?: string): Promise<NewsResult[]> {
-  const data = await serperQuery("news", { q: query, num: limit }, apiKey);
+  // Serper's news type answers at most one page of 10 (a second page comes back empty).
+  const data = await serperQuery("news", { q: query, num: Math.min(limit, SEARCH_PROVIDERS.serperResultsPerPage) }, apiKey);
   return asRecords(data.news).slice(0, limit).map((r, i) => ({
     position: i + 1,
     title: str(r.title) ?? "",
@@ -158,7 +178,7 @@ export async function searchImages(query: string, limit: number, apiKey?: string
 }
 
 export interface PlaceResult {
-  position: number; name: string; address?: string; rating?: number; reviews?: number;
+  position: number; name: string; address?: string; rating?: number; reviews?: number; priceLevel?: string;
   category?: string; phone?: string; website?: string; cid?: string;
   coordinates?: { latitude?: number; longitude?: number };
 }
@@ -166,8 +186,8 @@ export interface PlaceResult {
 export async function searchPlaces(query: string, limit: number, apiKey?: string, location?: string): Promise<PlaceResult[]> {
   const body: Record<string, string | number> = { q: query };
   if (location) { body.location = location; }
-  const data = await serperQuery("places", body, apiKey);
-  return asRecords(data.places).slice(0, limit).map((r, i) => {
+  const places = await serperResults("places", body, "places", limit, apiKey);
+  return places.map((r, i) => {
     const latitude = num(r.latitude);
     const longitude = num(r.longitude);
     return {
@@ -176,6 +196,7 @@ export async function searchPlaces(query: string, limit: number, apiKey?: string
       address: str(r.address),
       rating: num(r.rating),
       reviews: num(r.ratingCount),
+      priceLevel: str(r.priceLevel),
       category: str(r.category),
       phone: str(r.phoneNumber),
       website: str(r.website),
@@ -206,15 +227,16 @@ export async function searchShopping(query: string, limit: number, apiKey?: stri
 }
 
 export interface ScholarResult {
-  position: number; title: string; url?: string; snippet?: string; publicationInfo?: string; year?: number; citedBy?: number;
+  position: number; title: string; url?: string; pdfUrl?: string; snippet?: string; publicationInfo?: string; year?: number; citedBy?: number;
 }
 
 export async function searchScholar(query: string, limit: number, apiKey?: string): Promise<ScholarResult[]> {
-  const data = await serperQuery("scholar", { q: query }, apiKey);
-  return asRecords(data.organic).slice(0, limit).map((r, i) => ({
+  const papers = await serperResults("scholar", { q: query }, "organic", limit, apiKey);
+  return papers.map((r, i) => ({
     position: i + 1,
     title: str(r.title) ?? "",
     url: str(r.link),
+    pdfUrl: str(r.pdfUrl),
     snippet: str(r.snippet),
     publicationInfo: str(r.publicationInfo),
     year: num(r.year),

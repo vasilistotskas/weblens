@@ -516,6 +516,8 @@ export const PAID_UPSTREAMS = {
 export const SEARCH_PROVIDERS = {
   timeoutMs: 15_000,
   serperCreditUsd: 0.001,
+  /** Results Serper returns per call; more need another page (another credit). */
+  serperResultsPerPage: 10,
   /** Most credits one search WebLens sells can use. */
   serperMaxCreditsPerCall: 2,
   serpApiCallUsd: 0.015,
