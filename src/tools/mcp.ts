@@ -168,7 +168,7 @@ const PAID_TOOLS = ENDPOINTS.flatMap((endpoint) =>
 export const TOOLS = [
   {
     name: "preview_endpoint",
-    description: "FREE. See what a paid WebLens endpoint costs and what it returns before paying: the live price, a one-line summary, and a recorded sample of the exact response shape. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; SerpAPI- and Anthropic-backed endpoints return the recorded sample only, because free live runs there would burn upstream credits. Price: free",
+    description: "FREE. See what a paid WebLens endpoint costs and what it returns before paying: the live price, a one-line summary, and a recorded sample of the exact response shape. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; search- and Anthropic-backed endpoints return the recorded sample only, because free live runs there would burn upstream credits. Price: free",
     inputSchema: requestBodySchema(PreviewRequestSchema),
   },
   ...PAID_TOOLS.map(({ name, endpoint }) => ({

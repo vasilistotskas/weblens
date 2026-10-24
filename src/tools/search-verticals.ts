@@ -3,9 +3,9 @@
  * POST /search/news | /search/images | /search/places | /search/shopping
  *      /search/scholar | /search/autocomplete | /search/trends
  *
- * Each vertical is exactly one SerpAPI call (see PRICING.searchVerticals for
- * the cost floor). No scraping fallback — a missing SERP_API_KEY surfaces as
- * SERVICE_UNAVAILABLE rather than degraded results.
+ * Each vertical is exactly one provider call: Serper (SERPER_API_KEY) for the
+ * Google verticals, SerpAPI (SERP_API_KEY) for Trends. No scraping fallback —
+ * a missing key surfaces as SERVICE_UNAVAILABLE rather than degraded results.
  */
 
 import type { Context } from "hono";
@@ -30,7 +30,7 @@ import type { AppEnv } from "../types";
 type AppContext = Context<AppEnv>;
 
 function verticalError(c: AppContext, requestId: string, error: unknown) {
-    const { code, status, message } = classifySearchError(error);
+    const { code, status, message } = classifySearchError(error, c.get("log"));
     return c.json(createErrorResponse(code, message, requestId), status);
 }
 
@@ -43,7 +43,7 @@ function makeVerticalHandler<T>(
         const requestId = c.get("requestId");
         try {
             const { query, limit } = c.get("validatedBody") as z.infer<typeof VerticalSearchRequestSchema>;
-            const results = await search(query, limit, c.env.SERP_API_KEY);
+            const results = await search(query, limit, c.env.SERPER_API_KEY);
             return c.json({
                 query,
                 [resultsKey]: results,
@@ -66,7 +66,7 @@ export async function searchPlacesHandler(c: AppContext) {
     const requestId = c.get("requestId");
     try {
         const { query, location, limit } = c.get("validatedBody") as z.infer<typeof PlacesSearchRequestSchema>;
-        const results = await searchPlaces(query, limit, c.env.SERP_API_KEY, location);
+        const results = await searchPlaces(query, limit, c.env.SERPER_API_KEY, location);
         return c.json({
             query,
             location,

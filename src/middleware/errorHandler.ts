@@ -12,6 +12,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { SearchProviderUnavailableError, SearchUpstreamError } from "../services/search";
 import type { ErrorCode, ErrorResponse } from "../types";
 import { loggerFromEnv } from "../utils/logger";
+import type { Logger } from "../utils/logger";
 import { TargetHttpError, UnsupportedContentError } from "../utils/safe-fetch";
 import { getRequestId, getProcessingTime } from "./requestId";
 
@@ -216,8 +217,13 @@ export function classifyFetchError(error: unknown): { code: ErrorCode; status: C
  * Classify a failure from the search provider. A missing key is our
  * configuration (503); a provider error, non-2xx or timeout is the provider's
  * failure (502). Either way the paid request fails rather than degrading.
+ * Both are logged with the provider's own reason ("Not enough credits", a bad
+ * key), which the buyer never sees.
  */
-export function classifySearchError(error: unknown): { code: ErrorCode; status: ContentfulStatusCode; message: string } {
+export function classifySearchError(error: unknown, log: Logger): { code: ErrorCode; status: ContentfulStatusCode; message: string } {
+  if (error instanceof SearchProviderUnavailableError || error instanceof SearchUpstreamError) {
+    log.warn("search.failed", { error: error.message, status: error instanceof SearchUpstreamError ? error.status : undefined });
+  }
   if (error instanceof SearchProviderUnavailableError) {
     return { code: "SERVICE_UNAVAILABLE", status: getHttpStatus("SERVICE_UNAVAILABLE"), message: error.message };
   }

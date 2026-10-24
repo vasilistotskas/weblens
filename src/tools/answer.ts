@@ -2,9 +2,9 @@
  * Answer Endpoint Handler
  * POST /answer — grounded answer with inline [n] citations (PRICING.answer)
  *
- * Pipeline: one SerpAPI search → fetch top-N pages (safeFetch via
+ * Pipeline: one Serper search → fetch top-N pages (safeFetch via
  * fetchBasicPage) → one capped Haiku call. Content is truncated to keep the
- * worst-case upstream cost (~$0.026) safely under the price.
+ * worst-case upstream cost (~$0.013) safely under the price.
  */
 
 import type { Context } from "hono";
@@ -37,7 +37,7 @@ export async function answerHandler(c: Context<AppEnv>) {
         const searchResults = await searchWeb({
             query,
             limit: sourceCount,
-            serpApiKey: c.env.SERP_API_KEY,
+            serperApiKey: c.env.SERPER_API_KEY,
         });
         if (searchResults.length === 0) {
             return c.json(
@@ -108,7 +108,7 @@ Respond ONLY with valid JSON.`;
                 aiError.status as 503,
             );
         }
-        const { code, status, message } = classifySearchError(error);
+        const { code, status, message } = classifySearchError(error, c.get("log"));
         return c.json(createErrorResponse(code, message, requestId), status);
     }
 }

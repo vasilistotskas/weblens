@@ -129,7 +129,8 @@ dataset = "weblens_payment_events"
 #   wrangler secret put CDP_API_KEY_ID
 #   wrangler secret put CDP_API_KEY_SECRET
 #   wrangler secret put ANTHROPIC_API_KEY
-#   wrangler secret put SERP_API_KEY
+#   wrangler secret put SERPER_API_KEY   (Google search and its verticals)
+#   wrangler secret put SERP_API_KEY     (Google Trends, YouTube transcripts)
 #
 # Marketplace partners (middleware/partner.ts): the secret the WebLens Apify
 # Actor sends in X-WebLens-Partner-Key. Unset, partner calls answer 401.

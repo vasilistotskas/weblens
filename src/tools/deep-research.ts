@@ -32,7 +32,7 @@ export async function deepResearchHandler(c: Context<AppEnv>) {
             query,
             depth,
             aiConfig: { apiKey: c.env.ANTHROPIC_API_KEY },
-            serpApiKey: c.env.SERP_API_KEY,
+            serperApiKey: c.env.SERPER_API_KEY,
         });
 
         return c.json({
@@ -49,7 +49,7 @@ export async function deepResearchHandler(c: Context<AppEnv>) {
             );
         }
         if (error instanceof SearchProviderUnavailableError || error instanceof SearchUpstreamError) {
-            const searchError = classifySearchError(error);
+            const searchError = classifySearchError(error, c.get("log"));
             return c.json(createErrorResponse(searchError.code, searchError.message, requestId), searchError.status);
         }
         const message = error instanceof Error ? error.message : "Unknown error";

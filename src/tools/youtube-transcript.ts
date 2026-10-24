@@ -71,7 +71,7 @@ export async function youtubeTranscriptHandler(c: Context<AppEnv>) {
             requestId,
         });
     } catch (error) {
-        const { code, status, message } = classifySearchError(error);
+        const { code, status, message } = classifySearchError(error, c.get("log"));
         return c.json(createErrorResponse(code, message, requestId), status);
     }
 }

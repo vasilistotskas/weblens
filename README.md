@@ -43,7 +43,7 @@ curl -X POST https://api.weblens.dev/preview \
 
 **Live vs recorded.** A real, truncated live preview runs only for endpoints whose marginal cost
 is a plain fetch — currently `/fetch/basic`, `/contents` and `/map` — and only when you pass a
-`url`. Everything else is backed by a metered upstream (SerpAPI, Anthropic); running those free
+`url`. Everything else is backed by a metered upstream (a Google search API, Anthropic); running those free
 would burn upstream credits, so they return the recorded sample, which still shows every field
 name and type. An endpoint that isn't sold returns `404`.
 
@@ -208,7 +208,8 @@ pnpm run deploy       # wrangler deploy (production)
 Secrets are set with wrangler, never committed:
 
 ```bash
-wrangler secret put SERP_API_KEY        # search + all verticals + transcripts
+wrangler secret put SERPER_API_KEY      # search and its verticals (Serper)
+wrangler secret put SERP_API_KEY        # Google Trends + YouTube transcripts (SerpAPI)
 wrangler secret put ANTHROPIC_API_KEY   # AI extraction, research, answers, intel
 wrangler secret put CDP_API_KEY_ID      # optional: CDP facilitator fallback
 wrangler secret put CDP_API_KEY_SECRET
@@ -218,7 +219,8 @@ wrangler secret put CDP_API_KEY_SECRET
 |----------|---------|
 | `PAY_TO_ADDRESS` | Wallet that receives payments (`wrangler.toml` var) |
 | `NETWORK` | `base` (production) or `base-sepolia` (testnet) |
-| `SERP_API_KEY` | SerpAPI key — search, verticals, YouTube transcripts |
+| `SERPER_API_KEY` | Serper key — search, news, images, places, shopping, scholar, autocomplete |
+| `SERP_API_KEY` | SerpAPI key — Google Trends, YouTube transcripts |
 | `ANTHROPIC_API_KEY` | Claude — extraction, research, answers, intel |
 | `API_KEY_PREFIX` | Prefix of the API keys this environment sells (`wl_live_` / `wl_test_`, `wrangler.toml` var) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Optional: card sales of prepaid API keys (Stripe Managed Payments); without both, `/billing/*` answers 503 |

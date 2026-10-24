@@ -160,7 +160,7 @@ export const SERVICE_CATALOG = {
                 endpoint: "/preview",
                 method: "POST",
                 name: "Endpoint Preview",
-                description: "See a paid endpoint's live price and a real sample of its response shape before paying. Body: {endpoint, url?}. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; SerpAPI- and Anthropic-backed endpoints return the recorded sample instead, because free live runs there would burn upstream credits. 404 for an endpoint that is not sold.",
+                description: "See a paid endpoint's live price and a real sample of its response shape before paying. Body: {endpoint, url?}. Endpoints with no paid upstream (/fetch/basic, /contents, /map) also run a real truncated LIVE preview when you pass a url; search- and Anthropic-backed endpoints return the recorded sample instead, because free live runs there would burn upstream credits. 404 for an endpoint that is not sold.",
                 price: "free",
                 rateLimit: `${FREE_TIER.maxRequestsPerHour}/hour`,
                 tags: ["free", "free-previews", "endpoint-previews", "evaluation", "pricing"],

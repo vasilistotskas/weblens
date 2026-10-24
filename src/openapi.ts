@@ -127,7 +127,7 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         post: {
           tags: ["Discovery"], summary: "Preview a Paid Endpoint", operationId: "previewEndpoint",
           security: [],
-          description: "See what a paid endpoint costs and what it returns BEFORE paying. Free, rate limited to 10/hour per IP. Returns the live price (derived from the same PRICING source as the 402 challenge), a one-line summary, and a recorded sample of the exact response shape. A real, truncated LIVE preview runs only for endpoints whose marginal cost is a plain fetch (currently /fetch/basic, /contents, /map) and only when you pass a url; endpoints backed by a metered upstream (SerpAPI, Anthropic) never run live for free and return the recorded sample instead. Responds 404 for an endpoint that is not sold.",
+          description: "See what a paid endpoint costs and what it returns BEFORE paying. Free, rate limited to 10/hour per IP. Returns the live price (derived from the same PRICING source as the 402 challenge), a one-line summary, and a recorded sample of the exact response shape. A real, truncated LIVE preview runs only for endpoints whose marginal cost is a plain fetch (currently /fetch/basic, /contents, /map) and only when you pass a url; endpoints backed by a metered upstream (Google search, Anthropic) never run live for free and return the recorded sample instead. Responds 404 for an endpoint that is not sold.",
           requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/PreviewRequest" }, example: { endpoint: "/answer" } } } },
           responses: {
             "200": { description: "Price, summary, recorded sample and (when available) a live truncated preview", content: { "application/json": { schema: { $ref: "#/components/schemas/PreviewResponse" } } } },
@@ -481,7 +481,7 @@ LIVE vs RECORDED — the rule:
 - Endpoints whose marginal cost is a plain fetch (/fetch/basic, /contents, /map) can also run a
   REAL truncated preview: pass a \`url\` and you get back a \`live\` block with the first 500
   characters of the actual result. \`livePreviewAvailable\` is true for exactly these.
-- Every other endpoint is backed by a metered upstream (SerpAPI, Anthropic). Running those free
+- Every other endpoint is backed by a metered upstream (Google search, Anthropic). Running those free
   would burn upstream credits, so they never run live — you get the recorded sample instead, which
   still shows every field name and type.
 

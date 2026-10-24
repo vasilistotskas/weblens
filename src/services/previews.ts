@@ -7,7 +7,7 @@
  * before committing.
  *
  * COST RULE: a preview must never cost us money. Endpoints backed by a paid
- * upstream (SerpAPI, Anthropic) are NEVER executed for free — they return a
+ * upstream (Serper, SerpAPI, Anthropic) are NEVER executed for free — they return a
  * recorded sample. Only endpoints whose marginal cost is a plain fetch may
  * run live, truncated, and rate-limited.
  */

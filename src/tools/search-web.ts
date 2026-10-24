@@ -16,7 +16,7 @@ export async function searchWebHandler(c: Context<AppEnv>) {
     const results = await searchWeb({
       query,
       limit,
-      serpApiKey: c.env.SERP_API_KEY,
+      serperApiKey: c.env.SERPER_API_KEY,
     });
 
     // Search-with-content: fetch the top-N result pages in parallel and
@@ -50,7 +50,7 @@ export async function searchWebHandler(c: Context<AppEnv>) {
 
     return c.json(result);
   } catch (error) {
-    const { code, status, message } = classifySearchError(error);
+    const { code, status, message } = classifySearchError(error, c.get("log"));
     return c.json(createErrorResponse(code, message, requestId), status);
   }
 }

@@ -11,7 +11,7 @@
  * network calls runs comfortably inside one request.
  *
  * COST CONTROL (the price floor depends on these bounds — see DEEP_RESEARCH_TIERS in config.ts):
- *   - sub-questions are capped per depth tier; each costs one SerpAPI call
+ *   - sub-questions are capped per depth tier; each costs one Serper search
  *   - sources are capped and truncated per source before they reach the model
  *   - planning and synthesis run on AI_MODEL (Haiku 5.5) with hard output caps
  * Worst case stays well under half the sale price at every tier.
@@ -46,7 +46,7 @@ interface DeepResearchOptions {
     query: string;
     depth: DeepResearchDepth;
     aiConfig: AIServiceConfig;
-    serpApiKey?: string;
+    serperApiKey?: string;
 }
 
 /** Ask the model to decompose the question. Falls back to the raw query. */
@@ -84,7 +84,7 @@ Respond ONLY with valid JSON.`;
 }
 
 export async function deepResearch(options: DeepResearchOptions): Promise<DeepResearchResult> {
-    const { query, depth, aiConfig, serpApiKey } = options;
+    const { query, depth, aiConfig, serperApiKey } = options;
     const tier = DEEP_RESEARCH_TIERS[depth];
 
     // 1. Plan. A one-search tier researches the question as asked: planning
@@ -95,7 +95,7 @@ export async function deepResearch(options: DeepResearchOptions): Promise<DeepRe
 
     // 2. One search per sub-question, in parallel.
     const searches = await Promise.allSettled(
-        subQuestions.map((sub) => searchWeb({ query: sub, limit: 5, serpApiKey })),
+        subQuestions.map((sub) => searchWeb({ query: sub, limit: 5, serperApiKey })),
     );
     // One failed sub-question degrades the research; every one failing means
     // the provider is down, which must surface as that error — not as "no

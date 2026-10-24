@@ -10,7 +10,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEEP_RESEARCH_TIERS, PRICING } from "../../src/config";
+import { DEEP_RESEARCH_TIERS, PRICING, SEARCH_PROVIDERS } from "../../src/config";
 import type { DeepResearchDepth } from "../../src/config";
 
 const searchWeb = vi.fn();
@@ -72,10 +72,10 @@ describe("deep research tiers", () => {
     });
 
     it("prices every tier above its worst-case upstream cost", () => {
-        const SERP_PER_CALL = 0.015; // worst-case plan rate
+        const SEARCH_PER_CALL = SEARCH_PROVIDERS.serperCreditUsd * SEARCH_PROVIDERS.serperMaxCreditsPerCall;
         const AI_CEILING = 0.03;     // capped Haiku planning + synthesis
         for (const [name, tier] of Object.entries(DEEP_RESEARCH_TIERS)) {
-            const worstCase = tier.subQuestions * SERP_PER_CALL + AI_CEILING;
+            const worstCase = tier.subQuestions * SEARCH_PER_CALL + AI_CEILING;
             const price = parseFloat(
                 PRICING.deepResearch[name as DeepResearchDepth].replace("$", ""),
             );

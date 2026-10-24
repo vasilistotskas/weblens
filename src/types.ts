@@ -31,7 +31,8 @@ export interface Env {
   BILLING_LIMITER: RateLimit; // Workers Rate Limiting for /billing/checkout and key rotation
   PAYMENT_EVENTS: AnalyticsEngineDataset; // Payment funnel events (services/payment-telemetry.ts)
   // Optional API keys
-  SERP_API_KEY?: string;
+  SERPER_API_KEY?: string; // Serper: Google search and its verticals
+  SERP_API_KEY?: string; // SerpAPI: Google Trends and YouTube transcripts
   ANTHROPIC_API_KEY?: string;
   // Shared secret the WebLens Apify Actor sends in PARTNERS.apify.header (middleware/partner.ts)
   APIFY_PARTNER_SECRET?: string;

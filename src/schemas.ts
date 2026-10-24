@@ -73,7 +73,7 @@ export const SearchRequestSchema = z.object({
 });
 
 // Shared by /search/news, /search/images, /search/shopping, /search/scholar,
-// /search/autocomplete — one SerpAPI call each.
+// /search/autocomplete — one Serper call each.
 export const VerticalSearchRequestSchema = z.object({
     query: searchQuerySchema,
     limit: limitSchema,

@@ -70,7 +70,7 @@ export async function previewHandler(c: AppContext) {
         const canLive = LIVE_PREVIEW_ENDPOINTS.includes(path);
 
         // Live preview only where the marginal cost is a plain fetch — never
-        // for a SerpAPI- or Anthropic-backed endpoint.
+        // for a search- or Anthropic-backed endpoint.
         let live: Record<string, unknown> | undefined;
 
         // /domain runs for real but returns findings as COUNTS. The lookup is

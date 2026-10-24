@@ -21,8 +21,9 @@ import { version } from "../package.json";
  * beyond 10 free hours/month, so a 5-20s render costs $0.000125-0.0005.
  *
  * The endpoints with a REAL cost floor are the ones calling a paid upstream:
- * SerpAPI ($0.009-0.015/search) and Anthropic. Those keep their prices; see
- * the search floor rule below.
+ * Serper (Google search and its verticals, SEARCH_PROVIDERS.serperCreditUsd
+ * per credit), SerpAPI (Trends and YouTube transcripts,
+ * SEARCH_PROVIDERS.serpApiCallUsd per call) and Anthropic.
  *
  * Market reference (2026): Exa $0.007/request, Tavily $0.0075-0.008, and
  * Firecrawl ~$0.001/page but only on a $99/mo commitment. WebLens undercuts
@@ -36,9 +37,10 @@ export const PRICING = {
     basic: "$0.002",
     pro: "$0.006",
   },
-  // Search pricing floor: every SerpAPI-backed call costs $0.009-$0.015
-  // upstream depending on plan tier — prices below $0.015 would sell at a
-  // loss on the worst-case plan rate.
+  // Search and its verticals run on Serper: 1-2 credits a call (shopping 2,
+  // images 2 above 10 results), so $0.001-0.002 upstream. The $0.015 prices
+  // were set when every search cost $0.009-0.015 on SerpAPI; repricing is a
+  // separate decision.
   search: "$0.015",
   searchVerticals: {
     news: "$0.015",
@@ -49,7 +51,7 @@ export const PRICING = {
     autocomplete: "$0.015",
     // Market anchor: x402atlas sells the same interest-over-time series at
     // $0.05, the most-paid web-data endpoint on the CDP Bazaar (1,138
-    // calls in the 30 days to 2026-10-13). Still above the SerpAPI floor.
+    // calls in the 30 days to 2026-10-13). One SerpAPI call upstream.
     trends: "$0.04",
   },
   // Per-result page-content addon for search (includeContent) and the
@@ -60,7 +62,7 @@ export const PRICING = {
     maxUrls: 20,
   },
   youtubeTranscript: "$0.03", // 1 SerpAPI call upstream; StableSocial sells transcripts at $0.06
-  answer: "$0.05", // ~$0.026 worst-case upstream (1 SerpAPI call + capped Haiku tokens)
+  answer: "$0.05", // ~$0.013 worst-case upstream (1 Serper search + capped Haiku tokens)
   extract: "$0.03",
   cacheDiscount: 0.7, // 70% off for cached responses
   // Smallest x402 payment WebLens takes. Every x402 sale pays the facilitator
@@ -141,8 +143,8 @@ export const SEARCH_CONTENT_RESULTS = { min: 1, max: 10, default: 5 } as const;
 
 /**
  * Prepaid packs a card buyer can choose, at face value: $10 buys $10 of calls.
- * No pack bonus: a bonus would sell the SerpAPI-backed search family below its
- * upstream cost (a $0.015 search at +40% is $0.0107 before card fees). Ten
+ * No pack bonus (decided 2026-10-20, when a search cost $0.009-0.015 on SerpAPI,
+ * so +40% would have sold a $0.015 search at $0.0107, below cost). Ten
  * dollars is the floor because card fees are partly fixed (about EUR 0.25 a
  * payment), which takes 10-12% of a $5 pack.
  */
@@ -195,10 +197,11 @@ export const AI_MODEL = "claude-haiku-5-5";
  * Deep research depth tiers. The bounds ARE the cost model: each sub-question
  * costs one search, and sources are capped and truncated before a capped
  * Haiku 5.5 synthesis (AI_MODEL; under $0.005 even for the deep tier's ~20k
- * input tokens). Worst case at SerpAPI's $0.015/search:
- *   quick:    1 search   ($0.015) + AI = ~$0.02 -> $0.08 (4x), no planning call
- *   standard: 3 searches ($0.045) + AI = ~$0.05 -> $0.20 (4x)
- *   deep:     5 searches ($0.075) + AI = ~$0.08 -> $0.35 (4.4x)
+ * input tokens). Each search is one Serper credit (5 results), so the AI
+ * dominates the worst case:
+ *   quick:    1 search  + AI = ~$0.006 -> $0.08, no planning call
+ *   standard: 3 searches + AI = ~$0.008 -> $0.20
+ *   deep:     5 searches + AI = ~$0.010 -> $0.35
  * Changing a tier's bounds changes its cost floor: reprice PRICING.deepResearch
  * with it (tests/unit/deep-research.test.ts asserts price > worst-case cost).
  */
@@ -500,7 +503,22 @@ export type PartnerName = keyof typeof PARTNERS;
 
 export const PAID_UPSTREAMS = {
   anthropicMessages: "https://api.anthropic.com/v1/messages",
+  serper: "https://google.serper.dev",
   serpApiSearch: "https://serpapi.com/search.json",
+} as const;
+
+/**
+ * Search providers (services/search.ts). Serper sells credits in one-time packs
+ * valid for 6 months; its $50 Starter pack is 50k credits, $0.001 each
+ * (serper.dev, 2026-10-24), and a call costs 1 credit (shopping 2, images 2
+ * above 10 results). SerpAPI's per-search price ranges $0.009-0.015 by plan.
+ */
+export const SEARCH_PROVIDERS = {
+  timeoutMs: 15_000,
+  serperCreditUsd: 0.001,
+  /** Most credits one search WebLens sells can use. */
+  serperMaxCreditsPerCall: 2,
+  serpApiCallUsd: 0.015,
 } as const;
 
 // Crawl/map execution bounds. Workers on paid plans allow 10k subrequests per
