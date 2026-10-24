@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PAID_UPSTREAMS } from "../../src/config";
 import {
     classifyPages,
+    declaredEmployees,
+    employeeBand,
     parseAiProfile,
     ProfileExtractionError,
     profileCompany,
@@ -16,6 +18,7 @@ import {
     securityContacts,
     SiteUnreachableError,
 } from "../../src/services/company-profile";
+import type { AiPage } from "../../src/services/company-profile";
 import type { Env } from "../../src/types";
 
 const ORIGIN = "https://acme.com";
@@ -32,7 +35,15 @@ const AI_ANSWER = {
     audience: "Coyotes",
     pricingModel: "subscription",
     plans: [{ name: "Pro", price: "$20", period: "month" }, { price: "$1" }],
-    sources: { name: `${ORIGIN}/`, pricing: `${ORIGIN}/pricing`, audience: "https://elsewhere.example/" },
+    industry: "31-33",
+    employees: { count: 120, quote: "a team of 120 people" },
+    sources: {
+        name: `${ORIGIN}/`,
+        pricing: `${ORIGIN}/pricing`,
+        audience: "https://elsewhere.example/",
+        industry: `${ORIGIN}/`,
+        employees: `${ORIGIN}/about`,
+    },
 };
 
 interface Site { robots?: string; homepage?: Response; links?: string; careersAt?: string }
@@ -47,7 +58,7 @@ function serve(site: Site = {}): string[] {
         const routes: Record<string, () => Response> = {
             [`${ORIGIN}/robots.txt`]: () => text(site.robots ?? "User-agent: *\nDisallow:"),
             [ORIGIN]: () => site.homepage ?? html(site.links ?? `<a href="/about">About</a><a href="/pricing">Pricing</a><a href="${careers}">Careers</a><a href="https://x.com/acme">X</a>`),
-            [`${ORIGIN}/about`]: () => html("<p>About Acme</p>"),
+            [`${ORIGIN}/about`]: () => html("<p>About Acme: we are a team of\n120 people.</p>"),
             [`${ORIGIN}/pricing`]: () => html("<p>Pro $20/month</p>"),
             [`${ORIGIN}${careers}`]: () => html(`<a href="https://job-boards.greenhouse.io/acme/jobs/1">Engineer</a>`),
             "https://boards-api.greenhouse.io/v1/boards/acme/jobs": () => json({ jobs: [
@@ -83,7 +94,39 @@ describe("profileCompany", () => {
         });
         // A source naming a page the model was not given is dropped.
         // A trailing slash the page URL lacks still matches; it is reported as the page URL.
-        expect(profile.sources).toEqual([{ field: "name", url: ORIGIN }, { field: "pricing", url: `${ORIGIN}/pricing` }]);
+        expect(profile.sources).toEqual([
+            { field: "name", url: ORIGIN },
+            { field: "pricing", url: `${ORIGIN}/pricing` },
+            { field: "industry", url: ORIGIN },
+            { field: "employees", url: `${ORIGIN}/about` },
+        ]);
+        // The head count is the about page's own words; the sector is the model's classification.
+        expect(profile.size).toEqual({
+            band: "51-200",
+            employees: { min: 120 },
+            basis: "self-reported",
+            evidence: "a team of 120 people",
+            source: `${ORIGIN}/about`,
+        });
+        expect(profile.industry).toEqual({ naicsSector: "31-33", name: "Manufacturing", basis: "estimated", source: ORIGIN });
+        expect(profile.coverage).toEqual({
+            name: true, description: true, offerings: true, audience: true, pricing: true, hiring: true,
+            size: true, industry: true, tech: false, socials: true, securityContacts: true,
+        });
+    });
+
+    it("prefers the head count the site declares in schema.org JSON-LD", async () => {
+        const jsonLd = `<script type="application/ld+json">${JSON.stringify({ "@graph": [{ "@type": "Organization", numberOfEmployees: { "@type": "QuantitativeValue", minValue: 500, maxValue: 1000 } }] })}</script>`;
+        serve({ links: `${jsonLd}<a href="/about">About</a>` });
+        const profile = await profileCompany("acme.com", env, "key");
+
+        expect(profile.size).toEqual({
+            band: "201-500",
+            employees: { min: 500, max: 1000 },
+            basis: "self-reported",
+            evidence: "schema.org numberOfEmployees: 500-1000",
+            source: ORIGIN,
+        });
     });
 
     it("skips a page robots.txt disallows, and never fetches it", async () => {
@@ -114,6 +157,29 @@ describe("profileCompany", () => {
     });
 });
 
+/** A page as the AI pass reads it. */
+function page(url: string, body = ""): AiPage {
+    return { url, title: "", description: "", text: body };
+}
+
+describe("company size", () => {
+    it("reads schema.org numberOfEmployees as a number, a numeric string or a QuantitativeValue", () => {
+        const ld = (value: unknown) => `<script type="application/ld+json">${JSON.stringify(value)}</script>`;
+        expect(declaredEmployees(ld({ "@type": "Organization", numberOfEmployees: 42 }))).toEqual({ min: 42, max: 42 });
+        expect(declaredEmployees(ld([{ "@type": "WebSite" }, { "@type": "Corporation", numberOfEmployees: "1,500" }]))).toEqual({ min: 1500, max: 1500 });
+        expect(declaredEmployees(ld({ numberOfEmployees: { value: 80 } }))).toEqual({ min: 80, max: 80 });
+        expect(declaredEmployees(ld({ numberOfEmployees: { minValue: 11, maxValue: 50 } }))).toEqual({ min: 11, max: 50 });
+        expect(declaredEmployees(ld({ numberOfEmployees: { minValue: 5000 } }))).toEqual({ min: 5000 });
+        expect(declaredEmployees(ld({ numberOfEmployees: "many" }))).toBeUndefined();
+        expect(declaredEmployees(`<script type="application/ld+json">{not json</script>`)).toBeUndefined();
+    });
+
+    it("bands a head count by the band that holds it", () => {
+        expect([1, 10, 11, 200, 201, 1000, 1001, 10_000, 10_001, 250_000].map(employeeBand))
+            .toEqual(["1-10", "1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+", "10001+"]);
+    });
+});
+
 describe("profile parsing", () => {
     it("keeps only typed values and sources among the given pages", () => {
         const profile = parseAiProfile(JSON.stringify({
@@ -122,9 +188,37 @@ describe("profile parsing", () => {
             pricingModel: "barter",
             plans: "none",
             sources: { name: "https://a.example/", nonsense: "https://a.example/" },
-        }), ["https://a.example/"]);
+        }), [page("https://a.example/")]);
 
-        expect(profile).toEqual({ name: undefined, description: undefined, offerings: [], audience: undefined, pricingModel: undefined, plans: [], sources: [{ field: "name", url: "https://a.example/" }] });
+        expect(profile).toEqual({
+            name: undefined, description: undefined, offerings: [], audience: undefined, pricingModel: undefined, plans: [],
+            industry: undefined, employees: undefined, sources: [{ field: "name", url: "https://a.example/" }],
+        });
+    });
+
+    it("keeps a sector only from the NAICS list, and only with a source", () => {
+        const parse = (industry: unknown, sources: Record<string, string>) =>
+            parseAiProfile(JSON.stringify({ industry, sources }), [page("https://a.example/")]).industry;
+
+        expect(parse("51", { industry: "https://a.example/" })).toBe("51");
+        expect(parse("99", { industry: "https://a.example/" })).toBeUndefined();
+        expect(parse("toString", { industry: "https://a.example/" })).toBeUndefined();
+        expect(parse("51", {})).toBeUndefined();
+    });
+
+    it("keeps a head count only when the quote is on the cited page and states that number of people", () => {
+        const about = page("https://a.example/about", "Founded in 2010. Today we are   over 1,200 employees across 9 countries.");
+        const parse = (employees: unknown) =>
+            parseAiProfile(JSON.stringify({ employees, sources: { employees: about.url } }), [about]).employees;
+
+        expect(parse({ count: 1200, quote: "over 1,200 employees" })).toEqual({ count: 1200, quote: "over 1,200 employees" });
+        // Not on the page: invented.
+        expect(parse({ count: 5000, quote: "over 5,000 employees" })).toBeUndefined();
+        // On the page, but the number is not the one quoted.
+        expect(parse({ count: 1500, quote: "over 1,200 employees" })).toBeUndefined();
+        // On the page, but not a head count.
+        expect(parse({ count: 9, quote: "9 countries" })).toBeUndefined();
+        expect(parse({ count: 2010, quote: "Founded in 2010" })).toBeUndefined();
     });
 
     it("rejects a reply that is not a JSON object", () => {

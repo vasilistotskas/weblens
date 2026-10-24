@@ -12,7 +12,8 @@
  * is honoured for every page fetched.
  */
 
-import { BOT_USER_AGENT, COMPANY_PROFILE } from "../config";
+import { BOT_USER_AGENT, COMPANY_PROFILE, EMPLOYEE_BANDS, NAICS_SECTORS } from "../config";
+import type { NaicsSector } from "../config";
 import type { Env } from "../types";
 import { isRecord, str } from "../utils/narrow";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
@@ -49,8 +50,33 @@ export interface PricingPlan {
 }
 
 /** The fields the AI pass answers, each tied to the page it came from. */
-const AI_FIELDS = ["name", "description", "offerings", "audience", "pricing"] as const;
+const AI_FIELDS = ["name", "description", "offerings", "audience", "pricing", "industry", "employees"] as const;
 type AiField = (typeof AI_FIELDS)[number];
+
+/** Head count as the company states it, never estimated. */
+export interface CompanySize {
+    /** EMPLOYEE_BANDS label of the stated count (its lower bound when a range is stated). */
+    band: string;
+    employees: { min: number; max?: number };
+    basis: "self-reported";
+    /** The site's own words, or the schema.org value it declares. */
+    evidence: string;
+    source: string;
+}
+
+/** The NAICS sector the AI pass assigns from the site's text: a classification, not a registry fact. */
+export interface CompanyIndustry {
+    naicsSector: NaicsSector;
+    name: string;
+    basis: "estimated";
+    source: string;
+}
+
+/** The optional parts of a profile, each true when the site yielded it. */
+export const COVERAGE_FIELDS = [
+    "name", "description", "offerings", "audience", "pricing", "hiring", "size", "industry", "tech", "socials", "securityContacts",
+] as const;
+export type CoverageField = (typeof COVERAGE_FIELDS)[number];
 
 export interface CompanyProfile {
     domain: string;
@@ -63,6 +89,9 @@ export interface CompanyProfile {
     pricing: { pageUrl?: string; model?: PricingModel; plans: PricingPlan[] };
     /** Absent when the site links to no job board WebLens can read. */
     hiring?: Hiring;
+    /** Absent unless the site states its head count. */
+    size?: CompanySize;
+    industry?: CompanyIndustry;
     pages: Partial<Record<PageRole, string>>;
     socials: Record<string, string>;
     tech: { technologies: { name: string; category: string }[]; categories: Partial<Record<string, string[]>> };
@@ -85,6 +114,8 @@ export interface CompanyProfile {
     sources: { field: AiField; url: string }[];
     /** Pages not read, and why. */
     skipped: { url: string; reason: "robots.txt" | "unreachable" }[];
+    /** Which optional parts the site yielded, so a buyer can tell "not found" from "not asked". */
+    coverage: Record<CoverageField, boolean>;
 }
 
 /** The homepage could not be read, so there is nothing to profile. */
@@ -181,6 +212,24 @@ async function fetchSecurityContacts(origin: string, domain: string): Promise<st
     }
 }
 
+/** A page as the AI pass reads it: the same text both the prompt and the evidence check use. */
+export interface AiPage {
+    url: string;
+    title: string;
+    description: string;
+    text: string;
+}
+
+export function aiPage(page: SitePage): AiPage {
+    const meta = extractMetadata(page.html);
+    return {
+        url: page.finalUrl,
+        title: meta.title ?? "",
+        description: meta.description ?? "",
+        text: htmlToMarkdown(page.html).slice(0, COMPANY_PROFILE.charsPerPage),
+    };
+}
+
 /** What the AI pass returned, validated: every value typed, every source a page it was given. */
 export interface AiProfile {
     name?: string;
@@ -189,6 +238,9 @@ export interface AiProfile {
     audience?: string;
     pricingModel?: PricingModel;
     plans: PricingPlan[];
+    industry?: NaicsSector;
+    /** A head count the model quoted from a page, kept only when the quote is on that page. */
+    employees?: { count: number; quote: string };
     sources: { field: AiField; url: string }[];
 }
 
@@ -200,6 +252,10 @@ function isAiField(value: string): value is AiField {
     return (AI_FIELDS as readonly string[]).includes(value);
 }
 
+function isNaicsSector(value: unknown): value is NaicsSector {
+    return typeof value === "string" && Object.keys(NAICS_SECTORS).includes(value);
+}
+
 function normalisedHref(url: string): string | undefined {
     try {
         return new URL(url).href;
@@ -208,8 +264,32 @@ function normalisedHref(url: string): string | undefined {
     }
 }
 
+/** Lower-cased with whitespace collapsed, so a quote matches the page however it was wrapped. */
+function comparable(text: string): string {
+    return text.replace(/\s+/gu, " ").trim().toLowerCase();
+}
+
+/** Words that make a number a head count rather than customers, countries or years. */
+const HEADCOUNT_WORDS = /\b(?:employees?|people|staff|team(?:\s+members)?|colleagues|workers|engineers|personnel|workforce)\b/iu;
+
+/**
+ * A head count the model reported, kept only when it is the site's own words: the quote must appear on
+ * the page cited for it, name people, and contain the count as a number (commas allowed).
+ */
+function verifiedEmployees(value: unknown, page: AiPage | undefined): AiProfile["employees"] {
+    if (!isRecord(value) || !page) { return undefined; }
+    const count = value.count;
+    const quote = str(value.quote);
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 1 || !quote) { return undefined; }
+    if (!HEADCOUNT_WORDS.test(quote)) { return undefined; }
+    const numbers = [...quote.matchAll(/\d[\d,]*/gu)].map((match) => Number(match[0].replace(/,/gu, "")));
+    if (!numbers.includes(count)) { return undefined; }
+    const pageText = comparable(`${page.title} ${page.description} ${page.text}`);
+    return pageText.includes(comparable(quote)) ? { count, quote } : undefined;
+}
+
 /** Parse and validate the model's JSON. Anything off-schema is dropped, not trusted. */
-export function parseAiProfile(text: string, pageUrls: readonly string[]): AiProfile {
+export function parseAiProfile(text: string, pages: readonly AiPage[]): AiProfile {
     let data: unknown;
     try {
         data = JSON.parse(text);
@@ -230,16 +310,23 @@ export function parseAiProfile(text: string, pageUrls: readonly string[]): AiPro
     // A source must be a page the model was given. URLs are compared in
     // normalised form (the model may add or drop a trailing slash), and the
     // page's own URL is reported.
-    const pageByHref = new Map(pageUrls.flatMap((url) => {
-        const href = normalisedHref(url);
-        return href ? [[href, url] as const] : [];
+    const pageByHref = new Map(pages.flatMap((page) => {
+        const href = normalisedHref(page.url);
+        return href ? [[href, page] as const] : [];
     }));
-    const sources = isRecord(data.sources)
+    const cited = isRecord(data.sources)
         ? Object.entries(data.sources).flatMap(([field, url]) => {
             const page = typeof url === "string" ? pageByHref.get(normalisedHref(url) ?? "") : undefined;
-            return isAiField(field) && page ? [{ field, url: page }] : [];
+            return isAiField(field) && page ? [{ field, page }] : [];
         })
         : [];
+    const citedPage = (field: AiField): AiPage | undefined => cited.find((entry) => entry.field === field)?.page;
+
+    const industry = isNaicsSector(data.industry) && citedPage("industry") ? data.industry : undefined;
+    const employees = verifiedEmployees(data.employees, citedPage("employees"));
+    const sources = cited
+        .filter(({ field }) => (field !== "industry" || industry) && (field !== "employees" || employees))
+        .map(({ field, page }) => ({ field, url: page.url }));
 
     return {
         name: str(data.name),
@@ -248,18 +335,18 @@ export function parseAiProfile(text: string, pageUrls: readonly string[]): AiPro
         audience: str(data.audience),
         pricingModel: isPricingModel(data.pricingModel) ? data.pricingModel : undefined,
         plans,
+        industry,
+        employees,
         sources,
     };
 }
 
 const SYSTEM_PROMPT = `You profile a company from its own website. Use ONLY the pages given. When the pages do not state something, use null (or [] for lists). Never guess or use outside knowledge.`;
 
-function aiPrompt(pages: readonly SitePage[]): string {
-    const blocks = pages.map((page) => {
-        const meta = extractMetadata(page.html);
-        const text = htmlToMarkdown(page.html).slice(0, COMPANY_PROFILE.charsPerPage);
-        return `<page url="${page.finalUrl}">\nTitle: ${meta.title ?? ""}\nDescription: ${meta.description ?? ""}\n\n${text}\n</page>`;
-    });
+function aiPrompt(pages: readonly AiPage[]): string {
+    const blocks = pages.map((page) =>
+        `<page url="${page.url}">\nTitle: ${page.title}\nDescription: ${page.description}\n\n${page.text}\n</page>`);
+    const sectors = Object.entries(NAICS_SECTORS).map(([code, name]) => `"${code}" (${name})`).join(", ");
     return `${blocks.join("\n\n")}
 
 Return this JSON object:
@@ -270,10 +357,81 @@ Return this JSON object:
   "audience": one sentence on who it sells to (customer types, industries, company sizes), or null,
   "pricingModel": one of ${PRICING_MODELS.map((m) => `"${m}"`).join(", ")}, or null,
   "plans": up to 8 plans from a pricing page as [{"name", "price" as written or null, "period" or null}], else [],
-  "sources": for each of name, description, offerings, audience, pricing that you answered, the url of the page it came from
+  "industry": the 2022 NAICS sector of the company's main business, one of ${sectors}, or null when the pages do not make it clear,
+  "employees": only when a page states the company's own head count: {"count": the number stated (the lower bound for "500+" or "over 500"), "quote": the exact words from the page}, else null,
+  "sources": for each of name, description, offerings, audience, pricing, industry, employees that you answered, the url of the page it came from
 }
 
 Respond ONLY with valid JSON.`;
+}
+
+/** The band a head count falls in. */
+export function employeeBand(count: number): string {
+    const band = EMPLOYEE_BANDS.find(({ max }) => count <= max);
+    if (!band) { throw new RangeError(`No employee band holds ${String(count)}`); }
+    return band.label;
+}
+
+/** A whole, positive head count from a schema.org value: a number, or a numeric string. */
+function headCount(value: unknown): number | undefined {
+    const count = typeof value === "string" ? Number(value.replace(/,/gu, "")) : value;
+    return typeof count === "number" && Number.isSafeInteger(count) && count > 0 ? count : undefined;
+}
+
+/** schema.org numberOfEmployees: a number, or a QuantitativeValue with value or minValue/maxValue. */
+function employeesValue(value: unknown): CompanySize["employees"] | undefined {
+    const exact = headCount(value) ?? (isRecord(value) ? headCount(value.value) : undefined);
+    if (exact !== undefined) { return { min: exact, max: exact }; }
+    if (!isRecord(value)) { return undefined; }
+    const min = headCount(value.minValue);
+    if (min === undefined) { return undefined; }
+    const max = headCount(value.maxValue);
+    return max !== undefined && max >= min ? { min, max } : { min };
+}
+
+/** Every object in a JSON-LD document, through arrays and @graph. */
+function jsonLdNodes(value: unknown): Record<string, unknown>[] {
+    if (Array.isArray(value)) { return value.flatMap(jsonLdNodes); }
+    if (!isRecord(value)) { return []; }
+    return [value, ...jsonLdNodes(value["@graph"])];
+}
+
+/** The head count a page declares in its JSON-LD (schema.org Organization.numberOfEmployees). */
+export function declaredEmployees(html: string): CompanySize["employees"] | undefined {
+    for (const match of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu)) {
+        let data: unknown;
+        try {
+            data = JSON.parse(match[1] ?? "");
+        } catch {
+            continue;
+        }
+        for (const node of jsonLdNodes(data)) {
+            const employees = employeesValue(node.numberOfEmployees);
+            if (employees) { return employees; }
+        }
+    }
+    return undefined;
+}
+
+/** The company's stated size: the schema.org declaration first, else a head count quoted from a page. */
+function companySize(pages: readonly SitePage[], ai: AiProfile): CompanySize | undefined {
+    for (const page of pages) {
+        const employees = declaredEmployees(page.html);
+        if (employees) {
+            const stated = employees.max === undefined || employees.max === employees.min
+                ? String(employees.min)
+                : `${String(employees.min)}-${String(employees.max)}`;
+            return { band: employeeBand(employees.min), employees, basis: "self-reported", evidence: `schema.org numberOfEmployees: ${stated}`, source: page.finalUrl };
+        }
+    }
+    const source = ai.sources.find((entry) => entry.field === "employees")?.url;
+    if (!ai.employees || !source) { return undefined; }
+    return { band: employeeBand(ai.employees.count), employees: { min: ai.employees.count }, basis: "self-reported", evidence: ai.employees.quote, source };
+}
+
+function companyIndustry(ai: AiProfile): CompanyIndustry | undefined {
+    const source = ai.sources.find((entry) => entry.field === "industry")?.url;
+    return ai.industry && source ? { naicsSector: ai.industry, name: NAICS_SECTORS[ai.industry], basis: "estimated", source } : undefined;
 }
 
 function domainFacts(report: DomainReport): CompanyProfile["domainFacts"] {
@@ -347,15 +505,20 @@ export async function profileCompany(domain: string, env: Env, anthropicKey: str
     };
     const [about, pricing, careers] = await Promise.all([fetchRole("about"), fetchRole("pricing"), fetchCareers()]);
 
-    const aiPages = [homepage, about, pricing].filter((page): page is SitePage => page !== undefined).slice(0, COMPANY_PROFILE.pagesForAI);
+    const sitePages = [homepage, about, pricing].filter((page): page is SitePage => page !== undefined).slice(0, COMPANY_PROFILE.pagesForAI);
+    const aiPages = sitePages.map(aiPage);
     const board = findJobBoard(careers?.html ?? "") ?? findJobBoard(homepage.html);
     const [aiText, hiring] = await Promise.all([
         callClaude({ apiKey: anthropicKey, maxTokens: COMPANY_PROFILE.maxTokens }, aiPrompt(aiPages), SYSTEM_PROMPT),
         board ? fetchHiring(board, COMPANY_PROFILE) : Promise.resolve(undefined),
     ]);
-    const ai = parseAiProfile(aiText, aiPages.map((page) => page.finalUrl));
+    const ai = parseAiProfile(aiText, aiPages);
 
     const { technologies, categories } = fingerprint(homepage.headers, homepage.html);
+    const size = companySize(sitePages, ai);
+    const industry = companyIndustry(ai);
+    const socials = findSocials(pageHrefs(homepage.html));
+    const securityContacts = await contacts;
     return {
         domain,
         url: homepage.finalUrl,
@@ -365,12 +528,27 @@ export async function profileCompany(domain: string, env: Env, anthropicKey: str
         audience: ai.audience,
         pricing: { pageUrl: pricing?.finalUrl, model: ai.pricingModel, plans: ai.plans },
         hiring,
+        size,
+        industry,
         pages,
-        socials: findSocials(pageHrefs(homepage.html)),
+        socials,
         tech: { technologies: technologies.map(({ name, category }) => ({ name, category })), categories },
         domainFacts: domainFacts(await domainReport),
-        securityContacts: await contacts,
+        securityContacts,
         sources: ai.sources,
         skipped,
+        coverage: {
+            name: ai.name !== undefined,
+            description: ai.description !== undefined,
+            offerings: ai.offerings.length > 0,
+            audience: ai.audience !== undefined,
+            pricing: ai.pricingModel !== undefined || ai.plans.length > 0,
+            hiring: hiring !== undefined,
+            size: size !== undefined,
+            industry: industry !== undefined,
+            tech: technologies.length > 0,
+            socials: Object.keys(socials).length > 0,
+            securityContacts: securityContacts.length > 0,
+        },
     };
 }

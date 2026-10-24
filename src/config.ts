@@ -536,6 +536,46 @@ export const BOT_USER_AGENT = "Mozilla/5.0 (compatible; WebLensBot/1.0; +https:/
  * subrequests, and the one AI_MODEL pass reads at most `pagesForAI` pages of
  * `charsPerPage` each (~10k tokens, ~$0.001) and writes at most `maxTokens`.
  */
+/**
+ * The 2022 NAICS sectors (census.gov 2022 NAICS Manual, Part I), the industry
+ * /company classifies a company into from its own site.
+ */
+export const NAICS_SECTORS = {
+  "11": "Agriculture, Forestry, Fishing and Hunting",
+  "21": "Mining, Quarrying, and Oil and Gas Extraction",
+  "22": "Utilities",
+  "23": "Construction",
+  "31-33": "Manufacturing",
+  "42": "Wholesale Trade",
+  "44-45": "Retail Trade",
+  "48-49": "Transportation and Warehousing",
+  "51": "Information",
+  "52": "Finance and Insurance",
+  "53": "Real Estate and Rental and Leasing",
+  "54": "Professional, Scientific, and Technical Services",
+  "55": "Management of Companies and Enterprises",
+  "56": "Administrative and Support and Waste Management and Remediation Services",
+  "61": "Educational Services",
+  "62": "Health Care and Social Assistance",
+  "71": "Arts, Entertainment, and Recreation",
+  "72": "Accommodation and Food Services",
+  "81": "Other Services (except Public Administration)",
+  "92": "Public Administration",
+} as const;
+export type NaicsSector = keyof typeof NAICS_SECTORS;
+
+/** Employee-count bands /company reports, as commonly used for firmographics; the last is open-ended. */
+export const EMPLOYEE_BANDS = [
+  { label: "1-10", max: 10 },
+  { label: "11-50", max: 50 },
+  { label: "51-200", max: 200 },
+  { label: "201-500", max: 500 },
+  { label: "501-1000", max: 1_000 },
+  { label: "1001-5000", max: 5_000 },
+  { label: "5001-10000", max: 10_000 },
+  { label: "10001+", max: Number.POSITIVE_INFINITY },
+] as const;
+
 export const COMPANY_PROFILE = {
   /** Per-request fetch timeout for the site's own pages and the job board. */
   timeoutMs: 12_000,
