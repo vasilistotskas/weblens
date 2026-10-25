@@ -5,7 +5,7 @@
 
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Hono } from "hono";
-import { cardPaymentsEnabled, CREDIT_PACKS, FREE_TIER, packPrice, PRICING, SERVICE_NAME, SERVICE_VERSION, supportedNetworkNames, supportedNetworks } from "./config";
+import { cardPaymentsEnabled, CREDIT_PACKS, FREE_TIER, LEGAL, OPERATOR, packPrice, PRICING, SERVICE_NAME, SERVICE_VERSION, supportedNetworkNames, supportedNetworks } from "./config";
 import type { SurfaceEnv } from "./config";
 import { ENDPOINT_GROUPS } from "./endpoints/define";
 import { llmsEndpointSections, llmsMcpToolLines, openApiPaidPaths } from "./endpoints/docs";
@@ -57,7 +57,8 @@ Cached responses are **70% cheaper** than fresh fetches.`,
         "Not sure an endpoint is worth its price? POST /preview {\"endpoint\": \"/answer\"} is free and returns the live " +
         "price plus a real sample of the response shape before you pay. " +
         "Free, unauthenticated try: GET /r/{url} (rate limited).",
-      contact: { name: "WebLens Support", url: "https://api.weblens.dev", email: "vassilistotskas@msn.com" },
+      termsOfService: `${baseUrl}${LEGAL.paths.terms}`,
+      contact: { name: "WebLens Support", url: baseUrl, email: OPERATOR.email },
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
     },
     servers: [

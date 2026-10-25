@@ -4,6 +4,7 @@
  */
 
 import type { Context, Next } from "hono";
+import { LEGAL } from "../config";
 
 /**
  * Security headers for API (JSON) responses.
@@ -58,15 +59,22 @@ const LANDING_SECURITY_HEADERS = {
     "frame-ancestors 'none'",
 };
 
+/** Static HTML pages (the legal pages): inline styles only, no scripts. */
+const STATIC_PAGE_SECURITY_HEADERS = {
+  ...SECURITY_HEADERS,
+  "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+};
+
 /**
- * Billing pages (/billing/success, /billing/cancel): inline styles only, and no
+ * Billing pages (/billing/success, /billing/cancel): static pages that send no
  * Referer, because the success page URL carries the Checkout Session id.
  */
 const BILLING_PAGE_SECURITY_HEADERS = {
-  ...SECURITY_HEADERS,
-  "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+  ...STATIC_PAGE_SECURITY_HEADERS,
   "Referrer-Policy": "no-referrer",
 };
+
+const LEGAL_PAGES: ReadonlySet<string> = new Set(Object.values(LEGAL.paths));
 
 /**
  * Headers to remove (information disclosure)
@@ -84,6 +92,7 @@ export async function securityMiddleware(c: Context, next: Next) {
   const isDocsPage = path === "/docs" || path.startsWith("/docs/");
   const isLandingPage = path === "/" && c.req.header("Accept")?.includes("text/html");
   const isBillingPage = path === "/billing/success" || path === "/billing/cancel";
+  const isLegalPage = LEGAL_PAGES.has(path);
 
   let headers = SECURITY_HEADERS;
   if (isDocsPage) {
@@ -92,6 +101,8 @@ export async function securityMiddleware(c: Context, next: Next) {
     headers = LANDING_SECURITY_HEADERS;
   } else if (isBillingPage) {
     headers = BILLING_PAGE_SECURITY_HEADERS;
+  } else if (isLegalPage) {
+    headers = STATIC_PAGE_SECURITY_HEADERS;
   }
 
   // Add security headers

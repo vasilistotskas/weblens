@@ -8,6 +8,8 @@
  *   https://docs.stripe.com/payments/managed-payments/update-checkout (parameters Managed Payments refuses)
  *   https://docs.stripe.com/checkout/fulfillment
  *   https://docs.stripe.com/webhooks/signatures
+ *   https://docs.stripe.com/payments/managed-payments/how-it-works (Link or Stripe may refund within
+ *   60 days; disputes are handled by Stripe, both on the seller's own account)
  */
 
 import { CREDIT_PACKS, packPrice, STRIPE } from "../config";
@@ -173,11 +175,42 @@ export async function verifyStripeSignature(params: {
     return { valid: false, reason: "Signature mismatch" };
 }
 
-/** The event fields the webhook acts on: its type and the Checkout Session id it concerns. */
-export function checkoutEvent(body: unknown): { type: string; sessionId?: string } | undefined {
+/** A webhook event's type and the object it carries (`data.object`). */
+export function stripeEvent(body: unknown): { type: string; object: Record<string, unknown> } | undefined {
     if (!isRecord(body)) { return undefined; }
     const type = str(body.type);
     if (!type) { return undefined; }
-    const object = isRecord(body.data) && isRecord(body.data.object) ? body.data.object : undefined;
-    return { type, sessionId: str(object?.id) };
+    return { type, object: isRecord(body.data) && isRecord(body.data.object) ? body.data.object : {} };
+}
+
+/**
+ * Card money that went back to the buyer. A refund carries the charge's cumulative refunded share
+ * (`amount_refunded` of `amount`, both in the currency the buyer paid, which with Adaptive Pricing need
+ * not be USD); a dispute takes back the whole payment.
+ */
+export type PaymentReversal =
+    | { reason: "refund"; paymentIntent: string; refunded: number; charged: number }
+    | { reason: "dispute"; paymentIntent: string };
+
+/** The reversal a `charge.refunded` or `charge.dispute.created` event reports, or undefined for any other event. */
+export function paymentReversal(event: { type: string; object: Record<string, unknown> }): PaymentReversal | undefined {
+    const paymentIntent = str(event.object.payment_intent);
+    if (!paymentIntent) { return undefined; }
+    if (event.type === "charge.dispute.created") {
+        return { reason: "dispute", paymentIntent };
+    }
+    const refunded = num(event.object.amount_refunded);
+    const charged = num(event.object.amount);
+    if (event.type === "charge.refunded" && refunded !== undefined && charged !== undefined && charged > 0) {
+        return { reason: "refund", paymentIntent, refunded: Math.min(refunded, charged), charged };
+    }
+    return undefined;
+}
+
+/** The Checkout Session that created PaymentIntent `paymentIntent`; a payment with none is not ours. */
+export async function checkoutForPayment(secretKey: string, paymentIntent: string): Promise<string> {
+    const list = await stripeRequest(secretKey, `/checkout/sessions?payment_intent=${encodeURIComponent(paymentIntent)}&limit=1`, { method: "GET" });
+    const sessionId = str(asRecords(list.data)[0]?.id);
+    if (!sessionId) { throw new ForeignCheckoutError(`PaymentIntent ${paymentIntent} has no Checkout Session`); }
+    return sessionId;
 }

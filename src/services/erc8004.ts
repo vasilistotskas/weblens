@@ -35,7 +35,7 @@ export const ERC8004_REGISTRATION_TYPE =
 const RECEIPT_PREFIX = "receipt:";
 const FEEDBACK_PREFIX = "feedback:";
 /** 30 days — long enough for a buyer to post feedback well after the call. */
-const RECEIPT_TTL_SECONDS = 60 * 60 * 24 * 30;
+export const RECEIPT_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 // ============================================
 // Registration file (Identity)

@@ -175,6 +175,43 @@ export const STRIPE = {
 } as const;
 
 /**
+ * Who runs WebLens: named on the legal pages and in the OpenAPI contact. EU
+ * e-commerce rules (Directive 2000/31/EC art. 5) ask for the provider's name,
+ * geographic address and email.
+ */
+export const OPERATOR = {
+  name: "Vasilis Totskas",
+  email: "vassilistotskas@msn.com",
+  address: "Kalama 25, 10443 Athens",
+  country: "Greece",
+} as const;
+
+/**
+ * The legal pages and the third-party terms they point to. Card purchases are
+ * sold through Link (Stripe Managed Payments), whose terms require the seller
+ * to link Link's customer terms, and which may refund any purchase within 60
+ * days whatever the seller's policy says (stripe.com/legal/managed-payments,
+ * read 2026-10-25). So the refund window matches Link's.
+ */
+export const LEGAL = {
+  updated: "2026-10-25",
+  paths: { terms: "/terms", refunds: "/refunds", privacy: "/privacy" },
+  refundWindowDays: 60,
+  linkTerms: "https://link.com/terms",
+  linkRefunds: "https://support.link.com/questions/sold-through-link-refunds",
+  stripePrivacy: "https://stripe.com/privacy",
+  /** Hellenic Data Protection Authority, where a data subject may complain. */
+  supervisoryAuthority: "https://www.dpa.gr",
+  /**
+   * Platform retention the privacy page states: Workers Logs keep 7 days on
+   * Workers Paid (developers.cloudflare.com/workers/observability/logs/workers-logs,
+   * read 2026-10-25), Analytics Engine 3 months (the PAYMENT_EVENTS dataset).
+   */
+  logRetentionDays: 7,
+  paymentEventRetentionMonths: 3,
+} as const;
+
+/**
  * API keys: `<API_KEY_PREFIX><accountId>_<secret>`. The prefix is set per
  * environment (wrangler.toml), the account id names the account's Durable
  * Object, and the secret is 256 random bits in base64url, of which the account

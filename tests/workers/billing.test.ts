@@ -2,7 +2,8 @@
  * Buying a prepaid pack by card, through the real Worker, with Stripe's REST
  * API answered by a spy on fetch. Checks the Checkout Session we ask Stripe
  * for, fulfilment from both the success page and the webhook (once only),
- * the one-time key reveal, and every way a fulfilment is refused.
+ * the one-time key reveal, every way a fulfilment is refused, and the credit
+ * taken back when Link or Stripe refunds the payment or the buyer disputes it.
  */
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
@@ -31,6 +32,8 @@ interface StripeCall { method: string; url: URL; headers: Headers; form: URLSear
 let stripeCalls: StripeCall[] = [];
 /** The Checkout Session Stripe returns on retrieve; tests adjust it. */
 let session: Record<string, unknown> = {};
+/** Whether listing Checkout Sessions by PaymentIntent finds `session`. */
+let paymentHasSession = true;
 
 function paidSession(accountId: string, sessionId = `cs_test_${newAccountId()}`): Record<string, unknown> {
     return {
@@ -44,6 +47,7 @@ function paidSession(accountId: string, sessionId = `cs_test_${newAccountId()}`)
 
 beforeEach(() => {
     stripeCalls = [];
+    paymentHasSession = true;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
         const request = new Request(input, init);
         const url = new URL(request.url);
@@ -51,6 +55,9 @@ beforeEach(() => {
         stripeCalls.push({ method: request.method, url, headers: request.headers, form: new URLSearchParams(await request.text()) });
         if (request.method === "POST" && url.pathname === "/v1/checkout/sessions") {
             return Response.json({ id: "cs_test_created", url: "https://checkout.stripe.com/c/pay/cs_test_created" });
+        }
+        if (request.method === "GET" && url.pathname === "/v1/checkout/sessions") {
+            return Response.json({ object: "list", data: paymentHasSession ? [{ id: session.id }] : [] });
         }
         if (request.method === "GET" && url.pathname.startsWith("/v1/checkout/sessions/")) {
             return Response.json(session);
@@ -74,7 +81,11 @@ async function signed(payload: string, secret = WEBHOOK_SECRET): Promise<string>
 }
 
 function webhook(type: string, sessionId: string, signature?: string) {
-    const payload = JSON.stringify({ id: "evt_test", type, data: { object: { id: sessionId } } });
+    return webhookEvent(type, { id: sessionId }, signature);
+}
+
+function webhookEvent(type: string, object: Record<string, unknown>, signature?: string) {
+    const payload = JSON.stringify({ id: "evt_test", type, data: { object } });
     return (async () => call("/billing/webhook", {
         method: "POST",
         headers: { "Content-Type": "application/json", "stripe-signature": signature ?? await signed(payload) },
@@ -227,5 +238,66 @@ describe("fulfilment", () => {
     it("refuses a success link that names no Checkout Session", async () => {
         expect((await call("/billing/success?session_id=<script>")).status).toBe(400);
         expect(stripeCalls).toEqual([]);
+    });
+});
+
+describe("refunds and disputes", () => {
+    /** A paid, fulfilled $10 pack with its key; returns the key and the account's Durable Object. */
+    async function fundedAccount() {
+        const accountId = newAccountId();
+        session = paidSession(accountId);
+        await webhook("checkout.session.completed", String(session.id));
+        const account = stripeEnv.ACCOUNTS.getByName(accountId);
+        const secret = await account.issueFirstKey();
+        return { account, secret: secret ?? "", key: formatApiKey(stripeEnv.API_KEY_PREFIX, accountId, secret ?? "") };
+    }
+
+    /** A charge in euros (Adaptive Pricing), so the reversal must work from shares, not USD amounts. */
+    function refunded(refundedCents: number) {
+        return webhookEvent("charge.refunded", { id: "ch_test_1", payment_intent: "pi_test_1", amount: 1150, amount_refunded: refundedCents, currency: "eur" });
+    }
+
+    async function balanceOf(key: string): Promise<Response> {
+        return exports.default.fetch(`${ORIGIN}/account`, { headers: { Authorization: `Bearer ${key}` } });
+    }
+
+    it("takes back a partial refund once, and closes the key when a full refund empties the account", async () => {
+        const { key } = await fundedAccount();
+
+        const half = await refunded(575);
+        expect(await half.json()).toMatchObject({ status: "reversed" });
+        expect(stripeCalls.some((call) => call.url.pathname === "/v1/checkout/sessions" && call.url.searchParams.get("payment_intent") === "pi_test_1")).toBe(true);
+        expect(await (await balanceOf(key)).json()).toMatchObject({ balance: "$5" });
+
+        // Stripe redelivers events: the same cumulative refund takes nothing more.
+        await refunded(575);
+        expect(await (await balanceOf(key)).json()).toMatchObject({ balance: "$5" });
+
+        await refunded(1150);
+        expect((await balanceOf(key)).status).toBe(401);
+    });
+
+    it("revokes the key when the refunded credit was already spent", async () => {
+        const { account, secret, key } = await fundedAccount();
+        await account.spend(secret, 7_000_000, "req_spent", "calls");
+
+        await refunded(1150);
+        expect((await balanceOf(key)).status).toBe(401);
+    });
+
+    it("takes back the whole pack and revokes the key when the payment is disputed", async () => {
+        const { account, key } = await fundedAccount();
+        await account.deposit("cs_test_second_pack", 50_000_000, "another pack");
+
+        const res = await webhookEvent("charge.dispute.created", { id: "dp_test_1", charge: "ch_test_1", payment_intent: "pi_test_1", amount: 1150 });
+        expect(await res.json()).toMatchObject({ status: "reversed" });
+        expect((await balanceOf(key)).status).toBe(401);
+    });
+
+    it("acknowledges a refund of a payment that is not one of our packs", async () => {
+        paymentHasSession = false;
+        const res = await refunded(1150);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ ignored: "not a WebLens credit pack" });
     });
 });

@@ -6,8 +6,10 @@
  *
  * Money is integer micro-USD (1 USD = 1,000,000), never a float. Every ledger
  * row carries a unique `external_id` (the Stripe Checkout Session for a
- * deposit, the request id for a spend and its refund), so a replayed deposit,
- * spend or refund is answered from the ledger instead of moving money twice.
+ * deposit, the request id for a spend and its refund, the session and the
+ * cumulative amount for a card refund or dispute), so a replayed deposit,
+ * spend, refund or reversal is answered from the ledger instead of moving
+ * money twice.
  * Each method's read-check-write runs in one `transactionSync`, and the
  * `CHECK (balance_micros >= 0)` constraint makes an overdraft impossible even
  * if a code path forgot the check.
@@ -27,7 +29,18 @@ const RECENT_LEDGER_ROWS = 50;
 /** Random bytes in an API key's secret part (256 bits). */
 const SECRET_BYTES = 32;
 
-export type LedgerKind = "deposit" | "spend" | "refund";
+export type LedgerKind = "deposit" | "spend" | "refund" | "reversal";
+
+/** Why card money went back to the buyer: a refund (by WebLens, Link or Stripe) or a dispute. */
+export type ReversalReason = "refund" | "dispute";
+
+export interface ReversalResult {
+    /** Credit taken off the balance. */
+    reversedMicros: number;
+    /** Credit the buyer had already spent, which could not be taken back. */
+    shortfallMicros: number;
+    keysRevoked: boolean;
+}
 
 export interface LedgerEntry {
     kind: LedgerKind;
@@ -63,7 +76,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 CREATE TABLE IF NOT EXISTS ledger (
     id INTEGER PRIMARY KEY,
-    kind TEXT NOT NULL CHECK (kind IN ('deposit', 'spend', 'refund')),
+    kind TEXT NOT NULL CHECK (kind IN ('deposit', 'spend', 'refund', 'reversal')),
     amount_micros INTEGER NOT NULL CHECK (amount_micros > 0),
     external_id TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL,
@@ -187,6 +200,46 @@ export class CreditAccountDO extends DurableObject<Env> {
             this.sql.exec("UPDATE account SET balance_micros = balance_micros + ? WHERE id = 1", charged.amount_micros);
             this.record("refund", charged.amount_micros, externalId, `Refund: ${charged.description}`, new Date().toISOString());
             return { refundedMicros: charged.amount_micros };
+        });
+    }
+
+    /**
+     * Take back the credit of a card payment that went back to the buyer. `targetMicros` is how much of
+     * deposit `depositId` should be reversed in total so far (Stripe reports a charge's cumulative refunded
+     * amount), so a replayed or late event reverses nothing twice. Each reversal row records the credit
+     * owed back, even when part of it was already spent; the balance never goes below zero.
+     *
+     * Every key is revoked when the payment is disputed, when spent credit could not be taken back, or
+     * when the reversal empties the account, as the refund policy says.
+     */
+    reverseDeposit(depositId: string, targetMicros: number, reason: ReversalReason): ReversalResult {
+        return this.ctx.storage.transactionSync((): ReversalResult => {
+            const result: ReversalResult = { reversedMicros: 0, shortfallMicros: 0, keysRevoked: false };
+            if (!this.exists()) { return result; }
+            const deposit = this.sql.exec<{ amount_micros: number }>(
+                "SELECT amount_micros FROM ledger WHERE external_id = ? AND kind = 'deposit'", depositId,
+            ).toArray()[0];
+            if (!deposit) { return result; }
+            const prefix = `reversal:${depositId}:`;
+            const already = this.sql.exec<{ total: number }>(
+                "SELECT COALESCE(SUM(amount_micros), 0) AS total FROM ledger WHERE kind = 'reversal' AND instr(external_id, ?) = 1", prefix,
+            ).one().total;
+            const target = Math.min(targetMicros, deposit.amount_micros);
+            const now = new Date().toISOString();
+            let revoke = reason === "dispute";
+            if (target > already) {
+                const owed = target - already;
+                result.reversedMicros = Math.min(owed, this.balance());
+                result.shortfallMicros = owed - result.reversedMicros;
+                this.sql.exec("UPDATE account SET balance_micros = balance_micros - ? WHERE id = 1", result.reversedMicros);
+                const spent = result.shortfallMicros > 0 ? `, of which ${String(result.shortfallMicros)} micro-USD was already spent` : "";
+                this.record("reversal", owed, `${prefix}${String(target)}`, `Card payment ${reason === "dispute" ? "disputed" : "refunded"}${spent}`, now);
+                revoke ||= result.shortfallMicros > 0 || this.balance() === 0;
+            }
+            if (revoke) {
+                result.keysRevoked = this.sql.exec("UPDATE api_keys SET revoked_at = ? WHERE revoked_at IS NULL", now).rowsWritten > 0;
+            }
+            return result;
         });
     }
 

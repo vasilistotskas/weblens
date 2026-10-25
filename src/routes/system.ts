@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { FREE_TIER, SERVICE_NAME, SERVICE_VERSION, supportedNetworks, pathExample } from "../config";
+import { FREE_TIER, LEGAL, SERVICE_NAME, SERVICE_VERSION, supportedNetworks, pathExample } from "../config";
 import { facilitatorNames } from "../middleware/payment";
 import { registerOpenAPIRoutes } from "../openapi";
 
@@ -8,6 +8,7 @@ import { discoveryHandler, wellKnownX402Handler, x402ResourceCatalogHandler } fr
 import { faviconSvgHandler, faviconIcoHandler, faviconPngHandler } from "../tools/favicon";
 import { health } from "../tools/health";
 import { getLandingPageHTML } from "../tools/landing";
+import { privacyHandler, refundsHandler, termsHandler } from "../tools/legal";
 import { mcpPostHandler, mcpGetHandler, mcpInfoHandler } from "../tools/mcp";
 
 import type { AppEnv } from "../types";
@@ -41,6 +42,11 @@ export function registerSystemRoutes(app: Hono<AppEnv>) {
     app.get("/favicon.ico", faviconIcoHandler);
     app.get("/favicon.png", faviconPngHandler);
 
+    // Legal pages
+    app.get(LEGAL.paths.terms, termsHandler);
+    app.get(LEGAL.paths.refunds, refundsHandler);
+    app.get(LEGAL.paths.privacy, privacyHandler);
+
     // SEO: robots.txt + sitemap.xml
     app.get("/robots.txt", (c) => {
         const baseUrl = new URL(c.req.url).origin;
@@ -59,6 +65,7 @@ export function registerSystemRoutes(app: Hono<AppEnv>) {
             { loc: "/.well-known/x402", priority: "0.6", changefreq: "monthly" },
             { loc: "/mcp/info", priority: "0.7", changefreq: "weekly" },
             { loc: "/r/https://example.com", priority: "0.5", changefreq: "monthly" },
+            ...Object.values(LEGAL.paths).map((loc) => ({ loc, priority: "0.3", changefreq: "yearly" })),
         ];
         const entries = urls.map(u =>
             `  <url>\n    <loc>${baseUrl}${u.loc}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`

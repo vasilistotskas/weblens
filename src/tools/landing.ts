@@ -5,7 +5,7 @@
  * Agents/API clients get JSON (via Accept header detection).
  */
 
-import { cardPaymentsEnabled, CREDIT_PACKS, packPrice, PRICING, supportedNetworkNames } from "../config";
+import { cardPaymentsEnabled, CREDIT_PACKS, LEGAL, OPERATOR, packPrice, PRICING, supportedNetworkNames } from "../config";
 import type { SurfaceEnv } from "../config";
 
 export function getLandingPageHTML(baseUrl: string, env: SurfaceEnv): string {
@@ -150,7 +150,7 @@ POST to any paid endpoint &rarr; get <code>402 Payment Required</code> with pric
 ${cards ? `
 <section>
 <h2>Prefer a Card?</h2>
-<p style="color:#9ca3af;font-size:0.9rem">Buy a prepaid pack at face value and get an API key, shown once after payment. Send it as <code>Authorization: Bearer &lt;key&gt;</code> on any paid endpoint.</p>
+<p style="color:#9ca3af;font-size:0.9rem">Buy a prepaid pack at face value and get an API key, shown once after payment. Send it as <code>Authorization: Bearer &lt;key&gt;</code> on any paid endpoint. Credit never expires; unused credit is refundable for ${String(LEGAL.refundWindowDays)} days (<a href="${LEGAL.paths.refunds}">refund policy</a>). Sold through Link, which charges your card.</p>
 <div class="links">${CREDIT_PACKS.map((pack) => `<button class="link-btn" onclick="buyPack('${pack}')">Buy ${packPrice(pack)}</button>`).join("")}</div>
 <p id="buy-status" style="color:#9ca3af;font-size:0.85rem;text-align:center"></p>
 </section>` : ""}
@@ -165,7 +165,8 @@ ${cards ? `
 </div>
 
 <footer>
-WebLens &mdash; Premium Web Intelligence API &mdash; Powered by <a href="https://x402.org">x402</a> + <a href="https://workers.cloudflare.com">Cloudflare Workers</a>
+WebLens &mdash; Premium Web Intelligence API &mdash; Powered by <a href="https://x402.org">x402</a> + <a href="https://workers.cloudflare.com">Cloudflare Workers</a><br>
+${OPERATOR.name} &middot; <a href="mailto:${OPERATOR.email}">${OPERATOR.email}</a> &middot; <a href="${LEGAL.paths.terms}">Terms</a> &middot; <a href="${LEGAL.paths.refunds}">Refunds</a> &middot; <a href="${LEGAL.paths.privacy}">Privacy</a>
 </footer>
 </div>
 <script>

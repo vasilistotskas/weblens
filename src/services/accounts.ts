@@ -11,10 +11,11 @@
 
 import { API_KEY_PATTERN, packPrice } from "../config";
 import type { CreditPack } from "../config";
-import type { CreditAccountDO } from "../durable_objects/CreditAccountDO";
+import type { CreditAccountDO, ReversalResult } from "../durable_objects/CreditAccountDO";
 import type { Env } from "../types";
 import { usdToMicros } from "./pricing";
-import { retrieveCheckout } from "./stripe";
+import { checkoutForPayment, retrieveCheckout } from "./stripe";
+import type { PaymentReversal } from "./stripe";
 
 export interface ApiKey {
     accountId: string;
@@ -71,4 +72,17 @@ export async function fulfillCheckout(env: Env, secretKey: string, sessionId: st
         `Credit pack ${packPrice(checkout.pack)}`,
     );
     return { status: "credited", accountId: checkout.accountId, pack: checkout.pack, balanceMicros, duplicate };
+}
+
+/**
+ * Take back the credit of a refunded or disputed card payment. The Checkout Session is found from the
+ * payment and re-read from Stripe (it must be one of our packs); a refund reverses the share of the pack
+ * that was refunded, a dispute all of it.
+ */
+export async function reverseCheckout(env: Env, secretKey: string, reversal: PaymentReversal): Promise<ReversalResult & { accountId: string }> {
+    const checkout = await retrieveCheckout(secretKey, await checkoutForPayment(secretKey, reversal.paymentIntent));
+    const packMicros = usdToMicros(packPrice(checkout.pack));
+    const targetMicros = reversal.reason === "dispute" ? packMicros : Math.round(packMicros * reversal.refunded / reversal.charged);
+    const result = await accountStub(env, checkout.accountId).reverseDeposit(checkout.sessionId, targetMicros, reversal.reason);
+    return { ...result, accountId: checkout.accountId };
 }

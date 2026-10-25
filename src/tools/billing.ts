@@ -6,7 +6,8 @@
  *                                     new account.
  *   GET  /billing/success           → Stripe's redirect after payment: fulfils the session and, the
  *                                     first time for a new account, shows its API key once.
- *   POST /billing/webhook           → Stripe's events; fulfils the same session (idempotent).
+ *   POST /billing/webhook           → Stripe's events: fulfils the same session (idempotent), and takes
+ *                                     the credit back when the payment is refunded or disputed.
  *   GET  /account                   → balance and recent ledger, for the key's holder.
  *   POST /account/key/rotate        → replaces the key; the old one stops working at once.
  *
@@ -17,31 +18,22 @@
 
 import type { Context } from "hono";
 import { html } from "hono/html";
-import type { HtmlEscapedString } from "hono/utils/html";
 import type { z } from "zod";
 import { cardPaymentsEnabled, packPrice } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
 import type { CheckoutRequestSchema } from "../schemas";
-import { accountStub, formatApiKey, fulfillCheckout, newAccountId, parseApiKey } from "../services/accounts";
+import { accountStub, formatApiKey, fulfillCheckout, newAccountId, parseApiKey, reverseCheckout } from "../services/accounts";
 import { formatMicros } from "../services/pricing";
-import { checkoutEvent, createCheckoutSession, ForeignCheckoutError, verifyStripeSignature } from "../services/stripe";
+import { createCheckoutSession, ForeignCheckoutError, paymentReversal, stripeEvent, verifyStripeSignature } from "../services/stripe";
 import type { AppEnv } from "../types";
+import { htmlPage } from "../utils/html-page";
+import { str } from "../utils/narrow";
 
 /** Stripe Checkout Session ids look like cs_test_… / cs_live_…. */
 const SESSION_ID = /^cs_(?:test|live)_[A-Za-z0-9]+$/u;
 
 /** The Stripe events that mean a Checkout Session may now be paid (docs.stripe.com/checkout/fulfillment). */
 const FULFIL_EVENTS: ReadonlySet<string> = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded"]);
-
-function page(title: string, body: HtmlEscapedString | Promise<HtmlEscapedString>) {
-    return html`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark"><meta name="robots" content="noindex"><title>${title} · WebLens</title>
-<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem;line-height:1.6}
-code,pre{background:#8882;border-radius:6px}pre{padding:1rem;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
-.warn{border-left:4px solid #d97706;padding-left:1rem}</style></head>
-<body><h1>${title}</h1>${body}<p><a href="/docs">API docs</a> · <a href="/">WebLens</a></p></body></html>`;
-}
 
 /** Billing pages carry a session id or a key: never cache them. */
 function noStore(c: Context<AppEnv>): void {
@@ -98,11 +90,11 @@ export async function successPageHandler(c: Context<AppEnv>) {
     noStore(c);
     const secretKey = c.env.STRIPE_SECRET_KEY;
     if (!secretKey || !cardPaymentsEnabled(c.env)) {
-        return c.html(page("Card payments are not configured", html`<p>Nothing was charged here.</p>`), 503);
+        return c.html(htmlPage("Card payments are not configured", html`<p>Nothing was charged here.</p>`), 503);
     }
     const sessionId = c.req.query("session_id") ?? "";
     if (!SESSION_ID.test(sessionId)) {
-        return c.html(page("Unknown checkout", html`<p>This link does not name a Stripe Checkout.</p>`), 400);
+        return c.html(htmlPage("Unknown checkout", html`<p>This link does not name a Stripe Checkout.</p>`), 400);
     }
 
     let fulfilment;
@@ -111,20 +103,20 @@ export async function successPageHandler(c: Context<AppEnv>) {
     } catch (error) {
         c.get("log").error("billing.success_fulfil_failed", { error: error instanceof Error ? error.message : String(error) });
         const status = error instanceof ForeignCheckoutError ? 400 : 502;
-        return c.html(page("We could not confirm this payment yet", html`<p>Reload this page in a minute. If you were charged, the credit is added automatically as soon as Stripe confirms the payment.</p>`), status);
+        return c.html(htmlPage("We could not confirm this payment yet", html`<p>Reload this page in a minute. If you were charged, the credit is added automatically as soon as Stripe confirms the payment.</p>`), status);
     }
     if (fulfilment.status === "unpaid") {
-        return c.html(page("Payment processing", html`<p>Stripe has not confirmed the payment yet. Reload this page in a minute; the credit is added as soon as it is confirmed.</p>`), 202);
+        return c.html(htmlPage("Payment processing", html`<p>Stripe has not confirmed the payment yet. Reload this page in a minute; the credit is added as soon as it is confirmed.</p>`), 202);
     }
 
     const secret = await accountStub(c.env, fulfilment.accountId).issueFirstKey();
     const balance = formatMicros(fulfilment.balanceMicros);
     if (secret === null) {
-        return c.html(page("Payment received", html`<p>${packPrice(fulfilment.pack)} of credit is on your account. Balance: <strong>${balance}</strong>.</p>
+        return c.html(htmlPage("Payment received", html`<p>${packPrice(fulfilment.pack)} of credit is on your account. Balance: <strong>${balance}</strong>.</p>
 <p>Keep using your existing API key. This page shows a key only once, when the purchase opens a new account.</p>`));
     }
     const apiKey = formatApiKey(c.env.API_KEY_PREFIX, fulfilment.accountId, secret);
-    return c.html(page("Your WebLens API key", html`<p>${packPrice(fulfilment.pack)} of credit is on your account. Balance: <strong>${balance}</strong>.</p>
+    return c.html(htmlPage("Your WebLens API key", html`<p>${packPrice(fulfilment.pack)} of credit is on your account. Balance: <strong>${balance}</strong>.</p>
 <p class="warn"><strong>Copy this key now.</strong> It is shown once and WebLens stores only a hash of it.</p>
 <pre>${apiKey}</pre>
 <p>Send it on any paid endpoint:</p>
@@ -137,7 +129,7 @@ export async function successPageHandler(c: Context<AppEnv>) {
 
 export function cancelPageHandler(c: Context<AppEnv>) {
     noStore(c);
-    return c.html(page("Checkout cancelled", html`<p>No card was charged. Open a new checkout any time with <code>POST /billing/checkout</code>.</p>`));
+    return c.html(htmlPage("Checkout cancelled", html`<p>No card was charged. Open a new checkout any time with <code>POST /billing/checkout</code>.</p>`));
 }
 
 export async function stripeWebhookHandler(c: Context<AppEnv>) {
@@ -161,17 +153,33 @@ export async function stripeWebhookHandler(c: Context<AppEnv>) {
 
     let parsed: unknown;
     try { parsed = JSON.parse(rawBody); } catch { parsed = undefined; }
-    const event = checkoutEvent(parsed);
+    const event = stripeEvent(parsed);
     if (!event) {
         return c.json(createErrorResponse("INVALID_REQUEST", "Malformed webhook body", requestId), 400);
     }
+    const reversal = paymentReversal(event);
+    if (reversal) {
+        try {
+            const result = await reverseCheckout(c.env, secretKey, reversal);
+            c.get("log").warn("billing.payment_reversed", { event: event.type, ...result });
+            return c.json({ received: true, status: "reversed", requestId });
+        } catch (error) {
+            if (error instanceof ForeignCheckoutError) {
+                return c.json({ received: true, ignored: "not a WebLens credit pack", requestId });
+            }
+            c.get("log").error("billing.webhook_reversal_failed", { error: error instanceof Error ? error.message : String(error) });
+            // A 5xx makes Stripe retry; the ledger keeps the retry from reversing twice.
+            return c.json(createErrorResponse("INTERNAL_ERROR", "Reversal failed; Stripe will retry.", requestId), 500);
+        }
+    }
+    const sessionId = str(event.object.id);
     // Any other event is acknowledged, so Stripe stops retrying it.
-    if (!FULFIL_EVENTS.has(event.type) || !event.sessionId) {
+    if (!FULFIL_EVENTS.has(event.type) || !sessionId) {
         return c.json({ received: true, ignored: event.type, requestId });
     }
 
     try {
-        const fulfilment = await fulfillCheckout(c.env, secretKey, event.sessionId);
+        const fulfilment = await fulfillCheckout(c.env, secretKey, sessionId);
         c.get("log").info("billing.webhook_fulfilled", {
             event: event.type,
             status: fulfilment.status,

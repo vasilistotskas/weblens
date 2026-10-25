@@ -119,3 +119,40 @@ describe("CreditAccountDO ledger", () => {
             state.storage.sql.exec("UPDATE account SET balance_micros = -1 WHERE id = 1"))).rejects.toThrow(/CHECK constraint/u);
     });
 });
+
+describe("CreditAccountDO reversals", () => {
+    it("reverses a refund up to its cumulative target, once, and keeps the key while credit remains", async () => {
+        const { account, secret } = await funded("reverse-partial", 10_000_000);
+        await account.deposit("cs_test_more", 50_000_000, "pack");
+
+        expect(await account.reverseDeposit("cs_test_reverse-partial", 4_000_000, "refund")).toEqual({ reversedMicros: 4_000_000, shortfallMicros: 0, keysRevoked: false });
+        // A replay of the same cumulative refund reverses nothing more; a larger one only the difference.
+        expect(await account.reverseDeposit("cs_test_reverse-partial", 4_000_000, "refund")).toEqual({ reversedMicros: 0, shortfallMicros: 0, keysRevoked: false });
+        expect(await account.reverseDeposit("cs_test_reverse-partial", 99_000_000, "refund")).toEqual({ reversedMicros: 6_000_000, shortfallMicros: 0, keysRevoked: false });
+        expect((await account.summary(secret))?.balanceMicros).toBe(50_000_000);
+    });
+
+    it("records spent credit as a shortfall and revokes every key", async () => {
+        const { account, secret } = await funded("reverse-spent", 10_000_000);
+        await account.spend(secret, 7_000_000, "req_1", "calls");
+
+        expect(await account.reverseDeposit("cs_test_reverse-spent", 10_000_000, "refund")).toEqual({ reversedMicros: 3_000_000, shortfallMicros: 7_000_000, keysRevoked: true });
+        expect(await account.summary(secret)).toBeNull();
+        // Redelivered, it owes nothing more and moves nothing.
+        expect(await account.reverseDeposit("cs_test_reverse-spent", 10_000_000, "refund")).toEqual({ reversedMicros: 0, shortfallMicros: 0, keysRevoked: false });
+    });
+
+    it("revokes the keys on a dispute even when credit remains", async () => {
+        const { account, secret } = await funded("reverse-dispute", 10_000_000);
+        await account.deposit("cs_test_other", 50_000_000, "pack");
+
+        expect(await account.reverseDeposit("cs_test_reverse-dispute", 10_000_000, "dispute")).toEqual({ reversedMicros: 10_000_000, shortfallMicros: 0, keysRevoked: true });
+        expect(await account.summary(secret)).toBeNull();
+    });
+
+    it("reverses nothing for a deposit the account never received", async () => {
+        const { account } = await funded("reverse-unknown", 10_000_000);
+        expect(await account.reverseDeposit("cs_test_not_here", 10_000_000, "dispute")).toEqual({ reversedMicros: 0, shortfallMicros: 0, keysRevoked: false });
+        expect(await stub("reverse-never-created").reverseDeposit("cs_test_x", 10_000_000, "refund")).toEqual({ reversedMicros: 0, shortfallMicros: 0, keysRevoked: false });
+    });
+});
