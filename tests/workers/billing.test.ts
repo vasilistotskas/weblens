@@ -8,7 +8,7 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { STRIPE } from "../../src/config";
+import { STRIPE, WAITLIST } from "../../src/config";
 import { app } from "../../src/index";
 import { formatApiKey, newAccountId } from "../../src/services/accounts";
 import type { Env } from "../../src/types";
@@ -300,5 +300,43 @@ describe("refunds and disputes", () => {
         const res = await refunded(1150);
         expect(res.status).toBe(200);
         expect(await res.json()).toMatchObject({ ignored: "not a WebLens credit pack" });
+    });
+});
+
+describe("POST /billing/waitlist", () => {
+    function join(body: unknown, withStripe = false) {
+        return call("/billing/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, withStripe);
+    }
+
+    it("remembers an address once where card payments are not live", async () => {
+        const first = await join({ email: "Buyer@Example.com", pack: "50" });
+        expect(first.status).toBe(200);
+        expect(await first.json()).toMatchObject({ joined: true });
+        expect((await join({ email: "BUYER@example.com" })).status).toBe(200);
+
+        const keys = await env.CACHE?.list({ prefix: WAITLIST.kvPrefix });
+        const stored = await Promise.all((keys?.keys ?? []).map(async ({ name }) => JSON.parse(await env.CACHE?.get(name) ?? "{}") as Record<string, unknown>));
+        expect(stored.filter((entry) => entry.email === "buyer@example.com")).toEqual([
+            expect.objectContaining({ email: "buyer@example.com", pack: "50" }),
+        ]);
+        expect(stripeCalls).toEqual([]);
+    });
+
+    it("refuses an address that is not one", async () => {
+        expect((await join({ email: "not-an-email" })).status).toBe(400);
+    });
+
+    it("sends buyers to checkout once card payments are live", async () => {
+        expect((await join({ email: "later@example.com" }, true)).status).toBe(400);
+    });
+
+    it("the landing page offers the waitlist without cards and the packs with them", async () => {
+        const without = await (await call("/", { headers: { Accept: "text/html" } }, false)).text();
+        expect(without).toContain("joinWaitlist(event)");
+        expect(without).not.toContain("buyPack('10')");
+
+        const withCards = await (await call("/", { headers: { Accept: "text/html" } })).text();
+        expect(withCards).toContain("buyPack('10')");
+        expect(withCards).not.toContain("joinWaitlist(event)");
     });
 });

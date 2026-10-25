@@ -1,6 +1,8 @@
 /**
  * Buying prepaid credit by card, and the account a key opens.
  *
+ *   POST /billing/waitlist {email}  → where card payments are not live yet: remembers who wants to buy,
+ *                                     to be emailed once when they launch.
  *   POST /billing/checkout {pack}   → a Stripe Checkout URL (Managed Payments). With an API key in
  *                                     Authorization it tops that account up; without one it opens a
  *                                     new account.
@@ -19,10 +21,11 @@
 import type { Context } from "hono";
 import { html } from "hono/html";
 import type { z } from "zod";
-import { cardPaymentsEnabled, packPrice } from "../config";
+import { cardPaymentsEnabled, packPrice, WAITLIST } from "../config";
 import { createErrorResponse } from "../middleware/errorHandler";
-import type { CheckoutRequestSchema } from "../schemas";
+import type { CheckoutRequestSchema, WaitlistRequestSchema } from "../schemas";
 import { accountStub, formatApiKey, fulfillCheckout, newAccountId, parseApiKey, reverseCheckout } from "../services/accounts";
+import { hashContent } from "../services/crypto";
 import { formatMicros } from "../services/pricing";
 import { createCheckoutSession, ForeignCheckoutError, paymentReversal, stripeEvent, verifyStripeSignature } from "../services/stripe";
 import type { AppEnv } from "../types";
@@ -42,6 +45,31 @@ function noStore(c: Context<AppEnv>): void {
 
 function stripeUnavailable(c: Context<AppEnv>) {
     return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Card payments are not configured here yet.", c.get("requestId")), 503);
+}
+
+/**
+ * Remember an address that wants to buy by card. Only where card payments are off: once they are live,
+ * the buyer checks out instead. The address is stored as given (it is what the launch email goes to),
+ * keyed by its hash, and never logged.
+ */
+export async function waitlistHandler(c: Context<AppEnv>) {
+    const requestId = c.get("requestId");
+    if (cardPaymentsEnabled(c.env)) {
+        return c.json(createErrorResponse("INVALID_REQUEST", "Card payments are live: buy a pack with POST /billing/checkout.", requestId), 400);
+    }
+    const kv = c.env.CACHE;
+    if (!kv) {
+        return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "The waitlist is not available here.", requestId), 503);
+    }
+    const { email, pack } = c.get("validatedBody") as z.infer<typeof WaitlistRequestSchema>;
+    const address = email.toLowerCase();
+    const key = `${WAITLIST.kvPrefix}${await hashContent(address)}`;
+    const already = (await kv.get(key)) !== null;
+    if (!already) {
+        await kv.put(key, JSON.stringify({ email: address, pack: pack ?? null, joinedAt: new Date().toISOString() }));
+    }
+    c.get("log").info("billing.waitlist_joined", { pack, repeat: already });
+    return c.json({ joined: true, message: "Thanks. You will get one email when card payments launch, and nothing else.", requestId });
 }
 
 export async function checkoutHandler(c: Context<AppEnv>) {

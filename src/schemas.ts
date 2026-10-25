@@ -225,6 +225,12 @@ export const PdfRequestSchema = z.object({
 // System & Utility Endpoints
 // ============================================
 
+// Asking to hear when card payments launch (POST /billing/waitlist), where they are not live yet.
+export const WaitlistRequestSchema = z.object({
+    email: z.email().max(254).describe("Address for the one email sent when card payments launch"),
+    pack: z.enum(CREDIT_PACKS).optional().describe(`Pack you would buy: ${CREDIT_PACKS.map((pack) => pack).join(", ")}`),
+});
+
 // A prepaid pack bought by card (POST /billing/checkout).
 export const CheckoutRequestSchema = z.object({
     pack: z.enum(CREDIT_PACKS).describe(`Pack to buy, in USD at face value: ${CREDIT_PACKS.map((pack) => `$${pack}`).join(", ")}`),

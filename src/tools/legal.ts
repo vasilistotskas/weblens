@@ -115,6 +115,7 @@ export function privacyHandler(c: Context<AppEnv>) {
 <li>a ledger of purchases (Stripe Checkout Session ids) and calls (request ids and amounts).</li>
 </ul>
 We do not receive your card details. Link and Stripe process your name, email, card and billing address as merchant of record, under <a href="${LEGAL.stripePrivacy}">Stripe's privacy policy</a>.</li>
+<li><strong>Card payments waitlist</strong>: the email address you leave and the pack you picked. It is used once, to tell you card payments have launched, then deleted. Ask us and we delete it sooner.</li>
 <li><strong>Content you ask us to fetch</strong>: pages, queries and documents are processed only to answer your request, and cached only as described above.</li>
 </ul>
 <p>We set no cookies, run no advertising, and do not sell or profile personal data. No decisions about you are made by automated means.</p>
@@ -123,6 +124,7 @@ We do not receive your card details. Link and Stripe process your name, email, c
 <p>We process this data on these bases under the GDPR:</p>
 <ul>
 <li>performing our contract with you (Art. 6(1)(b));</li>
+<li>your consent, for the waitlist email (Art. 6(1)(a)), which you can withdraw at any time;</li>
 <li>our legitimate interest in keeping the service secure and free of abuse (Art. 6(1)(f));</li>
 <li>our legal obligations, such as keeping tax records (Art. 6(1)(c)).</li>
 </ul>

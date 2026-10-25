@@ -153,7 +153,17 @@ ${cards ? `
 <p style="color:#9ca3af;font-size:0.9rem">Buy a prepaid pack at face value, tax included, and get an API key, shown once after payment. Send it as <code>Authorization: Bearer &lt;key&gt;</code> on any paid endpoint. Credit never expires; unused credit is refundable for ${String(LEGAL.refundWindowDays)} days (<a href="${LEGAL.paths.refunds}">refund policy</a>). Sold through Link, which charges your card.</p>
 <div class="links">${CREDIT_PACKS.map((pack) => `<button class="link-btn" onclick="buyPack('${pack}')">Buy ${packPrice(pack)}</button>`).join("")}</div>
 <p id="buy-status" style="color:#9ca3af;font-size:0.85rem;text-align:center"></p>
-</section>` : ""}
+</section>` : `
+<section>
+<h2>Prefer a Card?</h2>
+<p style="color:#9ca3af;font-size:0.9rem">Prepaid packs by card are coming: ${CREDIT_PACKS.map((pack) => packPrice(pack)).join(" / ")}, tax included, credit that never expires, one API key. Leave your email and we write once, when you can buy. Nothing else.</p>
+<form class="try-box" onsubmit="joinWaitlist(event)">
+<input id="waitlist-email" type="email" required maxlength="254" placeholder="you@company.com" autocomplete="email">
+<select id="waitlist-pack" aria-label="Pack" style="background:#1a1a1a;border:1px solid #444;border-radius:8px;color:#fff;padding:0 0.5rem">${CREDIT_PACKS.map((pack) => `<option value="${pack}">${packPrice(pack)}</option>`).join("")}</select>
+<button type="submit">Notify me</button>
+</form>
+<p id="waitlist-status" style="color:#9ca3af;font-size:0.85rem;text-align:center">See the <a href="${LEGAL.paths.privacy}">privacy policy</a>.</p>
+</section>`}
 
 <div class="links">
 <a class="link-btn" href="${baseUrl}/docs">API Docs</a>
@@ -185,6 +195,15 @@ r.textContent=d.content||JSON.stringify(d,null,2);
 }catch(e){r.textContent="Error: "+e.message}
 }
 document.getElementById("url-input").addEventListener("keydown",function(e){if(e.key==="Enter")tryFetch()});
+async function joinWaitlist(e){
+e.preventDefault();
+var s=document.getElementById("waitlist-status");
+try{
+var res=await fetch("/billing/waitlist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:document.getElementById("waitlist-email").value,pack:document.getElementById("waitlist-pack").value})});
+var d=await res.json();
+s.textContent=res.ok?d.message:"Error: "+(d.message||d.error);
+}catch(err){s.textContent="Error: "+err.message}
+}
 async function buyPack(pack){
 var s=document.getElementById("buy-status");
 s.textContent="Opening Stripe Checkout...";

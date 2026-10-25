@@ -157,6 +157,14 @@ export function packPrice(pack: CreditPack): string {
 }
 
 /**
+ * Where card payments are not live (production until the user's business registration), the landing
+ * page collects emails of people who want to buy a pack, to measure demand before registering (user
+ * decision 2026-10-25). One KV entry per address, keyed by its SHA-256 so a repeat sign-up is not
+ * counted twice; count them with `wrangler kv key list --binding CACHE --prefix waitlist: --remote`.
+ */
+export const WAITLIST = { kvPrefix: "waitlist:" } as const;
+
+/**
  * Stripe Checkout with Managed Payments: Link is the merchant of record and
  * handles VAT, sales tax, invoices and disputes. Verified 2026-10-20 against
  * docs.stripe.com/payments/managed-payments: it needs API version

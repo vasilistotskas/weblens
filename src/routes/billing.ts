@@ -1,7 +1,7 @@
 import type { Context, Hono, Next } from "hono";
 import { createErrorResponse } from "../middleware/errorHandler";
 import { validateRequest } from "../middleware/validation";
-import { CheckoutRequestSchema } from "../schemas";
+import { CheckoutRequestSchema, WaitlistRequestSchema } from "../schemas";
 import { parseApiKey } from "../services/accounts";
 import {
     accountHandler,
@@ -10,11 +10,13 @@ import {
     rotateKeyHandler,
     stripeWebhookHandler,
     successPageHandler,
+    waitlistHandler,
 } from "../tools/billing";
 import type { AppEnv } from "../types";
 
 /**
- * Each checkout opens a Stripe Checkout Session and each rotation issues a key, so both are limited
+ * Each checkout opens a Stripe Checkout Session, each rotation issues a key and each waitlist sign-up
+ * writes to KV, so all three are limited
  * (BILLING_LIMITER, wrangler.toml): by the account of a key when one is sent, otherwise by the client IP,
  * the only identity a first-time buyer has.
  */
@@ -32,6 +34,7 @@ async function billingRateLimit(c: Context<AppEnv>, next: Next) {
 /** Prepaid packs by card and the account an API key opens (see tools/billing.ts). */
 export function registerBillingRoutes(app: Hono<AppEnv>): void {
     app.post("/billing/checkout", billingRateLimit, validateRequest(CheckoutRequestSchema), checkoutHandler);
+    app.post("/billing/waitlist", billingRateLimit, validateRequest(WaitlistRequestSchema), waitlistHandler);
     app.get("/billing/success", successPageHandler);
     app.get("/billing/cancel", cancelPageHandler);
     // Signature-verified against the raw body, so it skips JSON validation.
