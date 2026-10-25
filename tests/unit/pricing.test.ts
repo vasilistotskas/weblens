@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
-import { PRICING } from '../../src/config';
-import { calculatePrice, getComplexityMultiplier } from '../../src/services/pricing';
+import { PRICING, SEARCH_PROVIDERS } from '../../src/config';
+import { calculatePrice, getComplexityMultiplier, usdToMicros } from '../../src/services/pricing';
 
 describe('Pricing Service', () => {
     describe('getComplexityMultiplier', () => {
@@ -42,5 +42,20 @@ describe('Pricing Service', () => {
             expect(calculatedInfo).toBeGreaterThan(basePrice);
         });
 
+    });
+});
+
+describe('Serper-backed search prices', () => {
+    // Serper charges up to serperMaxCreditsPerCall credits for one search WebLens sells (shopping, images,
+    // or a second page of results); a price under twice that would leave no room for Workers and settle fees.
+    const worstCaseMicros = SEARCH_PROVIDERS.serperCreditUsd * SEARCH_PROVIDERS.serperMaxCreditsPerCall * 1_000_000;
+    const { trends: _serpApi, ...serperVerticals } = PRICING.searchVerticals;
+
+    it.each(Object.entries({ search: PRICING.search, ...serperVerticals }))('%s (%s) is at least twice its worst-case Serper cost', (_name, price) => {
+        expect(usdToMicros(price)).toBeGreaterThanOrEqual(2 * worstCaseMicros);
+    });
+
+    it('trends stays above its SerpAPI cost', () => {
+        expect(usdToMicros(PRICING.searchVerticals.trends)).toBeGreaterThan(SEARCH_PROVIDERS.serpApiCallUsd * 1_000_000);
     });
 });

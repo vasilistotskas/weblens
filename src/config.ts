@@ -38,17 +38,20 @@ export const PRICING = {
     pro: "$0.006",
   },
   // Search and its verticals run on Serper: 1-2 credits a call (shopping 2,
-  // images 2 above 10 results), so $0.001-0.002 upstream. The $0.015 prices
-  // were set when every search cost $0.009-0.015 on SerpAPI; repricing is a
-  // separate decision.
-  search: "$0.015",
+  // images and any second page 2), so $0.001-0.002 upstream. Repriced from
+  // $0.015 (set when SerpAPI served them at $0.009-0.015 a call) on 2026-10-25
+  // by user delegation: $0.005 is 2.5x the worst case and matches Exa's
+  // per-search price; autocomplete (always 1 credit) sits at the x402 floor.
+  // tests/unit/pricing.test.ts keeps every Serper-backed price >= 2x its worst
+  // case.
+  search: "$0.005",
   searchVerticals: {
-    news: "$0.015",
-    images: "$0.015",
+    news: "$0.005",
+    images: "$0.005",
     places: "$0.045",   // market anchor: StableEnrich sells Maps-backed places at $0.045
-    shopping: "$0.015",
-    scholar: "$0.015",
-    autocomplete: "$0.015",
+    shopping: "$0.005",
+    scholar: "$0.005",
+    autocomplete: "$0.004",
     // Market anchor: x402atlas sells the same interest-over-time series at
     // $0.05, the most-paid web-data endpoint on the CDP Bazaar (1,138
     // calls in the 30 days to 2026-10-13). One SerpAPI call upstream.

@@ -3,7 +3,7 @@
  * Fetches webpage with full JavaScript rendering (pro tier)
  * 
  * Requirements: 2.2, 2.4, 2.5
- * - Price: $0.015
+ * - Price: PRICING.fetch.pro
  * - Full JS rendering using Cloudflare Browser Rendering
  * - Waits for page to fully load including dynamic content
  * - Includes tier metadata in response

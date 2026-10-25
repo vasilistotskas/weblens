@@ -101,14 +101,14 @@ All paid endpoints are `POST` with a JSON body. Prices are per request in USDC.
 
 | Endpoint | Description | Price |
 |----------|-------------|-------|
-| `/search` | Real-time web search (`includeContent` adds page markdown, +$0.0015/result) | $0.015 |
-| `/search/news` | Google News articles with source and date | $0.015 |
-| `/search/images` | Image results with dimensions and source pages | $0.015 |
+| `/search` | Real-time web search (`includeContent` adds page markdown, +$0.0015/result) | $0.005 |
+| `/search/news` | Google News articles with source and date | $0.005 |
+| `/search/images` | Image results with dimensions and source pages | $0.005 |
 | `/search/places` | Local businesses: address, rating, phone, coordinates | $0.045 |
-| `/search/shopping` | Products with prices, sellers, ratings | $0.015 |
-| `/search/scholar` | Academic papers with citation counts | $0.015 |
-| `/search/autocomplete` | Query suggestions (keyword/intent research) | $0.015 |
-| `/search/trends` | Interest-over-time timeline | $0.015 |
+| `/search/shopping` | Products with prices, sellers, ratings | $0.005 |
+| `/search/scholar` | Academic papers with citation counts | $0.005 |
+| `/search/autocomplete` | Query suggestions (keyword/intent research) | $0.004 |
+| `/search/trends` | Interest-over-time timeline | $0.04 |
 
 ### Social
 
