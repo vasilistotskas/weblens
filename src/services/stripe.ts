@@ -67,6 +67,7 @@ export async function createCheckoutSession(params: {
         "line_items[0][price_data][unit_amount]": String(packCents(params.pack)),
         "line_items[0][price_data][product_data][name]": `${STRIPE.productName} (${packPrice(params.pack)})`,
         "line_items[0][price_data][product_data][tax_code]": STRIPE.taxCode,
+        "line_items[0][price_data][tax_behavior]": STRIPE.taxBehavior,
         client_reference_id: params.accountId,
         "metadata[pack]": params.pack,
         success_url: params.successUrl,

@@ -36,7 +36,7 @@ export function termsHandler(c: Context<AppEnv>) {
 <p><strong>Prepaid API keys.</strong> You can buy a prepaid credit pack by card.</p>
 <ul>
 <li>Card purchases are sold through Link (Sold through Link, LLC, Stripe's affiliate), which is the merchant of record. Link charges your card, issues the receipt and invoice, and handles taxes. <a href="${LEGAL.linkTerms}">Link's terms</a> govern the purchase.</li>
-<li>Credit is in US dollars at face value: a $10 pack buys $10 of calls. Credit does not expire.</li>
+<li>Pack prices include any VAT or sales tax. Credit is in US dollars at face value: a $10 pack costs $10 and buys $10 of calls. Credit does not expire.</li>
 <li>Credit is not money and earns no interest. It cannot be transferred, and it cannot be exchanged for cash except under our <a href="${LEGAL.paths.refunds}">refund policy</a>.</li>
 <li>Each call debits its listed price. The <code>Credit-Cost</code> and <code>Credit-Balance</code> response headers show the amount charged and what remains.</li>
 <li>A call that fails, with an error response, is credited back automatically.</li>

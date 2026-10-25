@@ -168,6 +168,12 @@ export const STRIPE = {
   apiVersion: "2026-09-30.endive",
   /** Website Information Services - Business Use, eligible for Managed Payments. */
   taxCode: "txcd_10701400",
+  /**
+   * Pack prices include any VAT or sales tax, so a $10 pack costs the buyer $10 everywhere (user decision
+   * 2026-10-25); WebLens nets less where tax applies. Managed Payments accepts it: a sandbox checkout with
+   * a Greek address totalled $10.00 with $1.94 VAT inside (2026-10-25). Without it tax is added on top.
+   */
+  taxBehavior: "inclusive",
   productName: "WebLens API credits",
   timeoutMs: 15_000,
   /** Stripe's default webhook signature tolerance. */

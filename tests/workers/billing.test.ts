@@ -116,6 +116,7 @@ describe("POST /billing/checkout", () => {
             "line_items[0][price_data][currency]": "usd",
             "line_items[0][price_data][unit_amount]": "5000",
             "line_items[0][price_data][product_data][tax_code]": STRIPE.taxCode,
+            "line_items[0][price_data][tax_behavior]": "inclusive",
             "metadata[pack]": "50",
             success_url: `${ORIGIN}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${ORIGIN}/billing/cancel`,
