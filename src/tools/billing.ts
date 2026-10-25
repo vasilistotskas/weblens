@@ -161,7 +161,7 @@ export async function stripeWebhookHandler(c: Context<AppEnv>) {
     if (reversal) {
         try {
             const result = await reverseCheckout(c.env, secretKey, reversal);
-            c.get("log").warn("billing.payment_reversed", { event: event.type, ...result });
+            c.get("log").warn("billing.payment_reversed", { stripeEvent: event.type, ...result });
             return c.json({ received: true, status: "reversed", requestId });
         } catch (error) {
             if (error instanceof ForeignCheckoutError) {
@@ -181,7 +181,7 @@ export async function stripeWebhookHandler(c: Context<AppEnv>) {
     try {
         const fulfilment = await fulfillCheckout(c.env, secretKey, sessionId);
         c.get("log").info("billing.webhook_fulfilled", {
-            event: event.type,
+            stripeEvent: event.type,
             status: fulfilment.status,
             account: fulfilment.accountId,
             duplicate: fulfilment.status === "credited" ? fulfilment.duplicate : false,

@@ -58,7 +58,8 @@ export function createLogger(
 
     const emit = (level: LogLevel, event: string, fields?: Record<string, unknown>): void => {
         if (ORDER[level] < threshold) { return; }
-        const line = JSON.stringify({ level, event, ...base, ...fields, ts: new Date().toISOString() });
+        // The record's own keys come last: a field named `level`, `event` or `ts` must not rename the line.
+        const line = JSON.stringify({ ...base, ...fields, level, event, ts: new Date().toISOString() });
         if (level === "error") { console.error(line); }
         else if (level === "warn") { console.warn(line); }
         else { console.log(line); }
