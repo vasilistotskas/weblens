@@ -50,6 +50,11 @@ function normalizeLevel(level: string | undefined): LogLevel | "silent" {
  * Create a structured logger. `minLevel` gates output; `base` fields are merged
  * into every line.
  */
+/** An error's message, or the thrown value as text, for a log field. */
+export function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 export function createLogger(
     minLevel: LogLevel | "silent" = "info",
     base: Record<string, unknown> = {},

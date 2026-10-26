@@ -1,4 +1,5 @@
 import { createFacilitatorConfig } from "@coinbase/x402";
+import { x402Version } from "@x402/core";
 import type { FacilitatorConfig } from "@x402/core/http";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import type { RoutesConfig } from "@x402/core/server";
@@ -25,12 +26,15 @@ import {
 } from "../services/payment-telemetry";
 import type { FacilitatorLabel } from "../services/payment-telemetry";
 import type { AppEnv, Env } from "../types";
-import { createLogger } from "../utils/logger";
+import { createLogger, errorMessage } from "../utils/logger";
 
 // Module-level logger for init-time wiring and facilitator hooks, which run
 // outside any request context (no Hono `c` available). Per-request price logs
 // use the request-scoped logger via `c.get("log")`.
 const log = createLogger();
+
+/** The x402 scheme every WebLens payment option uses, on every network. */
+const EXACT_SCHEME = "exact";
 
 // ============================================
 // Resource Server Cache (env-signature keyed)
@@ -42,7 +46,22 @@ const log = createLogger();
 // includes every env field that influences facilitator wiring — including a
 // short fingerprint of the CDP secret so rotating only the secret (without
 // the key id) still invalidates the cache.
-const resourceServerCache = new Map<string, x402ResourceServer>();
+//
+// `ready` is the server's one `/supported` sync. Route middlewares are built
+// with `syncFacilitatorOnStart = false` and await it instead: @x402/hono's own
+// start-up sync calls `initialize()` once per middleware, and `initialize()`
+// empties the server's supported-kinds map before refilling it, so concurrent
+// first requests on different routes — and every dynamically priced request,
+// which builds a middleware each time — could validate their route against an
+// empty map. That threw RouteConfigurationError ("Facilitator does not support
+// scheme \"exact\" on network \"eip155:8453\"") into @x402/core's background
+// handler, which calls process.exit(1) and cancels the request (~10 a day in
+// the 10% production log sample, 2026-10-25).
+interface PaymentServer {
+    server: x402ResourceServer;
+    ready: Promise<void>;
+}
+const resourceServerCache = new Map<string, PaymentServer>();
 
 /** Short non-cryptographic fingerprint of a string, used only for cache keys. */
 function fingerprint(value: string | undefined): string {
@@ -180,11 +199,25 @@ export function facilitatorNames(env: Env): string {
 }
 
 /**
- * Get or create the x402 resource server for the given env. Cached per env
- * signature so the cost of `httpServer.initialize()` (one network call to
- * `/supported`) is paid once per distinct facilitator config, not per request.
+ * Fetch `/supported` once and check that a facilitator serves every network we
+ * take payments on. A facilitator can answer `/supported` without one of them;
+ * the route would then have no payment option, so that counts as a failed sync.
  */
-function getResourceServer(env: Env): x402ResourceServer {
+async function syncSupported(server: x402ResourceServer, networks: readonly `${string}:${string}`[]): Promise<void> {
+    await server.initialize();
+    const missing = networks.filter((network) => !server.getSupportedKind(x402Version, network, EXACT_SCHEME));
+    if (missing.length > 0) {
+        throw new Error(`No facilitator advertises "${EXACT_SCHEME}" on ${missing.join(", ")}`);
+    }
+}
+
+/**
+ * Get or create the x402 resource server for the given env, with its one
+ * `/supported` sync. Cached per env signature so the sync is paid once per
+ * distinct facilitator config, not per request; a failed sync drops the entry
+ * (and every middleware built on it), so the next request syncs again.
+ */
+function getResourceServer(env: Env): PaymentServer {
     const key = envSignature(env);
     const cached = resourceServerCache.get(key);
     if (cached) {return cached;}
@@ -245,23 +278,35 @@ function getResourceServer(env: Env): x402ResourceServer {
         return Promise.resolve();
     });
 
-    resourceServerCache.set(key, server);
-
     for (const { family, skipped } of plans) {
         if (skipped.length > 0) {
             log.warn("x402.facilitator_skipped", { family, skipped: skipped.join(", "), reason: "credentials not set" });
         }
     }
 
-    log.info("x402.init_ready", {
-        network: evmCaip2,
-        svmNetwork: svmCaip2 ?? "disabled",
-        // Order tried per family, e.g. "eip155: cdp > payai; solana: payai".
-        facilitators: plans.map(({ family, facilitators }) => `${family}: ${facilitators.map(({ label }) => label).join(" > ")}`).join("; "),
-        payaiApiKey: Boolean(env.PAYAI_API_KEY_ID && env.PAYAI_API_KEY_SECRET),
-    });
-
-    return server;
+    const entry: PaymentServer = {
+        server,
+        ready: syncSupported(server, svmCaip2 ? [evmCaip2, svmCaip2] : [evmCaip2]).then(
+            () => {
+                log.info("x402.init_ready", {
+                    network: evmCaip2,
+                    svmNetwork: svmCaip2 ?? "disabled",
+                    // Order tried per family, e.g. "eip155: cdp > payai; solana: payai".
+                    facilitators: plans.map(({ family, facilitators }) => `${family}: ${facilitators.map(({ label }) => label).join(" > ")}`).join("; "),
+                    payaiApiKey: Boolean(env.PAYAI_API_KEY_ID && env.PAYAI_API_KEY_SECRET),
+                });
+            },
+            (error: unknown) => {
+                log.warn("x402.init_failed", { reason: errorMessage(error) });
+                if (resourceServerCache.get(key) === entry) {
+                    evictPaymentCaches(env);
+                }
+                throw error;
+            },
+        ),
+    };
+    resourceServerCache.set(key, entry);
+    return entry;
 }
 
 // ============================================
@@ -314,14 +359,14 @@ function createPaymentConfig(
             // that chain's USDC atomic units through its own parsePrice.
             accepts: [
                 {
-                    scheme: "exact" as const,
+                    scheme: EXACT_SCHEME,
                     price,
                     network: networkCaip2,
                     payTo: destinationAddress,
                 },
                 ...(svmTarget
                     ? [{
-                        scheme: "exact" as const,
+                        scheme: EXACT_SCHEME,
                         price,
                         network: svmTarget.network,
                         payTo: svmTarget.payTo,
@@ -355,12 +400,10 @@ const middlewareCache = new Map<string, MiddlewareHandler<AppEnv>>();
 /**
  * Drop every cached payment object for this env.
  *
- * Called when the payment wall fails before the handler runs. Clearing the
- * whole middleware cache — not just the failing route — is deliberate: each
- * cached middleware closes over the resource server we are evicting *and* over
- * its own latched `isInitialized` flag, so every one of them is poisoned by
- * the same bad `/supported` sync. Evicting only the failing route would leave
- * each remaining route to serve one 5xx of its own before healing.
+ * Called when the `/supported` sync fails or the payment wall fails before the
+ * handler runs. Clearing the whole middleware cache — not just the failing
+ * route — is deliberate: every cached middleware closes over the resource
+ * server we are evicting, so each would otherwise keep serving from it.
  */
 function evictPaymentCaches(env: Env): void {
     resourceServerCache.delete(envSignature(env));
@@ -432,7 +475,9 @@ export function createLazyPaymentMiddleware(
                 svmTarget,
                 catalog
             );
-            return paymentMiddleware(config, getResourceServer(env)) as MiddlewareHandler<AppEnv>;
+            // syncFacilitatorOnStart = false: the wall awaits the server's one
+            // shared sync (`ready`) instead of starting its own (see PaymentServer).
+            return paymentMiddleware(config, getResourceServer(env).server, undefined, undefined, false) as MiddlewareHandler<AppEnv>;
         };
 
         let middleware = cacheKey ? middlewareCache.get(cacheKey) : undefined;
@@ -452,6 +497,13 @@ export function createLazyPaymentMiddleware(
         // ran AND status is 5xx" cleanly separates a payment-wall failure from
         // a handler that ran and failed on its own.
         const run = async (mw: MiddlewareHandler<AppEnv>) => {
+            // The wall cannot build a payment challenge before `/supported` is synced.
+            // A failed sync already evicted the caches, so the retry below syncs again.
+            try {
+                await getResourceServer(env).ready;
+            } catch {
+                return { response: undefined, wallFailed: true };
+            }
             // Held on an object, not a `let`: TypeScript does not track
             // assignments made inside a callback, so a plain local would stay
             // narrowed to its `false` initializer and make the check below a
@@ -477,14 +529,10 @@ export function createLazyPaymentMiddleware(
                 return { response: first.response, wallUnavailable: false };
             }
 
-            // The wall failed before the handler. The cause we actually see in
-            // production is a facilitator whose /supported response omitted our
-            // scheme/network: `initialize()` then resolves "successfully" with no
-            // supported kind, @x402/hono latches `isInitialized = true` for the
-            // life of that closure, and every later request throws out of
-            // buildPaymentRequirements. A momentary facilitator blip therefore
-            // poisons the isolate until it is recycled, turning 402 challenges
-            // into 500s. Drop the caches so the next request re-syncs /supported.
+            // The wall failed before the handler: the `/supported` sync failed
+            // (a facilitator unreachable, or answering without one of our
+            // networks), or building the challenge threw. Drop the caches so
+            // the next attempt syncs `/supported` again.
             evictPaymentCaches(env);
             c.get("log").warn("x402.wall_failure", { path, price });
 

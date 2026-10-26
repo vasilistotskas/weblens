@@ -28,7 +28,7 @@ import type {
 } from "@x402/core/types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "@x402/svm";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { mask } from "../utils/logger";
+import { errorMessage, mask } from "../utils/logger";
 import type { Logger } from "../utils/logger";
 import { isRecord } from "../utils/narrow";
 
@@ -137,10 +137,6 @@ function noteRequirements(attempt: PaymentAttempt, requirements: Readonly<Paymen
     attempt.network = requirements.network;
     attempt.scheme = requirements.scheme;
     attempt.amount = requirements.amount;
-}
-
-function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
 }
 
 // ---- Hook recorders (called from the x402ResourceServer hooks) ----

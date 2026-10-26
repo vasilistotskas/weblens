@@ -30,6 +30,7 @@ import { formatMicros } from "../services/pricing";
 import { createCheckoutSession, ForeignCheckoutError, paymentReversal, stripeEvent, verifyStripeSignature } from "../services/stripe";
 import type { AppEnv } from "../types";
 import { htmlPage } from "../utils/html-page";
+import { errorMessage } from "../utils/logger";
 import { str } from "../utils/narrow";
 
 /** Stripe Checkout Session ids look like cs_test_… / cs_live_…. */
@@ -109,7 +110,7 @@ export async function checkoutHandler(c: Context<AppEnv>) {
             requestId,
         });
     } catch (error) {
-        c.get("log").error("billing.checkout_failed", { error: error instanceof Error ? error.message : String(error) });
+        c.get("log").error("billing.checkout_failed", { error: errorMessage(error) });
         return c.json(createErrorResponse("SERVICE_UNAVAILABLE", "Could not open a Stripe Checkout; try again shortly.", requestId, 5), 503);
     }
 }
@@ -129,7 +130,7 @@ export async function successPageHandler(c: Context<AppEnv>) {
     try {
         fulfilment = await fulfillCheckout(c.env, secretKey, sessionId);
     } catch (error) {
-        c.get("log").error("billing.success_fulfil_failed", { error: error instanceof Error ? error.message : String(error) });
+        c.get("log").error("billing.success_fulfil_failed", { error: errorMessage(error) });
         const status = error instanceof ForeignCheckoutError ? 400 : 502;
         return c.html(htmlPage("We could not confirm this payment yet", html`<p>Reload this page in a minute. If you were charged, the credit is added automatically as soon as Stripe confirms the payment.</p>`), status);
     }
@@ -195,7 +196,7 @@ export async function stripeWebhookHandler(c: Context<AppEnv>) {
             if (error instanceof ForeignCheckoutError) {
                 return c.json({ received: true, ignored: "not a WebLens credit pack", requestId });
             }
-            c.get("log").error("billing.webhook_reversal_failed", { error: error instanceof Error ? error.message : String(error) });
+            c.get("log").error("billing.webhook_reversal_failed", { error: errorMessage(error) });
             // A 5xx makes Stripe retry; the ledger keeps the retry from reversing twice.
             return c.json(createErrorResponse("INTERNAL_ERROR", "Reversal failed; Stripe will retry.", requestId), 500);
         }
@@ -219,7 +220,7 @@ export async function stripeWebhookHandler(c: Context<AppEnv>) {
         if (error instanceof ForeignCheckoutError) {
             return c.json({ received: true, ignored: "not a WebLens credit pack", requestId });
         }
-        c.get("log").error("billing.webhook_fulfil_failed", { error: error instanceof Error ? error.message : String(error) });
+        c.get("log").error("billing.webhook_fulfil_failed", { error: errorMessage(error) });
         // A 5xx makes Stripe retry; the session id keeps the retry from crediting twice.
         return c.json(createErrorResponse("INTERNAL_ERROR", "Fulfilment failed; Stripe will retry.", requestId), 500);
     }

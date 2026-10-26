@@ -17,6 +17,7 @@ import type { FetchRequestSchema } from "../schemas";
 import { validateURL } from "../services/validator";
 import type { AppEnv, FetchResponse } from "../types";
 import { hardenPage } from "../utils/browser-guard";
+import { errorMessage } from "../utils/logger";
 import { htmlToMarkdown, extractMetadata } from "../utils/parser";
 
 export interface FetchProResult {
@@ -62,16 +63,16 @@ async function fetchProPageWithRetry(
   try {
     return await fetchProPageInternal(browserBinding, url, timeout, waitFor);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
 
     // Check if it's a retryable error (timeout, network, rate limit)
     const isRetryable =
-      errorMessage.includes("timeout") ||
-      errorMessage.includes("Timeout") ||
-      errorMessage.includes("aborted") ||
-      errorMessage.includes("429") ||
-      errorMessage.includes("Rate limit") ||
-      errorMessage.includes("net::");
+      message.includes("timeout") ||
+      message.includes("Timeout") ||
+      message.includes("aborted") ||
+      message.includes("429") ||
+      message.includes("Rate limit") ||
+      message.includes("net::");
 
     if (isRetryable && retryCount < maxRetries) {
       // Exponential backoff: 1s, 2s
@@ -119,10 +120,10 @@ async function fetchProPageInternal(
         timeout,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
 
       // If networkidle0 times out, try a less strict strategy
-      if (errorMessage.includes("timeout") || errorMessage.includes("Timeout")) {
+      if (message.includes("timeout") || message.includes("Timeout")) {
         await page.goto(url, {
           waitUntil: "domcontentloaded",
           timeout: timeout / 2,

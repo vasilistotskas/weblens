@@ -9,6 +9,7 @@ import puppeteer from "@cloudflare/puppeteer";
 import { VIEWPORT_BOUNDS, TIMEOUT_CONFIG } from "../config";
 import type { ScreenshotRequest } from "../types";
 import { hardenPage } from "../utils/browser-guard";
+import { errorMessage } from "../utils/logger";
 
 interface ScreenshotResult {
   image: string;  // Base64-encoded PNG
@@ -80,10 +81,10 @@ async function captureScreenshotWithRetry(
   try {
     return await captureScreenshotInternal(browserBinding, request);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
 
     // Check if it's a rate limit error (429)
-    const isRateLimit = errorMessage.includes("429") || errorMessage.includes("Rate limit");
+    const isRateLimit = message.includes("429") || message.includes("Rate limit");
 
     if (isRateLimit && retryCount < maxRetries) {
       // Exponential backoff: 2s, 4s, 8s

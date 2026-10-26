@@ -18,6 +18,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { accountStub, parseApiKey } from "../services/accounts";
 import { formatMicros, usdToMicros } from "../services/pricing";
 import type { AppEnv } from "../types";
+import { errorMessage } from "../utils/logger";
 import { createErrorResponse } from "./errorHandler";
 
 /** Where a buyer tops up, relative to the API origin. */
@@ -80,7 +81,7 @@ export function createApiKeyMiddleware(
                 log.error("apikey.refund_failed", {
                     account: key.accountId,
                     price,
-                    error: error instanceof Error ? error.message : String(error),
+                    error: errorMessage(error),
                 });
             }
         };

@@ -24,6 +24,7 @@ import type {
     SupportedResponse,
     VerifyResponse,
 } from "@x402/core/types";
+import { errorMessage } from "../utils/logger";
 import type { Logger } from "../utils/logger";
 import { noteFallback as recordFallback } from "./payment-telemetry";
 import type { FacilitatorLabel, TrackedFacilitatorClient } from "./payment-telemetry";
@@ -64,10 +65,6 @@ export function parseFacilitatorOrder(family: NetworkFamily, value: string | und
 
 function inFamily(network: string, family: NetworkFamily): boolean {
     return network.startsWith(`${family}:`);
-}
-
-function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
 }
 
 export class FacilitatorChain implements FacilitatorClient {
